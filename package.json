@@ -9,10 +9,13 @@
     "dev": "vite dev --port 3000",
     "generate-routes": "tsr generate",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "pnpm run build && wrangler dev",
     "lint": "eslint",
     "format": "prettier --write . && eslint --fix",
-    "check": "prettier --check ."
+    "check": "prettier --check .",
+    "wrangler": "wrangler",
+    "deploy": "pnpm run build && wrangler deploy",
+    "cf-typegen": "wrangler types"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -42,6 +45,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.54.9",
     "@rolldown/plugin-babel": "^0.2.3",
     "@tanstack/devtools-vite": "latest",
     "@tanstack/eslint-config": "latest",
@@ -55,7 +59,8 @@
     "prettier": "^3.8.1",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
-    "vite-plugin-svgr": "^5.2.0"
+    "vite-plugin-svgr": "^5.2.0",
+    "wrangler": "^4.131.2"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
