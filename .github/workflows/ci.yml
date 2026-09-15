@@ -1,4 +1,4 @@
-name: CI/CD pipeline
+name: CI/CD Pipeline
 
 on:
   push:
@@ -24,8 +24,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
-        with:
-          version: 12
 
       - name: Setup Node.js 24
         uses: actions/setup-node@v7
@@ -60,8 +58,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
-        with:
-          version: 12
 
       - name: Setup Node.js 24
         uses: actions/setup-node@v7
@@ -87,6 +83,8 @@ jobs:
 
       - name: Run Gitleaks secret scanner
         uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   codeql-analysis:
     name: CodeQL Security Analysis (SAST)
@@ -123,8 +121,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
-        with:
-          version: 12
 
       - name: Setup Node.js 24
         uses: actions/setup-node@v7
