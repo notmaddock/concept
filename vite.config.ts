@@ -7,7 +7,7 @@ import viteReact, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
-import { cloudflare } from "@cloudflare/vite-plugin";
+import { cloudflare } from '@cloudflare/vite-plugin'
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
@@ -20,9 +20,9 @@ const config = defineConfig({
     svgr(),
     cloudflare({
       viteEnvironment: {
-        name: "ssr"
-      }
-    })
+        name: 'ssr',
+      },
+    }),
   ],
 })
 
