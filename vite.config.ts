@@ -7,6 +7,7 @@ import viteReact, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
+import svgr from 'vite-plugin-svgr'
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
@@ -17,6 +18,7 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
     babel({ presets: [reactCompilerPreset()] }),
+    svgr()
   ],
 })
 
