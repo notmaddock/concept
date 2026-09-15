@@ -113,6 +113,7 @@ jobs:
   deploy:
     name: Deploy to Cloudflare Workers
     needs: [code-quality, security-audit, secret-scan, codeql-analysis]
+    needs: [code-quality, security-audit, secret-scan]
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: production
