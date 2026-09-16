@@ -1,3 +1,4 @@
+import { Editor } from '#/components/editor/Editor'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/new/')({
@@ -5,5 +6,7 @@ export const Route = createFileRoute('/new/')({
 })
 
 function RouteComponent() {
-  return <div>Hello "/new/"!</div>
+  return <main className='fixed inset-0'>
+    <Editor />
+  </main>
 }
