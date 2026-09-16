@@ -1,4 +1,3 @@
-// SuggestionMenu.tsx
 import {
   forwardRef,
   useEffect,
@@ -13,10 +12,12 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
+import { exitSuggestion } from '@tiptap/suggestion'
 import type {
   SuggestionKeyDownProps,
   SuggestionProps,
 } from '@tiptap/suggestion'
+import { X } from 'lucide-react'
 import type { SlashCommandItem } from '../extensions/commands'
 
 export interface SuggestionMenuRef {
@@ -33,31 +34,36 @@ export const SuggestionMenu = forwardRef<
   useEffect(() => setSelectedIndex(0), [props.items])
 
   useEffect(() => {
-    const itemEl = listRef.current?.querySelector<HTMLElement>(
-      `[data-index="${selectedIndex}"]`,
-    )
-    itemEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-  }, [selectedIndex])
+    if (selectedIndex < props.items.length) {
+      const itemEl = listRef.current?.querySelector<HTMLElement>(
+        `[data-index="${selectedIndex}"]`,
+      )
+      itemEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
+  }, [selectedIndex, props.items.length])
+
+  const closeMenu = () => {
+    exitSuggestion(props.editor.view)
+  }
 
   const select = (i: number) => {
     if (i >= 0 && i < props.items.length) {
       props.command(props.items[i])
+    } else if (i === props.items.length) {
+      closeMenu()
     }
   }
 
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }: SuggestionKeyDownProps) => {
+      const totalCount = props.items.length + 1
       if (event.key === 'ArrowDown') {
-        setSelectedIndex((i) =>
-          props.items.length ? (i + 1) % props.items.length : 0,
-        )
+        setSelectedIndex((i) => (totalCount ? (i + 1) % totalCount : 0))
         return true
       }
       if (event.key === 'ArrowUp') {
         setSelectedIndex((i) =>
-          props.items.length
-            ? (i - 1 + props.items.length) % props.items.length
-            : 0,
+          totalCount ? (i - 1 + totalCount) % totalCount : 0,
         )
         return true
       }
@@ -69,7 +75,10 @@ export const SuggestionMenu = forwardRef<
     },
   }))
 
-  const activeValue = props.items[selectedIndex]?.title
+  const activeValue =
+    selectedIndex === props.items.length
+      ? 'Close menu'
+      : props.items[selectedIndex]?.title
 
   const sections = useMemo(() => {
     const groups = new Map<
@@ -89,31 +98,51 @@ export const SuggestionMenu = forwardRef<
 
   return (
     <Command
-      className="w-64 rounded-md border shadow-md animate-in fade-in-0 zoom-in-95"
+      className="w-56 z-20 rounded-md border shadow-md animate-in fade-in-0 zoom-in-95"
       value={activeValue}
       onValueChange={(value) => {
+        if (value === 'Close menu') {
+          setSelectedIndex(props.items.length)
+          return
+        }
         const i = props.items.findIndex((item) => item.title === value)
         if (i !== -1) setSelectedIndex(i)
       }}
     >
-      <CommandList ref={listRef} className="scroll-smooth">
-        {Array.from(sections.entries()).map(([section, items]) => (
-          <CommandGroup key={section} heading={section}>
-            {items.map(({ item, index }) => (
-              <CommandItem
-                key={item.title}
-                value={item.title}
-                data-index={index}
-                className="rounded-sm"
-                onSelect={() => select(index)}
-              >
-                {item.icon && <item.icon className="size-4 shrink-0" />}
-                <span>{item.title}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        ))}
-      </CommandList>
+      {props.items.length > 0 && (
+        <CommandList ref={listRef} className="scroll-smooth">
+          {Array.from(sections.entries()).map(([section, items]) => (
+            <CommandGroup key={section} heading={section}>
+              {items.map(({ item, index }) => (
+                <CommandItem
+                  key={item.title}
+                  value={item.title}
+                  data-index={index}
+                  className="rounded-sm"
+                  onSelect={() => select(index)}
+                >
+                  {item.icon && <item.icon className="size-4 shrink-0" />}
+                  <span>{item.title}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ))}
+        </CommandList>
+      )}
+      <div
+        className={
+          props.items.length > 0 ? 'border-t border-border/50 p-1' : 'p-1'
+        }
+      >
+        <CommandItem
+          value="Close menu"
+          className="rounded-sm"
+          onSelect={closeMenu}
+        >
+          <X className="size-4 shrink-0" />
+          <span>Close menu</span>
+        </CommandItem>
+      </div>
     </Command>
   )
 })

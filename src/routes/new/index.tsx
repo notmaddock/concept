@@ -6,7 +6,9 @@ export const Route = createFileRoute('/new/')({
 })
 
 function RouteComponent() {
-  return <main className='fixed inset-0'>
-    <Editor />
-  </main>
+  return (
+    <div className="h-screen w-screen overflow-hidden">
+      <Editor />
+    </div>
+  )
 }

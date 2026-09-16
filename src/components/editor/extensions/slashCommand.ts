@@ -19,12 +19,13 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
     return {
       suggestion: {
         char: '/',
+        allowSpaces: true,
         command: ({ editor, range, props }) => {
           props.command({ editor, range })
         },
         items: ({ query }) =>
           ALL_ITEMS.filter((i) =>
-            i.title.toLowerCase().includes(query.toLowerCase()),
+            i.title.toLowerCase().includes(query.toLowerCase().trim()),
           ),
         render: () => {
           let component: ReactRenderer<SuggestionMenuRef> | null = null

@@ -29,3 +29,25 @@
   height: 0;
   pointer-events: none;
 }
+
+/* Slash command trigger */
+.tiptap span.suggestion {
+  display: inline;
+  background-color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 5px;
+  color: var(--foreground);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.tiptap span.suggestion.is-empty::after {
+  content: 'Type to search';
+  color: var(--muted-foreground);
+  opacity: 0.55;
+  font-weight: normal;
+  pointer-events: none;
+  margin-left: 3px;
+  font-size: 0.9em;
+}

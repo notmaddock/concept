@@ -36,8 +36,10 @@ function CSREditor() {
 
     return <Tiptap editor={editor}>
         <div className="flex flex-col h-full">
-            <EditorHeader />
-            <EditorToolbar />
+            <div className="relative z-50 shrink-0">
+                <EditorHeader />
+                <EditorToolbar />
+            </div>
             <main className="flex-1 min-h-0 px-4 pt-4 pb-32 overflow-auto">
                 <Tiptap.Content
                     className="bg-popover max-w-5xl mx-auto p-[.6in] rounded-sm shadow-xs min-h-[297mm] min-w-[210mm] cursor-text flex flex-col focus:outline-none outline-none"
