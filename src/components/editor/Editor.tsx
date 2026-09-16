@@ -5,6 +5,7 @@ import { StarterKit } from "@tiptap/starter-kit"
 import { EditorHeader } from "./sub/EditorHeader";
 import { EditorToolbar } from "./sub/EditorToolbar";
 import { ClickToCursor } from "./extensions/clickToCursor";
+import { SlashCommand } from "./extensions/slashCommand";
 import { Placeholder} from "@tiptap/extension-placeholder";
 
 export function Editor() {
@@ -18,6 +19,7 @@ function CSREditor() {
         extensions: [
             StarterKit,
             ClickToCursor,
+            SlashCommand,
             Placeholder.configure({
                 placeholder: 'Begin typing or use / for commands...'
             })
