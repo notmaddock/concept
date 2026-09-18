@@ -1,4 +1,5 @@
 import {
+  ErrorComponent,
   HeadContent,
   Scripts,
   createRootRouteWithContext,
@@ -50,6 +51,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       },
     ],
   }),
+  errorComponent: ErrorComponent,
   shellComponent: RootDocument,
 })
 

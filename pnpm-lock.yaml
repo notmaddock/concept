@@ -139,6 +139,9 @@ importers:
       '@lexical/rich-text':
         specifier: ^0.51.0
         version: 0.51.0(typescript@6.0.3)
+      '@lexical/selection':
+        specifier: ^0.51.0
+        version: 0.51.0
       '@posthog/react':
         specifier: ^1.11.0
         version: 1.11.0(@types/react@19.3.0)(posthog-js@1.433.10(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
