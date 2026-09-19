@@ -106,7 +106,7 @@ function SlashCommandMenu({
           const range = document.createRange()
           if (sel.anchorNode.nodeType === Node.TEXT_NODE) {
             const offset = sel.anchorOffset
-            const matchLen = trigger.length + (matchingString?.length ?? 0)
+            const matchLen = trigger.length + matchingString.length
             const start = Math.max(0, offset - matchLen)
             range.setStart(sel.anchorNode, start)
             range.setEnd(
