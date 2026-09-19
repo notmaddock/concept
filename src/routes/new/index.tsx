@@ -8,7 +8,7 @@ export const Route = createFileRoute('/new/')({
 
 function RouteComponent() {
   return (
-    <div className="overflow-hidden border border-green-800 fixed inset-0 p-4">
+    <div className="overflow-hidden fixed inset-0 p-4">
       <div className="bg-popover shadow-xs border rounded-sm max-w-4xl mx-auto h-full relative">
         <div className="absolute top-3 right-3 z-10">
           <ModeToggle />
