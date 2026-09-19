@@ -77,3 +77,29 @@ li.editor-checklist-item-checked:focus-visible::before {
   outline: none !important;
   box-shadow: none !important;
 }
+
+/* Nested list item container wrappers (Lexical wraps nested sublists in a synthetic <li>) */
+li.editor-nested-listitem,
+li:has(> ul),
+li:has(> ol),
+li.editor-checklist-item-unchecked:not([role='checkbox']),
+li.editor-checklist-item-checked:not([role='checkbox']) {
+  list-style-type: none !important;
+  padding-left: 0 !important;
+  text-decoration: none !important;
+  cursor: default !important;
+}
+
+li.editor-nested-listitem::before,
+li.editor-nested-listitem::after,
+li:has(> ul)::before,
+li:has(> ul)::after,
+li:has(> ol)::before,
+li:has(> ol)::after,
+li.editor-checklist-item-unchecked:not([role='checkbox'])::before,
+li.editor-checklist-item-unchecked:not([role='checkbox'])::after,
+li.editor-checklist-item-checked:not([role='checkbox'])::before,
+li.editor-checklist-item-checked:not([role='checkbox'])::after {
+  content: none !important;
+  display: none !important;
+}

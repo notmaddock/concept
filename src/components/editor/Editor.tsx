@@ -11,10 +11,9 @@ import { RichTextExtension } from '@lexical/rich-text'
 import { ClientOnly } from '@tanstack/react-router'
 import { CheckListExtension, ListExtension } from '@lexical/list'
 import type { InitialEditorConfig } from 'lexical'
-import {
-  SlashCommandExtension,
-  SlashCommandPlugin,
-} from './extensions/slash-command'
+import { SlashCommandExtension } from './extensions/slash-command'
+import { SelectionPopoverExtension } from './extensions/selection-popover'
+import { ScrollMarginExtension } from './extensions/scroll-margin'
 
 export function Editor() {
   return (
@@ -55,8 +54,16 @@ const theme: InitialEditorConfig['theme'] = {
     listitemUnchecked: 'editor-checklist-item-unchecked',
     nested: {
       list: 'my-1',
-      listitem: 'list-none',
+      listitem: 'list-none editor-nested-listitem',
     },
+  },
+  text: {
+    bold: 'font-bold',
+    italic: 'italic',
+    underline: 'underline',
+    strikethrough: 'line-through',
+    underlineStrikethrough: '[text-decoration-line:underline_line-through]',
+    code: 'font-mono bg-muted text-foreground px-[0.35em] py-[0.15em] rounded text-[0.875em] border border-border',
   },
   hr: 'my-4 border-t border-border',
 }
@@ -71,6 +78,8 @@ const editorExtension = defineExtension({
     TabIndentationExtension,
     AutoFocusExtension,
     SlashCommandExtension,
+    SelectionPopoverExtension,
+    ScrollMarginExtension,
   ],
   theme,
 })
@@ -84,7 +93,7 @@ function CSREditor() {
       <div className="relative h-full">
         <div className="relative m-1 h-full">
           <ContentEditable
-            className="overflow-y-auto scroll-fade-y px-14 py-5 outline-none h-full"
+            className="overflow-y-auto scroll-fade-y scroll-pb-36 px-14 pt-5 pb-48 outline-none h-full"
             aria-placeholder="Type '/' for commands..."
             placeholder={
               <div className="pointer-events-none absolute top-[22px] left-14 text-[0.95rem] text-muted-foreground select-none">
@@ -92,7 +101,6 @@ function CSREditor() {
               </div>
             }
           />
-          <SlashCommandPlugin />
         </div>
       </div>
     </LexicalExtensionComposer>

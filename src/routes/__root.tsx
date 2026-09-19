@@ -9,6 +9,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 
 import { ThemeProvider } from '#/components/theme-provider'
 import { NotFound } from '#/components/not-found'
+import { TooltipProvider } from '#/components/ui/tooltip'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
 import PostHogProvider from '../integrations/posthog/provider'
@@ -66,19 +67,21 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body>
         <ThemeProvider defaultTheme="system" storageKey="theme">
           <PostHogProvider>
-            {children}
-            <TanStackDevtools
-              config={{
-                position: 'bottom-right',
-              }}
-              plugins={[
-                {
-                  name: 'Tanstack Router',
-                  render: <TanStackRouterDevtoolsPanel />,
-                },
-                TanStackQueryDevtools,
-              ]}
-            />
+            <TooltipProvider delay={200}>
+              {children}
+              <TanStackDevtools
+                config={{
+                  position: 'bottom-right',
+                }}
+                plugins={[
+                  {
+                    name: 'Tanstack Router',
+                    render: <TanStackRouterDevtoolsPanel />,
+                  },
+                  TanStackQueryDevtools,
+                ]}
+              />
+            </TooltipProvider>
           </PostHogProvider>
         </ThemeProvider>
         <Scripts />

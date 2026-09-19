@@ -5,6 +5,8 @@ import {
 } from '@lexical/extension'
 import { RichTextExtension } from '@lexical/rich-text'
 import { CheckListExtension, ListExtension } from '@lexical/list'
+import { ReactExtension } from '@lexical/react/ReactExtension'
+import { SlashCommandPlugin } from './SlashCommandPlugin'
 
 /**
  * SlashCommandExtension registers required dependencies:
@@ -13,8 +15,7 @@ import { CheckListExtension, ListExtension } from '@lexical/list'
  * - CheckListExtension (Checklist keyboard/mouse interaction)
  * - TabIndentationExtension (Tab and Shift+Tab nesting for lists)
  * - HorizontalRuleExtension (HorizontalRuleNode)
- *
- * This guarantees that all default slash command nodes and commands are registered in the editor.
+ * - ReactExtension decorator (automatically renders SlashCommandPlugin)
  */
 export const SlashCommandExtension = defineExtension({
   name: 'SlashCommandExtension',
@@ -24,5 +25,6 @@ export const SlashCommandExtension = defineExtension({
     CheckListExtension,
     TabIndentationExtension,
     HorizontalRuleExtension,
+    [ReactExtension, { decorators: [SlashCommandPlugin] }],
   ],
 })
