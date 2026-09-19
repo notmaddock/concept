@@ -124,6 +124,9 @@ importers:
       '@fontsource/ibm-plex-mono':
         specifier: ^5.3.0
         version: 5.3.0
+      '@lexical/code':
+        specifier: ^0.51.0
+        version: 0.51.0(typescript@6.0.3)
       '@lexical/extension':
         specifier: ^0.51.0
         version: 0.51.0(typescript@6.0.3)
@@ -141,7 +144,7 @@ importers:
         version: 0.51.0(typescript@6.0.3)
       '@lexical/selection':
         specifier: ^0.51.0
-        version: 0.51.0
+        version: 0.51.0(typescript@6.0.3)
       '@posthog/react':
         specifier: ^1.11.0
         version: 1.11.0(@types/react@19.3.0)(posthog-js@1.433.10(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
@@ -993,6 +996,14 @@ packages:
 
   '@lexical/code-core@0.51.0':
     resolution: {integrity: sha512-D35OqZF2cY78jSRNu/v/IjyEP8qY6dOfjKUBZISJcLkJBHnJAxiWMF1+J2I3dTuu8OvKRib2+uNgzEg/VuTOsQ==}
+    peerDependencies:
+      typescript: '>=5.2'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
+  '@lexical/code@0.51.0':
+    resolution: {integrity: sha512-migAY4bBDyrZ+YDYky4n5Wu2ggpzkct4bf9Q4Y+L5t4/vJSCYs/x/qCqqNWmBXZF2or6bLCRUQmVRXxwj+lzfw==}
     peerDependencies:
       typescript: '>=5.2'
     peerDependenciesMeta:
@@ -5663,6 +5674,14 @@ snapshots:
       '@lexical/html': 0.51.0(typescript@6.0.3)
       '@lexical/internal': 0.51.0(typescript@6.0.3)
       '@lexical/utils': 0.51.0(typescript@6.0.3)
+      lexical: 0.51.0(typescript@6.0.3)
+    optionalDependencies:
+      typescript: 6.0.3
+
+  '@lexical/code@0.51.0(typescript@6.0.3)':
+    dependencies:
+      '@lexical/code-core': 0.51.0(typescript@6.0.3)
+      '@lexical/extension': 0.51.0(typescript@6.0.3)
       lexical: 0.51.0(typescript@6.0.3)
     optionalDependencies:
       typescript: 6.0.3

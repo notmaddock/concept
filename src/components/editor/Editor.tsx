@@ -1,7 +1,10 @@
 import { Loader } from '@cloudflare/kumo'
 import {
   AutoFocusExtension,
+  ClickAfterLastBlockExtension,
   defineExtension,
+  SelectBlockExtension,
+  SelectionAlwaysOnDisplayExtension,
   TabIndentationExtension,
 } from '@lexical/extension'
 import { HistoryExtension } from '@lexical/history'
@@ -77,6 +80,9 @@ const editorExtension = defineExtension({
     CheckListExtension,
     TabIndentationExtension,
     AutoFocusExtension,
+    ClickAfterLastBlockExtension,
+    SelectBlockExtension,
+    SelectionAlwaysOnDisplayExtension,
     SlashCommandExtension,
     SelectionPopoverExtension,
     ScrollMarginExtension,
