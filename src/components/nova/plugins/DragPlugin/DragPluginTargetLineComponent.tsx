@@ -10,7 +10,7 @@ export function DragPluginTargetLineComponent({
   return (
     <div
       ref={targetLineRef}
-      className="pointer-events-none absolute top-0 left-0 h-[3px] bg-blue-400 opacity-0 will-change-transform"
+      className="pointer-events-none absolute top-0 left-0 h-0.5 bg-accent-foreground opacity-0 will-change-transform"
     />
   )
 }
