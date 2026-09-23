@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as NewIndexRouteImport } from './routes/new/index'
+import { Route as NovaIndexRouteImport } from './routes/nova/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const NewIndexRoute = NewIndexRouteImport.update({
   path: '/new/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NovaIndexRoute = NovaIndexRouteImport.update({
+  id: '/nova/',
+  path: '/nova/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/new/': typeof NewIndexRoute
+  '/nova/': typeof NovaIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/new': typeof NewIndexRoute
+  '/nova': typeof NovaIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/new/': typeof NewIndexRoute
+  '/nova/': typeof NovaIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/new/'
+  fullPaths: '/' | '/new/' | '/nova/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/new'
-  id: '__root__' | '/' | '/new/'
+  to: '/' | '/new' | '/nova'
+  id: '__root__' | '/' | '/new/' | '/nova/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   NewIndexRoute: typeof NewIndexRoute
+  NovaIndexRoute: typeof NovaIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NewIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/nova/': {
+      id: '/nova/'
+      path: '/nova'
+      fullPath: '/nova/'
+      preLoaderRoute: typeof NovaIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   NewIndexRoute: NewIndexRoute,
+  NovaIndexRoute: NovaIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
