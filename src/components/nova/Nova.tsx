@@ -3,6 +3,7 @@ import { editorExtension } from './editor'
 import { NovaContentEditable } from './NovaContentEditable'
 import { useState } from 'react'
 import { DragPlugin } from './plugins/DragPlugin/DragPlugin'
+import { SlashMenuPlugin } from './plugins/SlashMenuPlugin/SlashMenuPlugin'
 
 export function Nova() {
   const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null)
@@ -15,6 +16,7 @@ export function Nova() {
       <div className="relative size-full" ref={setAnchorElement}>
         <NovaContentEditable />
 
+        <SlashMenuPlugin />
         {anchorElement && <DragPlugin anchorElement={anchorElement} />}
       </div>
     </LexicalExtensionComposer>
