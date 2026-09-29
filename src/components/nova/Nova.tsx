@@ -4,6 +4,7 @@ import { NovaContentEditable } from './NovaContentEditable'
 import { useState } from 'react'
 import { DragPlugin } from './plugins/DragPlugin/DragPlugin'
 import { SlashMenuPlugin } from './plugins/SlashMenuPlugin/SlashMenuPlugin'
+import { FloatingTextFormatToolbarPlugin } from './plugins/FormatToolbarPlugin'
 
 export function Nova() {
   const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null)
@@ -18,6 +19,7 @@ export function Nova() {
 
         <SlashMenuPlugin />
         {anchorElement && <DragPlugin anchorElement={anchorElement} />}
+        <FloatingTextFormatToolbarPlugin />
       </div>
     </LexicalExtensionComposer>
   )
