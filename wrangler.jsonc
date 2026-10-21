@@ -6,4 +6,5 @@
   "observability": {
     "enabled": true,
   },
+  "previews": {}
 }

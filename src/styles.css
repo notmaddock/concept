@@ -1,9 +1,12 @@
 @import 'tailwindcss';
+@plugin '@tailwindcss/typography';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/dm-sans';
 @import '@fontsource-variable/lora';
 @import '@fontsource/ibm-plex-mono';
+@import './styles/scrollbar.css';
+@import './styles/nova.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -232,4 +235,8 @@ body {
   html {
     @apply font-sans;
   }
+}
+
+::selection {
+  background: var(--color-accent);
 }
