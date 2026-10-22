@@ -198,7 +198,7 @@ export function ColorSelect({
         aria-label={section.label}
         align="start"
         finalFocus={false}
-        className="w-64 max-w-[calc(100vw-1rem)] gap-1 rounded-2xl p-2"
+        className="w-72 max-w-[calc(100vw-1rem)] gap-1 rounded-2xl p-2"
       >
         <div className="flex items-center justify-between px-1">
           <span className="text-xs text-muted-foreground">{section.label}</span>
@@ -218,13 +218,13 @@ export function ColorSelect({
         <div
           role="group"
           aria-label={`${section.label} palette`}
-          className="grid grid-cols-8 justify-items-center gap-0.5"
+          className="grid grid-cols-9 justify-items-center gap-0.5"
           onKeyDown={(event) => {
             const offset = {
               ArrowRight: 1,
               ArrowLeft: -1,
-              ArrowDown: 8,
-              ArrowUp: -8,
+              ArrowDown: 9,
+              ArrowUp: -9,
             }[event.key]
             if (offset === undefined) return
             const buttons = [

@@ -7,6 +7,7 @@ export const colorPalette = [
   { label: 'Cyan', value: '#06b6d4' },
   { label: 'Blue', value: '#3b82f6' },
   { label: 'Violet', value: '#8b5cf6' },
+  { label: 'Pink', value: '#ec4899' },
 ]
 
 export const highlightPalette = colorPalette.map(({ label, value }) => ({
