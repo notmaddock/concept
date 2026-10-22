@@ -46,6 +46,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     creating,
     createDocument,
     renameDocument,
+    renameDocumentById,
     deleteDocument,
     documentRef,
     editorRef,
@@ -75,6 +76,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               documents={documents}
               activeId={id}
               loading={!loaded && !error}
+              onRename={renameDocumentById}
               onDelete={deleteDocument}
             />
           </SidebarGroup>

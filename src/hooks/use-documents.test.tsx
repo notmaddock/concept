@@ -104,3 +104,30 @@ it('finishes the loading state when the library cannot be read', async () => {
   expect(actions.loaded).toBe(true)
   expect(actions.error).toContain('Could not open local documents')
 })
+
+it('renames a sidebar document without changing the open document', async () => {
+  const renamed = { ...second, name: 'New name' }
+  vi.mocked(storage.rename).mockResolvedValue(renamed)
+  await mount()
+  await act(async () => {
+    expect(await actions.renameDocumentById('second', '  New name  ')).toBe(
+      true,
+    )
+  })
+  expect(storage.rename).toHaveBeenCalledWith('second', 'New name')
+  expect(actions.documents).toEqual([first, renamed])
+  expect(actions.document).toEqual(first)
+  expect(navigate).not.toHaveBeenCalled()
+})
+
+it('rejects blank names and reports failed renames without changing documents', async () => {
+  await mount()
+  expect(await actions.renameDocumentById('second', '  ')).toBe(false)
+  expect(storage.rename).not.toHaveBeenCalled()
+  vi.mocked(storage.rename).mockRejectedValue(new Error('Storage unavailable'))
+  await act(async () => {
+    expect(await actions.renameDocumentById('second', 'New name')).toBe(false)
+  })
+  expect(actions.documents).toEqual([first, second])
+  expect(actions.error).toContain('Could not save the document name')
+})

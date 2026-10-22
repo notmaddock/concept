@@ -19,12 +19,14 @@ export function DocumentList({
   loadingLabel = 'Loading documents…',
   emptyMessage,
   onDelete,
+  onRename,
 }: {
   documents: Array<DocumentInfo>
   activeId?: string
   loading?: boolean
   loadingLabel?: string
   emptyMessage?: string
+  onRename?: (id: string, name: string) => Promise<boolean>
   onDelete: (id: string) => void | Promise<void>
 }) {
   return (
@@ -50,7 +52,11 @@ export function DocumentList({
           : documents.map((item) => (
               <SidebarMenuItem key={item.id}>
                 <DocumentContextMenu
+                  id={item.id}
                   name={item.name}
+                  onRename={
+                    onRename ? (name) => onRename(item.id, name) : undefined
+                  }
                   onDelete={async () => {
                     await onDelete(item.id)
                   }}

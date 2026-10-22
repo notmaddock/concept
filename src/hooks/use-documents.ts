@@ -84,17 +84,26 @@ export function useDocuments(
     }
   }
 
-  async function renameDocument(name: string) {
-    if (!document || name === document.name) return
+  async function renameDocumentById(documentId: string, name: string) {
+    const target = documents.find((item) => item.id === documentId)
+    const trimmedName = name.trim()
+    if (!target || !trimmedName) return false
+    if (trimmedName === target.name) return true
     try {
-      const updated = await storage.rename(document.id, name)
+      const updated = await storage.rename(documentId, trimmedName)
       setDocuments((items) =>
         items.map((item) => (item.id === updated.id ? updated : item)),
       )
       setError('')
     } catch {
       setError('Could not save the document name. Please try again.')
+      return false
     }
+    return true
+  }
+
+  async function renameDocument(name: string) {
+    if (document) await renameDocumentById(document.id, name)
   }
 
   async function deleteDocument(documentId: string) {
@@ -119,6 +128,7 @@ export function useDocuments(
     creating,
     createDocument,
     renameDocument,
+    renameDocumentById,
     deleteDocument,
   }
 }

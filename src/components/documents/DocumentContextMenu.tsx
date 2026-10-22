@@ -3,13 +3,16 @@ import {
   documentMenuItemClassName,
 } from './navigation-menus/menu-styles'
 import { useState } from 'react'
-import { Trash2Icon } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { RenameDocumentDialog } from './RenameDocumentDialog'
+import { ExternalLinkIcon, PencilIcon, Trash2Icon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
+  ContextMenuSeparator,
 } from '#/components/ui/context-menu'
 import {
   AlertDialog,
@@ -24,13 +27,18 @@ import {
 
 export function DocumentContextMenu({
   children,
+  id,
   name,
+  onRename,
   onDelete,
 }: {
+  id: string
+  onRename?: (name: string) => Promise<boolean>
   children: ReactNode
   name: string
   onDelete: () => Promise<void>
 }) {
+  const [renaming, setRenaming] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -51,6 +59,28 @@ export function DocumentContextMenu({
         <ContextMenuTrigger render={<div />}>{children}</ContextMenuTrigger>
         <ContextMenuContent className={documentMenuContentClassName}>
           <ContextMenuItem
+            className={documentMenuItemClassName}
+            render={
+              <Link
+                to="/d/$id"
+                params={{ id }}
+                target="_blank"
+                rel="noopener noreferrer"
+              />
+            }
+          >
+            <ExternalLinkIcon /> Open in new tab
+          </ContextMenuItem>
+          {onRename && (
+            <ContextMenuItem
+              className={documentMenuItemClassName}
+              onClick={() => setRenaming(true)}
+            >
+              <PencilIcon /> Rename
+            </ContextMenuItem>
+          )}
+          <ContextMenuSeparator />
+          <ContextMenuItem
             variant="destructive"
             className={documentMenuItemClassName}
             onClick={() => setConfirming(true)}
@@ -59,6 +89,13 @@ export function DocumentContextMenu({
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
+      {renaming && onRename && (
+        <RenameDocumentDialog
+          name={name}
+          onRename={onRename}
+          onClose={() => setRenaming(false)}
+        />
+      )}
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>
           <AlertDialogHeader>
