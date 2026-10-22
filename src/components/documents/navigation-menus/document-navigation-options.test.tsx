@@ -176,3 +176,18 @@ it('connects export actions and disables unsupported Word export', async () => {
     navigation.options.find((option) => option.id === 'export-word')?.disabled,
   ).toBe(true)
 })
+
+it('disables submenu parents when all their children are disabled', async () => {
+  await render(false, false)
+  const file = navigation.menus.find((menu) => menu.label === 'File')!
+  expect(file.items.find((item) => item.id === 'export')?.disabled).toBe(true)
+  expect(file.items.find((item) => item.id === 'import')?.disabled).toBe(false)
+  await render()
+  const enabledFile = navigation.menus.find((menu) => menu.label === 'File')!
+  expect(enabledFile.items.find((item) => item.id === 'export')?.disabled).toBe(
+    false,
+  )
+  expect(
+    navigation.options.find((option) => option.id === 'export-pdf')?.menuLabel,
+  ).toBe('PDF (.pdf)')
+})

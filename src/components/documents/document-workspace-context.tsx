@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from 'react'
 import type { LexicalEditor } from 'lexical'
 import type { Doc } from 'yjs'
+import type { ImportFormat } from '#/lib/documents/import/formats'
 import type { ExportFormat } from '#/lib/documents/export'
 import { useDocuments } from '#/hooks/use-documents'
 import { afterPageLoad } from '#/lib/loading/after-page-load'
@@ -47,7 +48,9 @@ function useWorkspaceState(id?: string) {
   }, [document?.name])
   const documentRef = useRef<Doc | null>(null)
   const editorRef = useRef<LexicalEditor | null>(null)
-  const [fileAction, setFileAction] = useState<'open' | 'copy' | null>(null)
+  const [fileAction, setFileAction] = useState<
+    'open' | 'copy' | ImportFormat | null
+  >(null)
   const [fileError, setFileError] = useState('')
   const [pageSetupOpen, setPageSetupOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
@@ -116,6 +119,7 @@ function useWorkspaceState(id?: string) {
     pageSetupOpen,
     onPageSetupOpenChange: setPageSetupOpen,
     openDocument,
+    importDocument: (format: ImportFormat) => setFileAction(format),
     copyDocument,
     downloadDocument,
     exportDocument,
@@ -177,7 +181,16 @@ export function DocumentWorkspaceProvider({
         {fileAction && (
           <DocumentStorageDialog
             key={fileAction}
-            mode={fileAction}
+            mode={
+              fileAction === 'open' || fileAction === 'copy'
+                ? fileAction
+                : 'import'
+            }
+            importFormat={
+              fileAction === 'open' || fileAction === 'copy'
+                ? undefined
+                : fileAction
+            }
             source={
               document && documentRef.current
                 ? { name: document.name, doc: documentRef.current }

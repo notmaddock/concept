@@ -35,7 +35,10 @@ function MenuItems({
     if ('children' in item) {
       return (
         <DropdownMenuSub key={item.id}>
-          <DropdownMenuSubTrigger className={documentMenuItemClassName}>
+          <DropdownMenuSubTrigger
+            className={`${documentMenuItemClassName} data-disabled:pointer-events-none data-disabled:opacity-50 data-disabled:focus:bg-transparent data-disabled:focus:text-inherit`}
+            disabled={item.disabled}
+          >
             <Icon /> {item.label}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent

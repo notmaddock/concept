@@ -10,7 +10,7 @@ import {
 } from '@lexical/extension'
 import type { ElementTransformer } from '@lexical/markdown'
 
-const horizontalRule: ElementTransformer = {
+export const horizontalRule: ElementTransformer = {
   dependencies: [HorizontalRuleNode],
   export: (node) => ($isHorizontalRuleNode(node) ? '---' : null),
   regExp: /^(---|\*\*\*|___)\s?$/,

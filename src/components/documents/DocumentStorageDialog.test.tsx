@@ -237,3 +237,50 @@ it('saves an imported document to the selected provider independently of its sou
     params: { id: 'other-copy' },
   })
 })
+
+it('converts an import before saving and reuses destination selection', async () => {
+  const save = vi.fn().mockResolvedValue({ id: 'destination' })
+  await act(() =>
+    root.render(
+      <DocumentStorageDialog
+        mode="import"
+        importFormat="markdown"
+        onClose={onClose}
+        providers={[
+          { ...storageLocations.local, save: vi.fn() },
+          { ...storageLocations.device, save },
+        ]}
+      />,
+    ),
+  )
+  const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
+  expect(input.accept).toContain('.md')
+  Object.defineProperty(input, 'files', {
+    value: [{ name: 'Imported.md', size: 12, text: async () => '# Imported' }],
+  })
+  await act(async () => {
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await vi.waitFor(async () => {
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(document.body.textContent).toContain('Save to')
+  })
+  expect(save).not.toHaveBeenCalled()
+  expect(mocks.importConcept).not.toHaveBeenCalled()
+  expect(
+    document.querySelector<HTMLInputElement>('input:not([type="file"])')?.value,
+  ).toBe('Imported')
+  await click('This device')
+  await click('Import document')
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({ name: 'Imported', format: 'concept' }),
+    'Imported',
+  )
+  expect(mocks.navigate).toHaveBeenCalledWith({
+    to: '/d/$id',
+    params: { id: 'destination' },
+  })
+  expect(onClose).toHaveBeenCalledOnce()
+})

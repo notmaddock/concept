@@ -1,10 +1,8 @@
+import { DocumentFilePicker } from './DocumentFilePicker'
+import { importFormats } from '#/lib/documents/import/formats'
+import type { ImportFormat } from '#/lib/documents/import/formats'
 import { useEffect, useRef, useState } from 'react'
-import {
-  ArrowLeftIcon,
-  CheckIcon,
-  FileTextIcon,
-  FolderOpenIcon,
-} from 'lucide-react'
+import { CheckIcon, FileTextIcon } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import type { Doc } from 'yjs'
 import type { DocumentInfo } from '#/lib/documents/storage'
@@ -33,17 +31,19 @@ import {
 export function DocumentStorageDialog({
   mode,
   source,
+  importFormat,
   onClose,
   sources = documentSources,
   providers = documentSaveProviders,
 }: {
-  mode: 'open' | 'copy'
+  mode: 'open' | 'copy' | 'import'
+  importFormat?: ImportFormat
   source?: { name: string; doc: Doc }
   onClose: () => void
   sources?: Array<DocumentSource>
   providers?: Array<DocumentSaveProvider>
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const format = importFormats.find((item) => item.id === importFormat)
   const navigate = useNavigate()
   const [sourceId, setSourceId] = useState<string | null>(null)
   const [providerId, setProviderId] = useState(
@@ -139,7 +139,7 @@ export function DocumentStorageDialog({
       let id = selected?.existingId
       if (!id) {
         const file =
-          mode === 'open'
+          mode !== 'copy'
             ? selected?.file
             : source
               ? parseConcept(serializeConcept(source.name, source.doc))
@@ -175,16 +175,42 @@ export function DocumentStorageDialog({
       >
         <DialogHeader>
           <DialogTitle>
-            {mode === 'open' ? 'Open document' : 'Make a copy'}
+            {mode === 'import'
+              ? `Import from ${format?.label ?? 'file'}`
+              : mode === 'open'
+                ? 'Open document'
+                : 'Make a copy'}
           </DialogTitle>
           <DialogDescription>
-            {mode === 'copy'
-              ? 'Name your copy and choose where to save it.'
-              : selected
-                ? 'Review the document and choose where you’ll work on it.'
-                : 'Choose where to open your document from.'}
+            {mode === 'import'
+              ? 'Choose a file to convert, then name it and choose where to save it.'
+              : mode === 'copy'
+                ? 'Name your copy and choose where to save it.'
+                : selected
+                  ? 'Review the document and choose where you’ll work on it.'
+                  : 'Choose where to open your document from.'}
           </DialogDescription>
         </DialogHeader>
+        {mode === 'import' && !selected && format && (
+          <DocumentFilePicker
+            label={`Choose a ${format.label} file`}
+            accept={format.extensions.join(',')}
+            description={`Import a ${format.label} file from your device.`}
+            reading={reading}
+            status="Converting document…"
+            onSelect={(file) => {
+              void readDocument(async () => {
+                const { convertImport } = await import('#/lib/documents/import')
+                return {
+                  file: await convertImport(file, format.id),
+                  size: file.size,
+                  filename: file.name,
+                  origin: storageLocations.device.label,
+                }
+              })
+            }}
+          />
+        )}
         {mode === 'open' && !selected && (
           <div className="grid gap-4">
             {!openSource ? (
@@ -209,56 +235,40 @@ export function DocumentStorageDialog({
               </fieldset>
             ) : (
               <>
-                <Button
-                  variant="ghost"
-                  onClick={() => changeSource(null)}
-                  className="w-fit"
-                >
-                  <ArrowLeftIcon /> Change source
-                </Button>
-                <h3 className="flex items-center gap-2 text-sm font-medium">
-                  <openSource.icon className="size-4" />
-                  {openSource.label}
-                </h3>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                    <openSource.icon className="size-4 shrink-0" />
+                    {openSource.label}
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => changeSource(null)}
+                    className="shrink-0 text-muted-foreground"
+                  >
+                    Change source
+                  </Button>
+                </div>
                 {openSource.kind === 'device' ? (
-                  <div className="grid justify-items-start gap-3 rounded-xl border border-dashed p-6">
-                    <div className="grid gap-1">
-                      <p className="text-sm font-medium">Choose a document</p>
-                      <p className="text-xs text-muted-foreground">
-                        Open a .concept file from your device.
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      disabled={reading}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <FolderOpenIcon /> Browse files
-                    </Button>
-                    <input
-                      ref={fileInputRef}
-                      hidden
-                      aria-label="Choose a .concept file"
-                      type="file"
-                      accept=".concept"
-                      disabled={reading}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0]
-                        if (!file) return
-                        event.target.value = ''
-                        void readDocument(async () => {
-                          if (!file.name.toLowerCase().endsWith('.concept'))
-                            throw new Error('Choose a .concept file.')
-                          return {
-                            file: parseConcept(await file.text()),
-                            size: file.size,
-                            filename: file.name,
-                            origin: storageLocations.device.label,
-                          }
-                        })
-                      }}
-                    />
-                  </div>
+                  <DocumentFilePicker
+                    label="Choose a .concept file"
+                    accept=".concept"
+                    description="Open a .concept file from your device."
+                    reading={reading}
+                    status="Reading document…"
+                    onSelect={(file) => {
+                      void readDocument(async () => {
+                        if (!file.name.toLowerCase().endsWith('.concept'))
+                          throw new Error('Choose a .concept file.')
+                        return {
+                          file: parseConcept(await file.text()),
+                          size: file.size,
+                          filename: file.name,
+                          origin: storageLocations.device.label,
+                        }
+                      })
+                    }}
+                  />
                 ) : (
                   <div
                     aria-label={`${openSource.label} documents`}
@@ -286,7 +296,7 @@ export function DocumentStorageDialog({
                     ))}
                   </div>
                 )}
-                {reading && (
+                {reading && openSource.kind === 'library' && (
                   <p role="status" className="text-sm text-muted-foreground">
                     Reading document…
                   </p>
@@ -397,10 +407,14 @@ export function DocumentStorageDialog({
               {pending
                 ? mode === 'copy'
                   ? 'Saving…'
-                  : 'Opening…'
+                  : mode === 'import'
+                    ? 'Importing…'
+                    : 'Opening…'
                 : mode === 'copy'
                   ? 'Save copy'
-                  : 'Open document'}
+                  : mode === 'import'
+                    ? 'Import document'
+                    : 'Open document'}
             </Button>
           )}
         </DialogFooter>

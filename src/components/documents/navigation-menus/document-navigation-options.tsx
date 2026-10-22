@@ -1,3 +1,5 @@
+import { importFormats } from '#/lib/documents/import/formats'
+import type { ImportFormat } from '#/lib/documents/import/formats'
 import { toast } from 'sonner'
 import type { ExportFormat } from '#/lib/documents/export'
 import { formatSections } from './format-options'
@@ -59,6 +61,7 @@ type NavigationContext = {
   format: ReturnType<typeof useFormatActions>
   edit: ReturnType<typeof useEditActions>
   enabled?: boolean
+  onImport?: (format: ImportFormat) => void
   onOpen?: () => void
   onDetails?: () => void
   onShare: () => void
@@ -142,6 +145,21 @@ export const documentNavigation: MenuDefinition[] = [
         onSelect: (context) => context.onOpen?.(),
       },
       {
+        id: 'import',
+        label: 'Import from…',
+        icon: FolderOpenIcon,
+        children: importFormats.map((format) => ({
+          id: `import-${format.id}`,
+          label: `Import from ${format.label}`,
+          menuLabel: format.label,
+          keywords: format.extensions,
+          icon: FileTextIcon,
+          focusAfterSelect: 'action' as const,
+          onSelect: (context: NavigationContext) =>
+            context.onImport?.(format.id),
+        })),
+      },
+      {
         id: 'make-copy',
         label: 'Make a copy',
         keywords: ['duplicate'],
@@ -173,8 +191,8 @@ export const documentNavigation: MenuDefinition[] = [
         children: [
           {
             id: 'export-pdf',
-            label: 'Save as PDF (print dialog)',
-            menuLabel: 'PDF (print dialog)',
+            label: 'Export as PDF',
+            menuLabel: 'PDF (.pdf)',
             keywords: ['download'],
             icon: FileTypeIcon,
             focusAfterSelect: 'action',
@@ -346,6 +364,7 @@ export type NavigationOption = Omit<
 export type NavigationMenuItem =
   | NavigationOption
   | (Omit<SubmenuDefinition, 'children'> & {
+      disabled: boolean
       children: NavigationMenuItem[]
     })
 
@@ -367,6 +386,7 @@ export function useDocumentNavigationOptions() {
     enabled: workspace.enabled,
     creating: workspace.creating,
     onOpen: workspace.openDocument,
+    onImport: workspace.importDocument,
     onCopy: workspace.copyDocument,
     onShare: workspace.shareDocument,
     onDetails: workspace.showDetails,
@@ -383,9 +403,11 @@ export function useDocumentNavigationOptions() {
     group: string,
   ): NavigationMenuItem {
     if ('children' in item) {
+      const children = item.children.map((child) => bindItem(child, group))
       return {
         ...item,
-        children: item.children.map((child) => bindItem(child, group)),
+        children,
+        disabled: children.every((child) => child.disabled),
       }
     }
 
@@ -396,7 +418,8 @@ export function useDocumentNavigationOptions() {
       disabled:
         item.disabled?.(context) ||
         (context.enabled === false &&
-          !['new-document', 'open'].includes(item.id)),
+          !['new-document', 'open'].includes(item.id) &&
+          !item.id.startsWith('import-')),
       checked: item.checked?.(context),
     }
     options.push(option)
