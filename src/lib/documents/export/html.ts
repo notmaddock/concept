@@ -1,0 +1,44 @@
+import { $generateHtmlFromNodes } from '@lexical/html'
+import type { LexicalEditor } from 'lexical'
+import { $getPageSetup, pageDimensions } from '../page-setup'
+
+export function exportHtml(editor: LexicalEditor, name: string) {
+  const output = document.implementation.createHTMLDocument(name)
+  output.documentElement.lang = 'en'
+  const charset = output.createElement('meta')
+  charset.setAttribute('charset', 'utf-8')
+  const policy = output.createElement('meta')
+  policy.httpEquiv = 'Content-Security-Policy'
+  policy.content =
+    "default-src 'none'; style-src 'unsafe-inline'; img-src data: blob:; base-uri 'none'; form-action 'none'"
+  const style = output.createElement('style')
+  const setup = $getPageSetup()
+  const { width, height } = pageDimensions(setup)
+  const { top, right, bottom, left } = setup.margins
+  style.textContent = `
+body { max-width: 72ch; margin: 3rem auto; padding: 0 1.5rem; color: #111; background: white; font: 12pt/1.5 Georgia, serif; overflow-wrap: anywhere; }
+h1,h2,h3,h4,h5,h6 { break-after: avoid; }
+blockquote { border-left: 3px solid #aaa; margin-left: 0; padding-left: 1rem; }
+pre { white-space: pre-wrap; } code,pre { font-family: monospace; }
+ul { list-style: disc; } ul ul { list-style: circle; }
+ul[data-lexical-list-type="check"] { list-style: none; padding-left: 1rem; }
+li[aria-checked="true"]::before { content: '☑ '; }
+li[aria-checked="false"]::before { content: '☐ '; }
+img,table { max-width: 100%; } img { height: auto; }
+@media print { @page { ${setup.mode === 'paper' ? `size: ${width}mm ${height}mm; margin: ${top}mm ${right}mm ${bottom}mm ${left}mm;` : 'margin: 25.4mm;'} } body { max-width: none; margin: 0; padding: 0; } }
+`
+  output.head.prepend(charset, policy)
+  output.head.append(style)
+  output.body.innerHTML = $generateHtmlFromNodes(editor, null)
+  output.body
+    .querySelectorAll('ul[__lexicalListType="check"]')
+    .forEach((list) => {
+      list.setAttribute('data-lexical-list-type', 'check')
+      list.removeAttribute('__lexicalListType')
+    })
+  // Editor theme classes depend on app CSS; the exported document is standalone.
+  output.body.querySelectorAll('[class]').forEach((element) => {
+    element.removeAttribute('class')
+  })
+  return `<!doctype html>\n${output.documentElement.outerHTML}`
+}

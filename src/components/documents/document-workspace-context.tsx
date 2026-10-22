@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from 'react'
 import type { LexicalEditor } from 'lexical'
 import type { Doc } from 'yjs'
+import type { ExportFormat } from '#/lib/documents/export'
 import { useDocuments } from '#/hooks/use-documents'
 import { afterPageLoad } from '#/lib/loading/after-page-load'
 import { DocumentLoading } from './DocumentLoading'
@@ -83,6 +84,23 @@ function useWorkspaceState(id?: string) {
     }
   }
 
+  async function exportDocument(format: ExportFormat) {
+    const editor = editorRef.current
+    if (!document || !editor) {
+      setFileError('Open a document and wait for it to load before exporting.')
+      return
+    }
+    try {
+      const { serializeExport, downloadExport } =
+        await import('#/lib/documents/export')
+      const file = await serializeExport(editor, document.name, format)
+      downloadExport(document.name, file)
+      setFileError('')
+    } catch {
+      setFileError('Could not export the document. Please try again.')
+    }
+  }
+
   const workspace = {
     ...library,
     error: library.error || fileError,
@@ -100,6 +118,7 @@ function useWorkspaceState(id?: string) {
     openDocument,
     copyDocument,
     downloadDocument,
+    exportDocument,
     openPageSetup: () => setPageSetupOpen(true),
     focusEditor: () => {
       editorRef.current?.getRootElement()?.focus({ preventScroll: true })

@@ -1,4 +1,5 @@
 import { toast } from 'sonner'
+import type { ExportFormat } from '#/lib/documents/export'
 import { useEditActions } from './use-edit-actions'
 import type { EditAction } from './use-edit-actions'
 import { useDocumentWorkspace } from '../document-workspace-context'
@@ -55,6 +56,7 @@ type NavigationContext = {
   onShare: () => void
   onCopy?: () => void
   onDownload?: () => void
+  onExport: (format: ExportFormat) => Promise<void>
   onPageSetup: () => void
   onCreate: () => Promise<void>
   creating: boolean
@@ -162,8 +164,8 @@ export const documentNavigation: MenuDefinition[] = [
         children: [
           {
             id: 'export-pdf',
-            label: 'Export as PDF',
-            menuLabel: 'PDF (.pdf)',
+            label: 'Save as PDF (print dialog)',
+            menuLabel: 'PDF (print dialog)',
             keywords: ['download'],
             icon: FileTypeIcon,
             focusAfterSelect: 'action',
@@ -177,6 +179,7 @@ export const documentNavigation: MenuDefinition[] = [
             icon: FileTextIcon,
             focusAfterSelect: 'action',
             onSelect: () => {},
+            disabled: () => true,
           },
           {
             id: 'export-markdown',
@@ -185,7 +188,7 @@ export const documentNavigation: MenuDefinition[] = [
             keywords: ['md'],
             icon: LetterTextIcon,
             focusAfterSelect: 'action',
-            onSelect: () => {},
+            onSelect: (context) => context.onExport('markdown'),
           },
           {
             id: 'export-text',
@@ -194,7 +197,16 @@ export const documentNavigation: MenuDefinition[] = [
             keywords: ['txt'],
             icon: FileTextIcon,
             focusAfterSelect: 'action',
-            onSelect: () => {},
+            onSelect: (context) => context.onExport('text'),
+          },
+          {
+            id: 'export-html',
+            label: 'Export as HTML',
+            menuLabel: 'HTML (.html)',
+            keywords: ['web', 'download'],
+            icon: FileTypeIcon,
+            focusAfterSelect: 'action',
+            onSelect: (context) => context.onExport('html'),
           },
         ],
       },
@@ -324,6 +336,7 @@ export function useDocumentNavigationOptions() {
     onShare: workspace.shareDocument,
     onDetails: workspace.showDetails,
     onDownload: workspace.downloadDocument,
+    onExport: workspace.exportDocument,
     onPageSetup: workspace.openPageSetup,
     onCreate: workspace.createDocument,
     ...useTheme(),

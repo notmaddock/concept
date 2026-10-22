@@ -18,6 +18,7 @@ const workspace = vi.hoisted(() => ({
   shareDocument: vi.fn(),
   showDetails: vi.fn(),
   downloadDocument: vi.fn(),
+  exportDocument: vi.fn(),
 }))
 vi.mock('../document-workspace-context', () => ({
   useDocumentWorkspace: () => workspace,
@@ -67,7 +68,7 @@ function leaves(items: NavigationMenuItem[]): NavigationMenuItem[] {
 it('exposes every menu action to search with the same state and handler', async () => {
   await render()
   const menuActions = navigation.menus.flatMap((menu) => leaves(menu.items))
-  expect(menuActions).toHaveLength(24)
+  expect(menuActions).toHaveLength(25)
   expect(navigation.options).toHaveLength(menuActions.length)
   for (const [index, option] of navigation.options.entries()) {
     expect(option).toBe(menuActions[index])
@@ -157,4 +158,17 @@ it('shares edit shortcuts with menus and action search', async () => {
   expect(
     navigation.options.find((option) => option.id === 'redo')?.shortcut,
   ).toEqual({ keys: ['Ctrl', 'Y'], macKeys: ['⌘', 'Shift', 'Z'] })
+})
+
+it('connects export actions and disables unsupported Word export', async () => {
+  await render()
+  for (const format of ['text', 'markdown', 'html']) {
+    await navigation.options
+      .find((option) => option.id === `export-${format}`)
+      ?.onSelect()
+    expect(workspace.exportDocument).toHaveBeenCalledWith(format)
+  }
+  expect(
+    navigation.options.find((option) => option.id === 'export-word')?.disabled,
+  ).toBe(true)
 })

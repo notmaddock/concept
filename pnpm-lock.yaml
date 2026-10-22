@@ -133,8 +133,14 @@ importers:
       '@lexical/history':
         specifier: ^0.51.0
         version: 0.51.0(typescript@6.0.3)
+      '@lexical/html':
+        specifier: 0.51.0
+        version: 0.51.0(typescript@6.0.3)
       '@lexical/list':
         specifier: ^0.51.0
+        version: 0.51.0(typescript@6.0.3)
+      '@lexical/markdown':
+        specifier: 0.51.0
         version: 0.51.0(typescript@6.0.3)
       '@lexical/react':
         specifier: ^0.51.0
