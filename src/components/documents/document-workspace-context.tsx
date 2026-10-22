@@ -36,6 +36,14 @@ const DocumentShareDialog = lazy(() =>
 function useWorkspaceState(id?: string) {
   const library = useDocuments(id)
   const { document } = library
+
+  useEffect(() => {
+    const previousTitle = window.document.title
+    window.document.title = document ? `${document.name} — Concept` : 'Concept'
+    return () => {
+      window.document.title = previousTitle
+    }
+  }, [document?.name])
   const documentRef = useRef<Doc | null>(null)
   const editorRef = useRef<LexicalEditor | null>(null)
   const [fileAction, setFileAction] = useState<'open' | 'copy' | null>(null)

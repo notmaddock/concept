@@ -118,7 +118,7 @@ export const documentNavigation: MenuDefinition[] = [
             keywords: ['download'],
             icon: FileTypeIcon,
             focusAfterSelect: 'action',
-            onSelect: () => {},
+            onSelect: () => window.print(),
           },
           {
             id: 'export-word',
@@ -172,7 +172,7 @@ export const documentNavigation: MenuDefinition[] = [
         keywords: [],
         icon: PrinterIcon,
         focusAfterSelect: 'action',
-        onSelect: () => {},
+        onSelect: () => window.print(),
       },
     ],
   },

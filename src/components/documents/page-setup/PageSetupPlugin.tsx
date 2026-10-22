@@ -56,19 +56,28 @@ export function PageSetupPlugin({
       unregisterUpdate()
     }
   }, [editor])
-  return open ? (
-    <Suspense fallback={<DocumentLoading label="Loading page setup…" />}>
-      <PageSetupDialog
-        open={open}
-        onOpenChange={onOpenChange}
-        value={setup}
-        onApply={(value) =>
-          // Page settings must not restore editor focus while the dialog is closing.
-          editor.update(() => $setPageSetup(value), {
-            tag: SKIP_DOM_SELECTION_TAG,
-          })
-        }
-      />
-    </Suspense>
-  ) : null
+  const printSetup = setup.mode === 'paper' ? setup : DEFAULT_PAGE_SETUP
+  const { width, height } = pageDimensions(printSetup)
+  const { top, right, bottom, left } = printSetup.margins
+
+  return (
+    <>
+      <style media="print">{`@page { size: ${width}mm ${height}mm; margin: ${top}mm ${right}mm ${bottom}mm ${left}mm; }`}</style>
+      {open ? (
+        <Suspense fallback={<DocumentLoading label="Loading page setup…" />}>
+          <PageSetupDialog
+            open={open}
+            onOpenChange={onOpenChange}
+            value={setup}
+            onApply={(value) =>
+              // Page settings must not restore editor focus while the dialog is closing.
+              editor.update(() => $setPageSetup(value), {
+                tag: SKIP_DOM_SELECTION_TAG,
+              })
+            }
+          />
+        </Suspense>
+      ) : null}
+    </>
+  )
 }

@@ -7,6 +7,7 @@
 @import '@fontsource/ibm-plex-mono';
 @import './styles/scrollbar.css';
 @import './styles/nova.css';
+@import './styles/print.css';
 
 @custom-variant dark (&:is(.dark *));
 

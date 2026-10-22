@@ -35,6 +35,8 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       {
         title: 'Concept',
       },
+      { name: 'application-name', content: 'Concept' },
+      { name: 'creator', content: 'Concept' },
     ],
     links: [
       {

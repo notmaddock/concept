@@ -8,6 +8,7 @@ export function NovaContentEditable() {
 
   return (
     <ContentEditable
+      data-document-content
       className="min-h-full w-full outline-none"
       style={{
         padding: `${marginY} var(--page-margin-right, clamp(1.5rem, 6vw, 4rem)) var(--page-margin-bottom, 2rem) ${marginX}`,

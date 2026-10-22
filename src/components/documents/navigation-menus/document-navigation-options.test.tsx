@@ -131,3 +131,14 @@ it('connects file actions to their handlers and keeps Open available without a d
     navigation.options.find((option) => option.id === 'download')?.disabled,
   ).toBe(true)
 })
+
+it.each(['print', 'export-pdf'])(
+  'opens the document print dialog for %s',
+  async (id) => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {})
+    await render()
+    navigation.options.find((option) => option.id === id)?.onSelect()
+    expect(print).toHaveBeenCalledOnce()
+    print.mockRestore()
+  },
+)
