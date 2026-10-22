@@ -7,7 +7,15 @@ import { initializeDocument } from '#/lib/documents/initial-document'
 import { LocalProvider } from '#/lib/documents/local-provider'
 import { localDocumentStorage } from '#/lib/documents/storage'
 
-export function DocumentEditor({ id }: { id: string }) {
+export function DocumentEditor({
+  id,
+  pageSetupOpen,
+  onPageSetupOpenChange,
+}: {
+  id: string
+  pageSetupOpen: boolean
+  onPageSetupOpenChange: (open: boolean) => void
+}) {
   const [error, setError] = useState('')
   const [session, setSession] = useState<{
     doc: Doc
@@ -47,6 +55,8 @@ export function DocumentEditor({ id }: { id: string }) {
   return (
     <LexicalCollaboration>
       <Nova
+        pageSetupOpen={pageSetupOpen}
+        onPageSetupOpenChange={onPageSetupOpenChange}
         collaboration={
           <CollaborationPlugin
             id={id}

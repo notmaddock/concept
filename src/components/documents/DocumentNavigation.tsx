@@ -12,10 +12,12 @@ import {
 } from '#/components/ui/menubar'
 
 export function DocumentNavigation({
+  onPageSetup,
   onCreate,
   creating,
   enabled,
 }: {
+  onPageSetup: () => void
   onCreate: () => Promise<void>
   creating: boolean
   enabled: boolean
@@ -23,9 +25,10 @@ export function DocumentNavigation({
   return (
     <Menubar
       aria-label="Editor menu"
-      className="h-auto min-h-7 max-w-full flex-wrap gap-0 rounded-none border-0 p-0"
+      className="h-auto min-h-7 max-w-full flex-wrap gap-0 border-0 p-0"
     >
       <DocumentFileMenu
+        onPageSetup={onPageSetup}
         onCreate={onCreate}
         creating={creating}
         disabled={!enabled}

@@ -31,10 +31,12 @@ import {
 } from '#/components/ui/dropdown-menu'
 
 export function DocumentFileMenu({
+  onPageSetup,
   onCreate,
   creating,
   disabled,
 }: {
+  onPageSetup: () => void
   onCreate: () => Promise<void>
   creating: boolean
   disabled: boolean
@@ -105,7 +107,10 @@ export function DocumentFileMenu({
         <DropdownMenuItem className={documentMenuItemClassName}>
           <InfoIcon /> Details
         </DropdownMenuItem>
-        <DropdownMenuItem className={documentMenuItemClassName}>
+        <DropdownMenuItem
+          className={documentMenuItemClassName}
+          onClick={onPageSetup}
+        >
           <Settings2Icon /> Page setup
         </DropdownMenuItem>
         <DropdownMenuItem className={documentMenuItemClassName}>

@@ -22,6 +22,7 @@ import { DocumentContextMenu } from './DocumentContextMenu'
 import { DocumentEditor } from './DocumentEditor'
 
 export function DocumentWorkspace({ id }: { id?: string }) {
+  const [pageSetupOpen, setPageSetupOpen] = useState(false)
   const {
     documents,
     document,
@@ -83,6 +84,7 @@ export function DocumentWorkspace({ id }: { id?: string }) {
             />
           </div>
           <DocumentNavigation
+            onPageSetup={() => setPageSetupOpen(true)}
             onCreate={createDocument}
             creating={creating}
             enabled={Boolean(document)}
@@ -99,10 +101,15 @@ export function DocumentWorkspace({ id }: { id?: string }) {
         >
           {document ? (
             <div
-              className="mx-auto w-full max-w-[210mm] rounded-lg bg-card shadow-sm"
-              style={{ aspectRatio: '210 / 297' }}
+              data-document-sheet
+              className="mx-auto min-h-full w-full max-w-[960px] rounded-lg bg-card shadow-sm"
             >
-              <DocumentEditor key={document.id} id={document.id} />
+              <DocumentEditor
+                key={document.id}
+                id={document.id}
+                pageSetupOpen={pageSetupOpen}
+                onPageSetupOpenChange={setPageSetupOpen}
+              />
             </div>
           ) : (
             <div className="flex min-h-full flex-col items-center justify-center gap-4 rounded-xl bg-card p-8 text-center">
