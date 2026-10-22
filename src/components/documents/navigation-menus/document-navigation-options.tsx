@@ -334,6 +334,7 @@ export const documentNavigation: MenuDefinition[] = [
       icon: section.icon,
       children: section.choices.map((choice) => ({
         id: choice.id,
+        shortcut: choice.shortcut,
         label: choice.label,
         icon: section.icon,
         toggle: true,
@@ -432,4 +433,19 @@ export function useDocumentNavigationOptions() {
   }))
 
   return { menus, options }
+}
+
+export function getDocumentActionShortcut(
+  id: string,
+): ActionShortcut | undefined {
+  function find(items: MenuItemDefinition[]): ActionShortcut | undefined {
+    for (const item of items) {
+      if ('children' in item) {
+        const shortcut = find(item.children)
+        if (shortcut) return shortcut
+      } else if (item.id === id) return item.shortcut
+    }
+    return undefined
+  }
+  return find(documentNavigation.flatMap((menu) => menu.items))
 }

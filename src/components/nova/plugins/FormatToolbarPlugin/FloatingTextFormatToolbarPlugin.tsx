@@ -46,6 +46,8 @@ export function FloatingTextFormatToolbarPlugin() {
       return
     }
 
+    if (document.activeElement?.closest('[data-format-toolbar]')) return
+
     editor.read('latest', () => {
       if (
         editor.isComposing() ||
@@ -158,7 +160,7 @@ export function FloatingTextFormatToolbarPlugin() {
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null
-      if (target?.closest('[data-slot="popover-content"]')) {
+      if (target?.closest('[data-format-toolbar]')) {
         return
       }
       isPointerDownRef.current = true

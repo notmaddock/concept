@@ -12,6 +12,7 @@ import {
   RemoveFormattingIcon,
   TypeIcon,
 } from 'lucide-react'
+import type { ActionShortcut } from './document-navigation-options'
 import type { ElementFormatType, TextFormatType } from 'lexical'
 
 export type FormatAction =
@@ -25,14 +26,27 @@ export type FormatAction =
   | { kind: 'direction'; value: 'ltr' | 'rtl' }
   | { kind: 'clear'; value: 'text' | 'paragraph' }
 
-export type FormatChoice = { id: string; label: string; action: FormatAction }
+export type FormatChoice = {
+  id: string
+  label: string
+  action: FormatAction
+  shortcut?: ActionShortcut
+}
 const choice = (
   id: string,
   label: string,
   action: FormatAction,
 ): FormatChoice => ({ id: `format-${id}`, label, action })
-const text = (value: TextFormatType, label: string) =>
-  choice(value, label, { kind: 'text', value })
+const text = (value: TextFormatType, label: string): FormatChoice => ({
+  ...choice(value, label, { kind: 'text', value }),
+  shortcut:
+    value === 'bold' || value === 'italic' || value === 'underline'
+      ? {
+          keys: ['Ctrl', value[0].toUpperCase()],
+          macKeys: ['⌘', value[0].toUpperCase()],
+        }
+      : undefined,
+})
 const styles = (property: string, values: [string, string][]) =>
   values.map(([label, value]) =>
     choice(`${property}-${value || 'default'}`, label, {

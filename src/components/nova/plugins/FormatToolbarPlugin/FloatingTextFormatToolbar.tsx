@@ -1,13 +1,17 @@
-import { FORMAT_TEXT_COMMAND } from 'lexical'
+import { useMemo, useState } from 'react'
+import { TypographyControls, FormatIcon } from './TypographyControls'
+import { useFormatActions } from '#/components/documents/navigation-menus/use-format-actions'
+import { FormatSelect, toolbarActions } from './FormatOptions'
 import type { LexicalEditor, TextFormatType } from 'lexical'
 import {
   Bold,
-  Code,
+  RemoveFormatting,
   Italic,
   Strikethrough,
   Underline,
   Subscript,
   Superscript,
+  Ellipsis,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { createPortal } from 'react-dom'
@@ -16,8 +20,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '#/components/ui/popover'
-import { Button } from '#/components/ui/button'
-import { cn } from '#/lib/utils'
+import { ColorSelect } from './ColorSelect'
 import type { FormatState, PositionRect } from './types'
 
 type FormatConfig = {
@@ -42,7 +45,6 @@ const FORMAT_BUTTONS: FormatConfig[] = [
     icon: Strikethrough,
     label: 'strikethrough',
   },
-  { format: 'code', stateKey: 'isCode', icon: Code, label: 'code' },
   {
     format: 'subscript',
     stateKey: 'isSubscript',
@@ -72,10 +74,20 @@ export function FloatingTextFormatToolbar({
   formatState,
   onOpenChange,
 }: FloatingTextFormatToolbarProps) {
+  const editorRef = useMemo(() => ({ current: editor }), [editor])
+  const { run, checked } = useFormatActions(
+    editorRef,
+    'selection-toolbar',
+    toolbarActions,
+  )
+  const [panel, setPanel] = useState<'type' | null>(null)
   return (
     <Popover
       open={isOpen && Boolean(rangeRect)}
-      onOpenChange={onOpenChange}
+      onOpenChange={(open) => {
+        if (!open) setPanel(null)
+        onOpenChange(open)
+      }}
       modal={false}
     >
       {rangeRect &&
@@ -101,38 +113,56 @@ export function FloatingTextFormatToolbar({
         align="center"
         initialFocus={false}
         finalFocus={false}
+        data-format-toolbar="true"
         role="toolbar"
         aria-label="Text formatting"
-        className="max-w-[calc(100vw-1rem)] flex-wrap w-auto p-1 border shadow-sm flex flex-row items-center gap-0.5 bg-popover"
+        className="max-w-[calc(100vw-1rem)] w-auto gap-0 rounded-2xl border p-1 shadow-lg"
       >
-        {FORMAT_BUTTONS.map(({ format, stateKey, icon: Icon, label }) => {
-          const isActive = formatState[stateKey]
-          return (
-            <Button
-              key={format}
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className={cn(
-                'text-muted-foreground hover:text-foreground',
-                isActive && 'bg-accent text-accent-foreground',
-              )}
-              aria-label={`Format ${label}`}
-              aria-pressed={isActive}
-              onPointerDown={(e) => {
-                e.preventDefault()
-              }}
-              onMouseDown={(e) => {
-                e.preventDefault()
-              }}
-              onClick={() => {
-                editor.dispatchCommand(FORMAT_TEXT_COMMAND, format)
-              }}
-            >
-              <Icon className="size-4" />
-            </Button>
-          )
-        })}
+        <div className="flex flex-wrap items-center gap-0.5">
+          <div className="shrink-0 border-r pr-1 mr-0.5">
+            <FormatSelect
+              sectionId="paragraph-style"
+              run={run}
+              checked={checked}
+            />
+          </div>
+          {FORMAT_BUTTONS.slice(0, 4).map(
+            ({ format, stateKey, icon, label }) => (
+              <FormatIcon
+                key={format}
+                actionId={`format-${format}`}
+                label={label[0].toUpperCase() + label.slice(1)}
+                icon={icon}
+                active={formatState[stateKey]}
+                onClick={() => void run({ kind: 'text', value: format })}
+              />
+            ),
+          )}
+          <FormatIcon
+            label="Clear formatting"
+            actionId="clear-formatting"
+            icon={RemoveFormatting}
+            onClick={() => void run({ kind: 'clear', value: 'text' })}
+          />
+          <ColorSelect sectionId="text-color" editor={editor} />
+          <ColorSelect sectionId="highlight" editor={editor} />
+          <FormatIcon
+            label="More formatting"
+            icon={Ellipsis}
+            expanded={panel === 'type'}
+            onClick={() => setPanel(panel ? null : 'type')}
+          />
+        </div>
+        <div
+          inert={!panel}
+          aria-hidden={!panel}
+          data-expanded={Boolean(panel)}
+          className="h-0 overflow-hidden opacity-0 [interpolate-size:allow-keywords] transition-[height,opacity] duration-200 ease-out data-[expanded=true]:h-auto data-[expanded=true]:opacity-100 motion-reduce:transition-none"
+        >
+          <div className="mt-1 max-h-[min(50vh,24rem)] overflow-y-auto border-t p-1 pt-1.5">
+            <TypographyControls editor={editor} run={run} checked={checked} />
+          </div>
+        </div>
       </PopoverContent>
     </Popover>
   )
