@@ -11,7 +11,8 @@ export function DragPlugin({ anchorElement }: DragPluginProps) {
   const menuComponentRef = useRef<HTMLDivElement>(null)
   const targetLineRef = useRef<HTMLDivElement>(null)
 
-  const isOnMenu = () => false
+  const isOnMenu = (element: HTMLElement) =>
+    menuComponentRef.current?.contains(element) ?? false
 
   return (
     <DraggableBlockPlugin_EXPERIMENTAL
@@ -21,7 +22,8 @@ export function DragPlugin({ anchorElement }: DragPluginProps) {
       menuComponent={
         <DragPluginMenuComponent
           ref={menuComponentRef}
-          className="absolute top-0 left-6"
+          // Reserve the 32px handle, a 12px text gap, and Lexical's 4px translation.
+          className="absolute top-0 left-[calc(var(--page-margin-left,clamp(1.5rem,6vw,4rem))-3rem)]"
         />
       }
       targetLineRef={targetLineRef}
