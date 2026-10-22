@@ -29,3 +29,12 @@ export const editorExtension = defineExtension({
   $initialEditorState: getInitialState,
   theme: defaultEditorTheme,
 })
+
+export const collaborativeEditorExtension = defineExtension({
+  ...editorExtension,
+  name: '[document]',
+  dependencies: editorExtension.dependencies!.filter(
+    (dependency) => dependency !== HistoryExtension,
+  ),
+  $initialEditorState: null,
+})
