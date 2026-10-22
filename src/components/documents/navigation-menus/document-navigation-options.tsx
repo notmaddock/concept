@@ -1,6 +1,17 @@
+import { toast } from 'sonner'
+import { useEditActions } from './use-edit-actions'
+import type { EditAction } from './use-edit-actions'
 import { useDocumentWorkspace } from '../document-workspace-context'
 import {
   CopyIcon,
+  Undo2Icon,
+  Redo2Icon,
+  ScissorsIcon,
+  ClipboardPasteIcon,
+  ClipboardTypeIcon,
+  TextSelectIcon,
+  Trash2Icon,
+  RemoveFormattingIcon,
   DownloadIcon,
   FileDownIcon,
   FileTextIcon,
@@ -19,7 +30,25 @@ import {
 } from 'lucide-react'
 import { useTheme } from '#/components/theme-provider'
 
+export type ActionShortcut = {
+  keys: string[]
+  macKeys?: string[]
+}
+
+const editShortcuts: Record<EditAction, ActionShortcut> = {
+  undo: { keys: ['Ctrl', 'Z'], macKeys: ['⌘', 'Z'] },
+  redo: { keys: ['Ctrl', 'Y'], macKeys: ['⌘', 'Shift', 'Z'] },
+  cut: { keys: ['Ctrl', 'X'], macKeys: ['⌘', 'X'] },
+  copy: { keys: ['Ctrl', 'C'], macKeys: ['⌘', 'C'] },
+  paste: { keys: ['Ctrl', 'V'], macKeys: ['⌘', 'V'] },
+  'paste-plain': { keys: ['Ctrl', 'Shift', 'V'], macKeys: ['⌘', 'Shift', 'V'] },
+  'select-all': { keys: ['Ctrl', 'A'], macKeys: ['⌘', 'A'] },
+  'delete-selection': { keys: ['Delete'], macKeys: ['⌫'] },
+  'clear-formatting': { keys: ['Ctrl', '\\'], macKeys: ['⌘', '\\'] },
+}
+
 type NavigationContext = {
+  edit: ReturnType<typeof useEditActions>
   enabled?: boolean
   onOpen?: () => void
   onDetails?: () => void
@@ -36,6 +65,7 @@ type NavigationContext = {
 type ActionDefinition = {
   id: string
   label: string
+  shortcut?: ActionShortcut
   menuLabel?: string
   keywords: string[]
   icon: typeof PlusIcon
@@ -58,6 +88,25 @@ type MenuItemDefinition = ActionDefinition | SubmenuDefinition
 type MenuDefinition = {
   label: string
   items: MenuItemDefinition[]
+}
+
+function editOption(
+  id: EditAction,
+  label: string,
+  icon: typeof PlusIcon,
+  separatorBefore = false,
+): ActionDefinition {
+  return {
+    id,
+    shortcut: editShortcuts[id],
+    label,
+    icon,
+    keywords: id === 'paste-plain' ? ['plain text', 'clipboard'] : ['edit', id],
+    focusAfterSelect: 'editor',
+    separatorBefore,
+    onSelect: (context) => context.edit.run(id),
+    disabled: (context) => context.edit.disabled(id),
+  }
 }
 
 export const documentNavigation: MenuDefinition[] = [
@@ -176,7 +225,25 @@ export const documentNavigation: MenuDefinition[] = [
       },
     ],
   },
-  { label: 'Edit', items: [] },
+  {
+    label: 'Edit',
+    items: [
+      editOption('undo', 'Undo', Undo2Icon),
+      editOption('redo', 'Redo', Redo2Icon),
+      editOption('cut', 'Cut', ScissorsIcon, true),
+      editOption('copy', 'Copy', CopyIcon),
+      editOption('paste', 'Paste', ClipboardPasteIcon),
+      editOption('paste-plain', 'Paste without formatting', ClipboardTypeIcon),
+      editOption('select-all', 'Select all', TextSelectIcon, true),
+      editOption('delete-selection', 'Delete selection', Trash2Icon),
+      editOption(
+        'clear-formatting',
+        'Clear formatting',
+        RemoveFormattingIcon,
+        true,
+      ),
+    ],
+  },
   {
     label: 'View',
     items: [
@@ -243,7 +310,13 @@ export type NavigationMenuItem =
 
 export function useDocumentNavigationOptions() {
   const workspace = useDocumentWorkspace()
+  const edit = useEditActions(
+    workspace.editorRef,
+    workspace.document?.id,
+    (message) => toast.error(message),
+  )
   const context: NavigationContext = {
+    edit,
     enabled: workspace.enabled,
     creating: workspace.creating,
     onOpen: workspace.openDocument,

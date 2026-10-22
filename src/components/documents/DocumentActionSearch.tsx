@@ -1,3 +1,4 @@
+import { ActionShortcut } from './navigation-menus/ActionShortcut'
 import { useDocumentWorkspace } from './document-workspace-context'
 import { useEffect, useRef, useState } from 'react'
 import { SearchIcon, XIcon } from 'lucide-react'
@@ -94,7 +95,7 @@ export function DocumentActionSearch({
             closeSearch(true)
           }
         }}
-        className={`absolute left-0 top-0 h-auto overflow-visible rounded-2xl bg-transparent p-0 ${searchOpen ? 'w-72 max-w-[calc(100vw-2rem)]' : 'w-7'}`}
+        className={`absolute left-0 top-0 h-auto overflow-visible rounded-2xl bg-transparent p-0 ${searchOpen ? 'w-96 max-w-[calc(100vw-2rem)]' : 'w-7'}`}
       >
         <div
           className={`group/search relative flex h-7 w-full items-center rounded-2xl ${searchOpen ? 'bg-popover text-popover-foreground shadow-sm ring-1 ring-foreground/10 dark:ring-foreground/15' : ''}`}
@@ -178,6 +179,8 @@ export function DocumentActionSearch({
                               option.label,
                               option.group,
                               ...option.keywords,
+                              ...(option.shortcut?.keys ?? []),
+                              ...(option.shortcut?.macKeys ?? []),
                             ]}
                             disabled={option.disabled}
                             className="min-h-7 py-1 [&>svg:last-child]:hidden"
@@ -196,6 +199,7 @@ export function DocumentActionSearch({
                             <span className="min-w-0 truncate">
                               {option.label}
                             </span>
+                            <ActionShortcut shortcut={option.shortcut} />
                           </CommandItem>
                         )
                       })}

@@ -67,7 +67,7 @@ function leaves(items: NavigationMenuItem[]): NavigationMenuItem[] {
 it('exposes every menu action to search with the same state and handler', async () => {
   await render()
   const menuActions = navigation.menus.flatMap((menu) => leaves(menu.items))
-  expect(menuActions).toHaveLength(15)
+  expect(menuActions).toHaveLength(24)
   expect(navigation.options).toHaveLength(menuActions.length)
   for (const [index, option] of navigation.options.entries()) {
     expect(option).toBe(menuActions[index])
@@ -142,3 +142,19 @@ it.each(['print', 'export-pdf'])(
     print.mockRestore()
   },
 )
+
+it('shares edit shortcuts with menus and action search', async () => {
+  await render()
+  const edit = navigation.menus.find((menu) => menu.label === 'Edit')!
+  expect(edit.items).toHaveLength(9)
+  for (const item of edit.items) {
+    if ('children' in item) continue
+    expect(item.shortcut?.keys.length).toBeGreaterThan(0)
+    expect(
+      navigation.options.find((option) => option.id === item.id)?.shortcut,
+    ).toBe(item.shortcut)
+  }
+  expect(
+    navigation.options.find((option) => option.id === 'redo')?.shortcut,
+  ).toEqual({ keys: ['Ctrl', 'Y'], macKeys: ['⌘', 'Shift', 'Z'] })
+})

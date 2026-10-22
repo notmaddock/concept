@@ -101,7 +101,10 @@ function useWorkspaceState(id?: string) {
     copyDocument,
     downloadDocument,
     openPageSetup: () => setPageSetupOpen(true),
-    focusEditor: () => editorRef.current?.focus(),
+    focusEditor: () => {
+      editorRef.current?.getRootElement()?.focus({ preventScroll: true })
+      editorRef.current?.focus()
+    },
   }
 
   return { workspace, fileAction, closeFileDialog: () => setFileAction(null) }

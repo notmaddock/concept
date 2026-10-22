@@ -7,6 +7,7 @@ import {
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
+import { AppToaster } from '#/components/app-toaster'
 import { ThemeProvider } from '#/components/theme-provider'
 import { NotFound } from '#/components/not-found'
 import { TooltipProvider } from '#/components/ui/tooltip'
@@ -71,6 +72,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           <PostHogProvider>
             <TooltipProvider delay={200}>
               {children}
+              <AppToaster />
               <TanStackDevtools
                 config={{
                   position: 'bottom-right',

@@ -1,4 +1,5 @@
-import { Fragment } from 'react'
+import { ActionShortcut } from './ActionShortcut'
+import { Fragment, useRef } from 'react'
 import type { NavigationMenuItem } from './document-navigation-options'
 import {
   documentMenuContentClassName,
@@ -20,7 +21,13 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 
-function MenuItems({ items }: { items: NavigationMenuItem[] }) {
+function MenuItems({
+  items,
+  onEditorAction,
+}: {
+  items: NavigationMenuItem[]
+  onEditorAction: () => void
+}) {
   const selected = items.find((item) => 'checked' in item && item.checked)
   const content = items.map((item) => {
     const Icon = item.icon
@@ -37,7 +44,7 @@ function MenuItems({ items }: { items: NavigationMenuItem[] }) {
             sideOffset={4}
             className={documentSubmenuContentClassName}
           >
-            <MenuItems items={item.children} />
+            <MenuItems items={item.children} onEditorAction={onEditorAction} />
           </DropdownMenuSubContent>
         </DropdownMenuSub>
       )
@@ -57,10 +64,14 @@ function MenuItems({ items }: { items: NavigationMenuItem[] }) {
         ) : (
           <DropdownMenuItem
             className={documentMenuItemClassName}
-            onClick={item.onSelect}
+            onClick={() => {
+              if (item.focusAfterSelect === 'editor') onEditorAction()
+              void item.onSelect()
+            }}
             disabled={item.disabled}
           >
             <Icon /> {item.menuLabel ?? item.label}
+            <ActionShortcut shortcut={item.shortcut} />
           </DropdownMenuItem>
         )}
       </Fragment>
@@ -93,8 +104,13 @@ export function DocumentMenu({
   label: string
   items: NavigationMenuItem[]
 }) {
+  const editorAction = useRef(false)
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        if (open) editorAction.current = false
+      }}
+    >
       <DropdownMenuTrigger
         render={
           <Button
@@ -108,10 +124,16 @@ export function DocumentMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className={documentMenuContentClassName}
+        finalFocus={() => (editorAction.current ? false : true)}
+        className={label === 'Edit' ? 'w-80 p-1' : documentMenuContentClassName}
       >
         {items.length > 0 ? (
-          <MenuItems items={items} />
+          <MenuItems
+            items={items}
+            onEditorAction={() => {
+              editorAction.current = true
+            }}
+          />
         ) : (
           <p className="px-2 py-1 text-sm text-muted-foreground">
             No options yet
