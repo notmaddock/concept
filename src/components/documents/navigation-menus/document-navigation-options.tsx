@@ -1,3 +1,4 @@
+import { useDocumentWorkspace } from '../document-workspace-context'
 import {
   CopyIcon,
   DownloadIcon,
@@ -238,19 +239,18 @@ export type NavigationMenuItem =
       children: NavigationMenuItem[]
     })
 
-export function useDocumentNavigationOptions(
-  props: Pick<
-    NavigationContext,
-    | 'onPageSetup'
-    | 'onCreate'
-    | 'creating'
-    | 'onOpen'
-    | 'onCopy'
-    | 'onDownload'
-    | 'enabled'
-  >,
-) {
-  const context: NavigationContext = { ...props, ...useTheme() }
+export function useDocumentNavigationOptions() {
+  const workspace = useDocumentWorkspace()
+  const context: NavigationContext = {
+    enabled: workspace.enabled,
+    creating: workspace.creating,
+    onOpen: workspace.openDocument,
+    onCopy: workspace.copyDocument,
+    onDownload: workspace.downloadDocument,
+    onPageSetup: workspace.openPageSetup,
+    onCreate: workspace.createDocument,
+    ...useTheme(),
+  }
   const options: NavigationOption[] = []
 
   function bindItem(

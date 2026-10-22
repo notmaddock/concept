@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import type { Doc } from 'yjs'
-import { downloadConcept } from '#/lib/documents/concept-file'
-import { DocumentStorageDialog } from './DocumentStorageDialog'
-import type { LexicalEditor } from 'lexical'
+import {
+  DocumentWorkspaceProvider,
+  useDocumentWorkspace,
+} from './document-workspace-context'
+import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { FileTextIcon, PlusIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -20,17 +20,19 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '#/components/ui/sidebar'
-import { useDocuments } from '#/hooks/use-documents'
 import { DocumentNavigation } from './DocumentNavigation'
 import { DocumentContextMenu } from './DocumentContextMenu'
 import { DocumentEditor } from './DocumentEditor'
 
 export function DocumentWorkspace({ id }: { id?: string }) {
-  const documentRef = useRef<Doc | null>(null)
-  const [fileAction, setFileAction] = useState<'open' | 'copy' | null>(null)
-  const [fileError, setFileError] = useState('')
-  const editorRef = useRef<LexicalEditor | null>(null)
-  const [pageSetupOpen, setPageSetupOpen] = useState(false)
+  return (
+    <DocumentWorkspaceProvider id={id}>
+      <DocumentWorkspaceContent id={id} />
+    </DocumentWorkspaceProvider>
+  )
+}
+
+function DocumentWorkspaceContent({ id }: { id?: string }) {
   const {
     documents,
     document,
@@ -40,7 +42,11 @@ export function DocumentWorkspace({ id }: { id?: string }) {
     createDocument,
     renameDocument,
     deleteDocument,
-  } = useDocuments(id)
+    documentRef,
+    editorRef,
+    pageSetupOpen,
+    onPageSetupOpenChange,
+  } = useDocumentWorkspace()
 
   return (
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
@@ -91,41 +97,11 @@ export function DocumentWorkspace({ id }: { id?: string }) {
               onSave={document ? renameDocument : undefined}
             />
           </div>
-          <DocumentNavigation
-            onOpen={() => setFileAction('open')}
-            onCopy={() => {
-              if (documentRef.current && document) setFileAction('copy')
-              else
-                setFileError(
-                  'Open a document and wait for it to load before making a copy.',
-                )
-            }}
-            onDownload={() => {
-              try {
-                if (!document || !documentRef.current)
-                  throw new Error(
-                    'Open a document and wait for it to load before downloading.',
-                  )
-                downloadConcept(document.name, documentRef.current)
-                setFileError('')
-              } catch (cause) {
-                setFileError(
-                  cause instanceof Error
-                    ? cause.message
-                    : 'Could not download the document.',
-                )
-              }
-            }}
-            onPageSetup={() => setPageSetupOpen(true)}
-            onCreate={createDocument}
-            creating={creating}
-            enabled={Boolean(document)}
-            onFocusEditor={() => editorRef.current?.focus()}
-          />
+          <DocumentNavigation />
         </header>
-        {(error || fileError) && (
+        {error && (
           <p role="alert" className="px-6 pb-3 text-sm text-destructive">
-            {error || fileError}
+            {error}
           </p>
         )}
         <main
@@ -143,7 +119,7 @@ export function DocumentWorkspace({ id }: { id?: string }) {
                 id={document.id}
                 editorRef={editorRef}
                 pageSetupOpen={pageSetupOpen}
-                onPageSetupOpenChange={setPageSetupOpen}
+                onPageSetupOpenChange={onPageSetupOpenChange}
               />
             </div>
           ) : (
@@ -170,18 +146,6 @@ export function DocumentWorkspace({ id }: { id?: string }) {
           )}
         </main>
       </div>
-      {fileAction && (
-        <DocumentStorageDialog
-          key={fileAction}
-          mode={fileAction}
-          source={
-            document && documentRef.current
-              ? { name: document.name, doc: documentRef.current }
-              : undefined
-          }
-          onClose={() => setFileAction(null)}
-        />
-      )}
     </SidebarProvider>
   )
 }

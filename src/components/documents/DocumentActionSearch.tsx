@@ -1,3 +1,4 @@
+import { useDocumentWorkspace } from './document-workspace-context'
 import { useEffect, useRef, useState } from 'react'
 import { SearchIcon, XIcon } from 'lucide-react'
 import type { NavigationOption } from './navigation-menus/document-navigation-options'
@@ -18,14 +19,11 @@ import {
 } from '#/components/ui/tooltip'
 
 export function DocumentActionSearch({
-  enabled,
   options,
-  onFocusEditor,
 }: {
-  enabled: boolean
   options: NavigationOption[]
-  onFocusEditor: () => void
 }) {
+  const { enabled, focusEditor } = useDocumentWorkspace()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -188,7 +186,7 @@ export function DocumentActionSearch({
                               void Promise.resolve(option.onSelect()).then(
                                 () => {
                                   if (option.focusAfterSelect === 'editor') {
-                                    onFocusEditor()
+                                    focusEditor()
                                   }
                                 },
                               )

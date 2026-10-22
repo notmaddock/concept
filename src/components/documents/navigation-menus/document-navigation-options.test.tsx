@@ -8,14 +8,29 @@ import { useDocumentNavigationOptions } from './document-navigation-options'
 const theme = vi.hoisted(() => ({ theme: 'light', setTheme: vi.fn() }))
 vi.mock('#/components/theme-provider', () => ({ useTheme: () => theme }))
 
+const workspace = vi.hoisted(() => ({
+  enabled: true,
+  creating: false,
+  createDocument: vi.fn<() => Promise<void>>(),
+  openPageSetup: vi.fn(),
+  openDocument: vi.fn(),
+  copyDocument: vi.fn(),
+  downloadDocument: vi.fn(),
+}))
+vi.mock('../document-workspace-context', () => ({
+  useDocumentWorkspace: () => workspace,
+}))
+
 let root: Root
 let container: HTMLDivElement
 let navigation: ReturnType<typeof useDocumentNavigationOptions>
-const onCreate = vi.fn<() => Promise<void>>()
-const onPageSetup = vi.fn()
-const onOpen = vi.fn()
-const onCopy = vi.fn()
-const onDownload = vi.fn()
+const {
+  createDocument: onCreate,
+  openPageSetup: onPageSetup,
+  openDocument: onOpen,
+  copyDocument: onCopy,
+  downloadDocument: onDownload,
+} = workspace
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -31,16 +46,10 @@ afterEach(async () => {
 })
 
 async function render(creating = false, enabled = true) {
+  workspace.creating = creating
+  workspace.enabled = enabled
   function Harness() {
-    navigation = useDocumentNavigationOptions({
-      onCreate,
-      onOpen,
-      onCopy,
-      onDownload,
-      enabled,
-      onPageSetup,
-      creating,
-    })
+    navigation = useDocumentNavigationOptions()
     return null
   }
   await act(() => root.render(<Harness />))
