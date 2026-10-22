@@ -81,11 +81,15 @@ export function FloatingTextFormatToolbar({
     toolbarActions,
   )
   const [panel, setPanel] = useState<'type' | null>(null)
+  const [isPanelAnimating, setIsPanelAnimating] = useState(false)
   return (
     <Popover
       open={isOpen && Boolean(rangeRect)}
       onOpenChange={(open) => {
-        if (!open) setPanel(null)
+        if (!open) {
+          setPanel(null)
+          setIsPanelAnimating(false)
+        }
         onOpenChange(open)
       }}
       modal={false}
@@ -116,9 +120,10 @@ export function FloatingTextFormatToolbar({
         data-format-toolbar="true"
         role="toolbar"
         aria-label="Text formatting"
-        className="max-w-[calc(100vw-1rem)] w-auto gap-0 rounded-2xl border p-1 shadow-lg"
+        // Leave room for the positioner’s collision bias so expansion cannot trigger a flip.
+        className="max-h-[max(0px,calc(var(--available-height)-2px))] max-w-[calc(100vw-1rem)] w-auto gap-0 rounded-2xl border p-1 shadow-lg"
       >
-        <div className="flex flex-wrap items-center gap-0.5">
+        <div className="flex shrink-0 flex-wrap items-center gap-0.5">
           <div className="shrink-0 border-r pr-1 mr-0.5">
             <FormatSelect
               sectionId="paragraph-style"
@@ -150,16 +155,33 @@ export function FloatingTextFormatToolbar({
             label="More formatting"
             icon={Ellipsis}
             expanded={panel === 'type'}
-            onClick={() => setPanel(panel ? null : 'type')}
+            onClick={() => {
+              setIsPanelAnimating(
+                !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+              )
+              setPanel(panel ? null : 'type')
+            }}
           />
         </div>
         <div
           inert={!panel}
           aria-hidden={!panel}
           data-expanded={Boolean(panel)}
-          className="h-0 overflow-hidden opacity-0 [interpolate-size:allow-keywords] transition-[height,opacity] duration-200 ease-out data-[expanded=true]:h-auto data-[expanded=true]:opacity-100 motion-reduce:transition-none"
+          onTransitionEnd={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              event.propertyName === 'height'
+            ) {
+              setIsPanelAnimating(false)
+            }
+          }}
+          style={{
+            overflowY: isPanelAnimating || !panel ? 'hidden' : 'auto',
+            scrollbarGutter: 'stable',
+          }}
+          className="min-h-0 h-0 max-h-[min(50vh,24rem)] overflow-x-hidden opacity-0 [interpolate-size:allow-keywords] transition-[height,opacity] duration-200 ease-out data-[expanded=true]:h-auto data-[expanded=true]:opacity-100 motion-reduce:transition-none"
         >
-          <div className="mt-1 max-h-[min(50vh,24rem)] overflow-y-auto border-t p-1 pt-1.5">
+          <div className="mt-1 border-t p-1 pt-1.5">
             <TypographyControls editor={editor} run={run} checked={checked} />
           </div>
         </div>
