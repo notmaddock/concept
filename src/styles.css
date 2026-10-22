@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 @import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
+@import './styles/tailwind-utilities.css';
 @import '@fontsource-variable/dm-sans';
 @import './styles/scrollbar.css';
 
