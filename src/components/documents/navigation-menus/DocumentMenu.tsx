@@ -97,21 +97,35 @@ function MenuItems({
 
 export function DocumentMenu({
   disabled,
+  open,
+  instant,
+  restoreFocus,
+  onOpenChange,
+  onMouseEnter,
   label,
   items,
 }: {
   disabled: boolean
+  open: boolean
+  instant: boolean
+  restoreFocus: boolean
+  onOpenChange: (open: boolean) => void
+  onMouseEnter: () => void
   label: string
   items: NavigationMenuItem[]
 }) {
   const editorAction = useRef(false)
   return (
     <DropdownMenu
-      onOpenChange={(open) => {
-        if (open) editorAction.current = false
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) editorAction.current = false
+        onOpenChange(nextOpen)
       }}
     >
       <DropdownMenuTrigger
+        openOnHover={false}
+        onMouseEnter={onMouseEnter}
         render={
           <Button
             variant="ghost"
@@ -124,8 +138,9 @@ export function DocumentMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        finalFocus={() => (editorAction.current ? false : true)}
-        className={label === 'Edit' ? 'w-80 p-1' : documentMenuContentClassName}
+        // Returning focus during a switch can reopen the menu being closed.
+        finalFocus={() => !editorAction.current && restoreFocus}
+        className={`${label === 'Edit' ? 'w-80 p-1' : documentMenuContentClassName} ${instant ? 'data-open:animate-none data-closed:animate-none' : ''}`}
       >
         {items.length > 0 ? (
           <MenuItems
