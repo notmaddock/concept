@@ -80,7 +80,7 @@ function PageSetupForm({
         <Input
           type="number"
           min={0}
-          step="any"
+          step="0.1"
           value={Number.isNaN(value) ? '' : Number((value / factor).toFixed(4))}
           onChange={(event) =>
             update(
