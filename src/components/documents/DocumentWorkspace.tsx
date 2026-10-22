@@ -22,6 +22,7 @@ import {
 } from '#/components/ui/sidebar'
 import { DocumentNavigation } from './DocumentNavigation'
 import { DocumentContextMenu } from './DocumentContextMenu'
+import { DocumentDetailsPopover } from './DocumentDetails'
 import { DocumentEditor } from './DocumentEditor'
 
 export function DocumentWorkspace({ id }: { id?: string }) {
@@ -73,13 +74,15 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                     name={item.name}
                     onDelete={() => deleteDocument(item.id)}
                   >
-                    <SidebarMenuButton
-                      isActive={item.id === id}
-                      render={<Link to="/d/$id" params={{ id: item.id }} />}
-                    >
-                      <FileTextIcon />
-                      <span>{item.name}</span>
-                    </SidebarMenuButton>
+                    <DocumentDetailsPopover document={item}>
+                      <SidebarMenuButton
+                        isActive={item.id === id}
+                        render={<Link to="/d/$id" params={{ id: item.id }} />}
+                      >
+                        <FileTextIcon />
+                        <span>{item.name}</span>
+                      </SidebarMenuButton>
+                    </DocumentDetailsPopover>
                   </DocumentContextMenu>
                 </SidebarMenuItem>
               ))}

@@ -16,6 +16,7 @@ const workspace = vi.hoisted(() => ({
   openDocument: vi.fn(),
   copyDocument: vi.fn(),
   shareDocument: vi.fn(),
+  showDetails: vi.fn(),
   downloadDocument: vi.fn(),
 }))
 vi.mock('../document-workspace-context', () => ({
@@ -82,6 +83,8 @@ it('exposes every menu action to search with the same state and handler', async 
   navigation.options.find((option) => option.id === 'page-setup')?.onSelect()
   navigation.options.find((option) => option.id === 'theme-dark')?.onSelect()
   expect(onCreate).toHaveBeenCalledOnce()
+  navigation.options.find((option) => option.id === 'details')?.onSelect()
+  expect(workspace.showDetails).toHaveBeenCalledOnce()
   expect(onPageSetup).toHaveBeenCalledOnce()
   expect(theme.setTheme).toHaveBeenCalledWith('dark')
 })

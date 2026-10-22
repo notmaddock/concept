@@ -1,4 +1,6 @@
 import { Doc } from 'yjs'
+import type { LucideIcon } from 'lucide-react'
+import { storageLocations } from './storage-locations'
 import type { ConceptFile } from './concept-file'
 import type { DocumentInfo } from './storage'
 import { importConcept, parseConcept, serializeConcept } from './concept-file'
@@ -16,6 +18,7 @@ interface SourceInfo {
   id: string
   label: string
   description: string
+  icon: LucideIcon
 }
 
 export type DocumentSource = SourceInfo &
@@ -34,15 +37,11 @@ export interface DocumentSaveProvider extends SourceInfo {
 
 export const documentSources: Array<DocumentSource> = [
   {
-    id: 'device',
-    label: 'This device',
-    description: 'Choose a .concept file',
+    ...storageLocations.device,
     kind: 'device',
   },
   {
-    id: 'local',
-    label: 'Local library',
-    description: 'Documents saved in this browser',
+    ...storageLocations.local,
     kind: 'library',
     list: () => localDocumentStorage.list(),
     async read(document) {
@@ -55,7 +54,7 @@ export const documentSources: Array<DocumentSource> = [
           file: parseConcept(text),
           filename: document.name,
           size: new Blob([text]).size,
-          origin: 'Local library · This browser',
+          origin: storageLocations.local.label,
           existingId: document.id,
         }
       } finally {
@@ -68,9 +67,7 @@ export const documentSources: Array<DocumentSource> = [
 
 export const documentSaveProviders: Array<DocumentSaveProvider> = [
   {
-    id: 'local',
-    label: 'Local library',
-    description: 'Saved in this browser’s library',
+    ...storageLocations.local,
     save: (file, name) => importConcept(file, name),
   },
 ]

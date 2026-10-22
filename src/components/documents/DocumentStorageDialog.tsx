@@ -4,7 +4,6 @@ import {
   CheckIcon,
   FileTextIcon,
   FolderOpenIcon,
-  HardDriveIcon,
 } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import type { Doc } from 'yjs'
@@ -18,6 +17,7 @@ import {
   documentSaveProviders,
   documentSources,
 } from '#/lib/documents/transfer'
+import { storageLocations } from '#/lib/documents/storage-locations'
 import { parseConcept, serializeConcept } from '#/lib/documents/concept-file'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -197,11 +197,7 @@ export function DocumentStorageDialog({
                     onClick={() => changeSource(item.id)}
                     className="h-auto justify-start gap-3 rounded-xl p-4 whitespace-normal text-left"
                   >
-                    {item.kind === 'device' ? (
-                      <HardDriveIcon />
-                    ) : (
-                      <FolderOpenIcon />
-                    )}
+                    <item.icon />
                     <span className="grid gap-1">
                       <span>{item.label}</span>
                       <span className="text-xs font-normal text-muted-foreground">
@@ -220,7 +216,10 @@ export function DocumentStorageDialog({
                 >
                   <ArrowLeftIcon /> Change source
                 </Button>
-                <h3 className="text-sm font-medium">{openSource.label}</h3>
+                <h3 className="flex items-center gap-2 text-sm font-medium">
+                  <openSource.icon className="size-4" />
+                  {openSource.label}
+                </h3>
                 {openSource.kind === 'device' ? (
                   <div className="grid justify-items-start gap-3 rounded-xl border border-dashed p-6">
                     <div className="grid gap-1">
@@ -254,7 +253,7 @@ export function DocumentStorageDialog({
                             file: parseConcept(await file.text()),
                             size: file.size,
                             filename: file.name,
-                            origin: 'This device',
+                            origin: storageLocations.device.label,
                           }
                         })
                       }}
@@ -307,7 +306,12 @@ export function DocumentStorageDialog({
                   <dt className="text-muted-foreground">Size</dt>
                   <dd>{formatFileSize(selected.size)}</dd>
                   <dt className="text-muted-foreground">Origin</dt>
-                  <dd>{selected.origin}</dd>
+                  <dd className="flex items-center gap-1.5">
+                    {openSource && (
+                      <openSource.icon className="size-3.5 shrink-0" />
+                    )}
+                    {selected.origin}
+                  </dd>
                 </dl>
               </div>
               <Button
@@ -352,7 +356,7 @@ export function DocumentStorageDialog({
                   onClick={() => setProviderId(item.id)}
                   className="h-auto justify-start gap-3 rounded-xl p-4 whitespace-normal text-left"
                 >
-                  <FolderOpenIcon />
+                  <item.icon />
                   <span className="grid gap-1">
                     <span>{item.label}</span>
                     <span className="text-xs font-normal text-muted-foreground">

@@ -22,6 +22,7 @@ import { useTheme } from '#/components/theme-provider'
 type NavigationContext = {
   enabled?: boolean
   onOpen?: () => void
+  onDetails?: () => void
   onShare: () => void
   onCopy?: () => void
   onDownload?: () => void
@@ -154,7 +155,7 @@ export const documentNavigation: MenuDefinition[] = [
         keywords: ['document information'],
         icon: InfoIcon,
         focusAfterSelect: 'action',
-        onSelect: () => {},
+        onSelect: (context) => context.onDetails?.(),
         separatorBefore: true,
       },
       {
@@ -248,6 +249,7 @@ export function useDocumentNavigationOptions() {
     onOpen: workspace.openDocument,
     onCopy: workspace.copyDocument,
     onShare: workspace.shareDocument,
+    onDetails: workspace.showDetails,
     onDownload: workspace.downloadDocument,
     onPageSetup: workspace.openPageSetup,
     onCreate: workspace.createDocument,

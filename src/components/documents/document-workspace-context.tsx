@@ -5,6 +5,7 @@ import type { Doc } from 'yjs'
 import { useDocuments } from '#/hooks/use-documents'
 import { downloadConcept } from '#/lib/documents/concept-file'
 import { DocumentStorageDialog } from './DocumentStorageDialog'
+import { DocumentDetailsDialog } from './DocumentDetails'
 import { DocumentShareDialog } from './DocumentShareDialog'
 
 function useWorkspaceState(id?: string) {
@@ -16,6 +17,7 @@ function useWorkspaceState(id?: string) {
   const [fileError, setFileError] = useState('')
   const [pageSetupOpen, setPageSetupOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
 
   function openDocument() {
     setFileAction('open')
@@ -52,6 +54,9 @@ function useWorkspaceState(id?: string) {
     enabled: Boolean(document),
     documentRef,
     editorRef,
+    detailsOpen,
+    onDetailsOpenChange: setDetailsOpen,
+    showDetails: () => setDetailsOpen(true),
     shareOpen,
     onShareOpenChange: setShareOpen,
     shareDocument: () => setShareOpen(true),
@@ -84,6 +89,15 @@ export function DocumentWorkspaceProvider({
   return (
     <DocumentWorkspaceContext value={workspace}>
       {children}
+      {workspace.detailsOpen && document && (
+        <DocumentDetailsDialog
+          key={document.id}
+          document={document}
+          documentRef={documentRef}
+          editorRef={workspace.editorRef}
+          onOpenChange={workspace.onDetailsOpenChange}
+        />
+      )}
       <DocumentShareDialog
         open={workspace.shareOpen}
         onOpenChange={workspace.onShareOpenChange}

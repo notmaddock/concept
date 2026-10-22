@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type * as ConceptFileModule from '#/lib/documents/concept-file'
 import type { Root } from 'react-dom/client'
 import { DocumentStorageDialog } from './DocumentStorageDialog'
+import { storageLocations } from '#/lib/documents/storage-locations'
 import { serializeConcept } from '#/lib/documents/concept-file'
 
 const mocks = vi.hoisted(() => ({ navigate: vi.fn(), importConcept: vi.fn() }))
@@ -148,6 +149,7 @@ it('opens a library document in place without saving a duplicate', async () => {
         sources={[
           {
             id: 'library',
+            icon: storageLocations.local.icon,
             label: 'Test library',
             description: 'Saved documents',
             kind: 'library',
@@ -186,6 +188,7 @@ it('saves an imported document to the selected provider independently of its sou
         sources={[
           {
             id: 'external',
+            icon: storageLocations.local.icon,
             label: 'External source',
             description: 'Another source',
             kind: 'library',
@@ -203,12 +206,14 @@ it('saves an imported document to the selected provider independently of its sou
         providers={[
           {
             id: 'local',
+            icon: storageLocations.local.icon,
             label: 'Local library',
             description: 'This browser',
             save: saveLocal,
           },
           {
             id: 'other',
+            icon: storageLocations.device.icon,
             label: 'Other provider',
             description: 'Another destination',
             save: saveOther,
