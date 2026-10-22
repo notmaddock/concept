@@ -24,14 +24,16 @@ let editor: ReturnType<typeof createEditor>
 let root: ReturnType<typeof createRoot>
 let container: HTMLDivElement
 let actions: ReturnType<typeof useFormatActions>
+let renders = 0
 const choices = formatSections.flatMap((section) =>
   section.choices.map((choice) => choice.action),
 )
 const editorRef: { current: ReturnType<typeof createEditor> | null } = {
   current: null,
 }
-function Harness() {
-  actions = useFormatActions(editorRef, 'doc', choices)
+function Harness({ active = true }: { active?: boolean }) {
+  renders++
+  actions = useFormatActions(editorRef, 'doc', choices, active)
   return null
 }
 
@@ -197,4 +199,36 @@ it('renders spacing with the application extension configuration', async () => {
     applicationEditor.dispose()
     element.remove()
   }
+})
+
+it('keeps formatting subscribers stable when text changes without format changes', async () => {
+  // Prime React's state bailout after the initial enabled-state update.
+  async function changeText(value: string) {
+    await act(() =>
+      editor.update(
+        () => {
+          $getRoot().getAllTextNodes()[0].setTextContent(value)
+        },
+        { discrete: true },
+      ),
+    )
+  }
+  await changeText('hello world one')
+  const before = renders
+  await changeText('hello world two')
+  await changeText('hello world three')
+  expect(renders).toBe(before)
+})
+
+it('pauses hidden formatting controls and refreshes when they become active', async () => {
+  await act(() => root.render(<Harness active={false} />))
+  expect(actions.disabled).toBe(true)
+  await apply({ kind: 'text', value: 'italic' })
+  const italic = choices.find(
+    (action) => action.kind === 'text' && action.value === 'italic',
+  )!
+  expect(actions.checked(italic)).toBeUndefined()
+  await act(() => root.render(<Harness />))
+  expect(actions.disabled).toBe(false)
+  expect(actions.checked(italic)).toBe(true)
 })

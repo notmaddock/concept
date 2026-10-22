@@ -1,34 +1,48 @@
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
 import { IndexeddbPersistence } from 'y-indexeddb'
-import { z } from 'zod'
 import { localDocumentStorage } from './storage'
+import { serializeConcept } from './serialization'
 
-const conceptFile = z.object({
-  format: z.literal('concept'),
-  version: z.literal(1),
-  name: z.string().trim().min(1),
-  origin: z.literal('Concept'),
-  update: z.string().min(1),
-})
+export { serializeConcept } from './serialization'
 
-export type ConceptFile = z.infer<typeof conceptFile>
+export interface ConceptFile {
+  format: 'concept'
+  version: 1
+  name: string
+  origin: 'Concept'
+  update: string
+}
 
-export function serializeConcept(name: string, doc: Doc): string {
-  const update = encodeStateAsUpdate(doc)
-  let binary = ''
-  for (const byte of update) binary += String.fromCharCode(byte)
-  return JSON.stringify({
+function parseFile(value: unknown): ConceptFile {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    !('format' in value) ||
+    value.format !== 'concept' ||
+    !('version' in value) ||
+    value.version !== 1 ||
+    !('origin' in value) ||
+    value.origin !== 'Concept' ||
+    !('name' in value) ||
+    typeof value.name !== 'string' ||
+    !value.name.trim() ||
+    !('update' in value) ||
+    typeof value.update !== 'string' ||
+    !value.update
+  )
+    throw new Error('Invalid Concept file')
+  return {
     format: 'concept',
     version: 1,
-    name,
+    name: value.name.trim(),
     origin: 'Concept',
-    update: btoa(binary),
-  })
+    update: value.update,
+  }
 }
 
 export function parseConcept(text: string): ConceptFile {
   try {
-    const file = conceptFile.parse(JSON.parse(text))
+    const file = parseFile(JSON.parse(text))
     const doc = new Doc()
     try {
       applyUpdate(doc, decodeUpdate(file))

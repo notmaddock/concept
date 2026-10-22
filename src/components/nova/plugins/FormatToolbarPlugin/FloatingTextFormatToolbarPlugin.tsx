@@ -127,7 +127,7 @@ export function FloatingTextFormatToolbarPlugin() {
         return
       }
 
-      setFormatState({
+      const nextFormatState: FormatState = {
         isBold: selection.hasFormat('bold'),
         isItalic: selection.hasFormat('italic'),
         isUnderline: selection.hasFormat('underline'),
@@ -135,22 +135,35 @@ export function FloatingTextFormatToolbarPlugin() {
         isCode: selection.hasFormat('code'),
         isSubscript: selection.hasFormat('subscript'),
         isSuperscript: selection.hasFormat('superscript'),
-      })
-
-      setRangeRect({
+      }
+      setFormatState((current) =>
+        (Object.keys(nextFormatState) as (keyof FormatState)[]).every(
+          (key) => current[key] === nextFormatState[key],
+        )
+          ? current
+          : nextFormatState,
+      )
+      const nextRect: PositionRect = {
         top: domRangeRect.top,
         left: domRangeRect.left,
         width: domRangeRect.width,
         height: domRangeRect.height,
-      })
+      }
+      setRangeRect((current) =>
+        current &&
+        current.top === nextRect.top &&
+        current.left === nextRect.left &&
+        current.width === nextRect.width &&
+        current.height === nextRect.height
+          ? current
+          : nextRect,
+      )
       setIsOpen(true)
     })
   }, [editor])
 
   const scheduleUpdate = useCallback(() => {
-    if (rafIdRef.current !== null) {
-      cancelAnimationFrame(rafIdRef.current)
-    }
+    if (rafIdRef.current !== null) return
     rafIdRef.current = requestAnimationFrame(() => {
       rafIdRef.current = null
       updatePopup()
@@ -169,7 +182,7 @@ export function FloatingTextFormatToolbarPlugin() {
     const handlePointerUp = () => {
       if (isPointerDownRef.current) {
         isPointerDownRef.current = false
-        updatePopup()
+        scheduleUpdate()
       }
     }
 
@@ -180,12 +193,12 @@ export function FloatingTextFormatToolbarPlugin() {
 
     const handleDragEnd = () => {
       isDraggingRef.current = false
-      updatePopup()
+      scheduleUpdate()
     }
 
     const unregister = mergeRegister(
-      registerEventListener(document, 'selectionchange', updatePopup),
-      registerEventListener(document, 'focusin', updatePopup),
+      registerEventListener(document, 'selectionchange', scheduleUpdate),
+      registerEventListener(document, 'focusin', scheduleUpdate),
       registerEventListener(document, 'pointerdown', handlePointerDown),
       registerEventListener(document, 'pointerup', handlePointerUp),
       registerEventListener(document, 'pointercancel', handlePointerUp),
@@ -204,7 +217,7 @@ export function FloatingTextFormatToolbarPlugin() {
         passive: true,
       }),
       editor.registerUpdateListener(() => {
-        updatePopup()
+        scheduleUpdate()
       }),
       editor.registerRootListener((rootElement) => {
         if (rootElement === null) {
@@ -219,7 +232,7 @@ export function FloatingTextFormatToolbarPlugin() {
       editor.registerCommand(
         SELECTION_CHANGE_COMMAND,
         () => {
-          $onUpdate(updatePopup)
+          $onUpdate(scheduleUpdate)
           return false
         },
         COMMAND_PRIORITY_LOW,

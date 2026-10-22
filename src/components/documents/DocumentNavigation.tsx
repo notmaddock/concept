@@ -1,17 +1,36 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useDocumentWorkspace } from './document-workspace-context'
 import { DocumentActionSearch } from './DocumentActionSearch'
 import { DocumentMenu } from './navigation-menus/DocumentMenu'
 import { useDocumentNavigationOptions } from './navigation-menus/document-navigation-options'
 import { Menubar } from '#/components/ui/menubar'
+import type { NavigationActions } from './navigation-menus/document-navigation-options'
+
+const EditorDocumentNavigation = lazy(
+  () => import('./EditorDocumentNavigation'),
+)
 
 export function DocumentNavigation() {
+  const { document } = useDocumentWorkspace()
+  if (!document) return <DocumentNavigationContent />
+  return (
+    <Suspense fallback={<DocumentNavigationContent />}>
+      <EditorDocumentNavigation />
+    </Suspense>
+  )
+}
+
+export function DocumentNavigationContent({
+  actions,
+}: {
+  actions?: NavigationActions
+}) {
   const [menuState, setMenuState] = useState<{
     label: string | null
     instant: boolean
   }>({ label: null, instant: false })
   const { enabled } = useDocumentWorkspace()
-  const { menus, options } = useDocumentNavigationOptions()
+  const { menus, options } = useDocumentNavigationOptions(actions)
 
   return (
     <Menubar

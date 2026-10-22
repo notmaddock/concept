@@ -20,6 +20,7 @@ import {
 import { DocumentNavigation } from './DocumentNavigation'
 import { DocumentList } from './DocumentList'
 import { DocumentLoading } from './DocumentLoading'
+import { AppToaster } from '#/components/app-toaster'
 
 const loadEditor = () => import('./DocumentEditor')
 const DocumentEditor = lazy(() =>
@@ -32,6 +33,7 @@ export function DocumentWorkspace({ id }: { id?: string }) {
   }, [id])
   return (
     <DocumentWorkspaceProvider id={id}>
+      <AppToaster />
       <DocumentWorkspaceContent id={id} />
     </DocumentWorkspaceProvider>
   )

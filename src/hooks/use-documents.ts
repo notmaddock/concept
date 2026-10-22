@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { localDocumentStorage } from '#/lib/documents/storage'
-import type { DocumentInfo, DocumentStorage } from '#/lib/documents/storage'
+import type {
+  DocumentChange,
+  DocumentInfo,
+  DocumentStorage,
+} from '#/lib/documents/storage'
 
 export function useDocuments(
   id?: string,
@@ -15,21 +19,40 @@ export function useDocuments(
   const createPending = useRef(false)
   const deletePending = useRef(new Set<string>())
   const document = documents.find((item) => item.id === id)
+  const activeId = useRef(id)
+  useEffect(() => {
+    activeId.current = id
+  }, [id])
 
   useEffect(() => {
     let active = true
-    let revision = 0
+    let reading = false
+    const changesDuringRead = new Map<string, DocumentChange>()
     const refresh = () => {
+      if (reading) return
+      reading = true
+      changesDuringRead.clear()
       const startedAt = performance.now()
-      const requestRevision = ++revision
       void storage
         .list()
         .then((items) => {
           performance.measure('concept:library-read', { start: startedAt })
-          if (active && requestRevision === revision) {
-            setDocuments(items)
-            setLoaded(true)
+          if (!active) return
+          const reconciled = new Map(items.map((item) => [item.id, item]))
+          for (const change of changesDuringRead.values()) {
+            if (change.type === 'upsert')
+              reconciled.set(change.document.id, change.document)
+            else reconciled.delete(change.id)
           }
+          setDocuments(
+            changesDuringRead.size
+              ? [...reconciled.values()].sort(
+                  (a, b) => b.updatedAt - a.updatedAt,
+                )
+              : items,
+          )
+          setLoaded(true)
+          setError('')
         })
         .catch(() => {
           if (active) {
@@ -39,8 +62,17 @@ export function useDocuments(
             )
           }
         })
+        .finally(() => {
+          reading = false
+          changesDuringRead.clear()
+        })
     }
     const unsubscribe = storage.subscribe((change) => {
+      if (reading)
+        changesDuringRead.set(
+          change.type === 'upsert' ? change.document.id : change.id,
+          change,
+        )
       if (change.type === 'upsert') {
         setDocuments((items) =>
           [
@@ -50,10 +82,12 @@ export function useDocuments(
         )
       } else {
         setDocuments((items) => items.filter((item) => item.id !== change.id))
-        if (change.id === id && !deletePending.current.has(change.id))
+        if (
+          change.id === activeId.current &&
+          !deletePending.current.has(change.id)
+        )
           void navigate({ to: '/d' })
       }
-      refresh()
     })
     refresh()
     window.addEventListener('focus', refresh)
@@ -62,7 +96,7 @@ export function useDocuments(
       unsubscribe()
       window.removeEventListener('focus', refresh)
     }
-  }, [storage, id, navigate])
+  }, [storage, navigate])
 
   async function createDocument() {
     if (createPending.current) return

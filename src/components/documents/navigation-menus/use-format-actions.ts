@@ -17,7 +17,12 @@ import {
   INDENT_CONTENT_COMMAND,
   OUTDENT_CONTENT_COMMAND,
 } from 'lexical'
-import type { ElementNode, LexicalEditor, RangeSelection } from 'lexical'
+import type {
+  EditorState,
+  ElementNode,
+  LexicalEditor,
+  RangeSelection,
+} from 'lexical'
 import {
   $createHeadingNode,
   $createQuoteNode,
@@ -93,17 +98,48 @@ export function $applyFormatAction(action: FormatAction) {
     })
 }
 
+interface SelectionSummary {
+  selection: RangeSelection
+  blocks: ElementNode[]
+  styles: Map<string, string>
+  paragraphStyles: Map<string, CSSStyleDeclaration>
+  lists: Map<string, string | null>
+}
+
+const selectionSummaries = new WeakMap<EditorState, SelectionSummary>()
+
+function $selectionSummary(
+  editorState: EditorState,
+  selection: RangeSelection,
+) {
+  let summary = selectionSummaries.get(editorState)
+  if (!summary) {
+    summary = {
+      selection,
+      blocks: $blocks(selection),
+      styles: new Map(),
+      paragraphStyles: new Map(),
+      lists: new Map(),
+    }
+    selectionSummaries.set(editorState, summary)
+  }
+  return summary
+}
+
 function $checked(
   action: FormatAction,
-  selection: RangeSelection,
+  summary: SelectionSummary,
 ): boolean | undefined {
+  const { selection, blocks, styles, paragraphStyles, lists } = summary
   if (action.kind === 'text') return selection.hasFormat(action.value)
-  if (action.kind === 'style')
-    return (
-      $getSelectionStyleValueForProperty(selection, action.property, '') ===
-      action.value
-    )
-  const blocks = $blocks(selection)
+  if (action.kind === 'style') {
+    if (!styles.has(action.property))
+      styles.set(
+        action.property,
+        $getSelectionStyleValueForProperty(selection, action.property, ''),
+      )
+    return styles.get(action.property) === action.value
+  }
   if (!blocks.length) return false
   if (action.kind === 'block')
     return blocks.every((node) =>
@@ -121,17 +157,25 @@ function $checked(
     )
   if (action.kind === 'paragraph')
     return blocks.every((node) => {
-      const style = document.createElement('span').style
-      style.cssText = $getParagraphStyle(node)
+      const key = node.getKey()
+      let style = paragraphStyles.get(key)
+      if (!style) {
+        style = document.createElement('span').style
+        style.cssText = $getParagraphStyle(node)
+        paragraphStyles.set(key, style)
+      }
       return style.getPropertyValue(action.property) === action.value
     })
   if (action.kind === 'list')
     return blocks.every((node) => {
-      let parent = node.getParent()
-      while (parent && !$isListNode(parent)) parent = parent.getParent()
-      return action.value === 'none'
-        ? parent === null
-        : $isListNode(parent) && parent.getListType() === action.value
+      const key = node.getKey()
+      if (!lists.has(key)) {
+        let parent = node.getParent()
+        while (parent && !$isListNode(parent)) parent = parent.getParent()
+        lists.set(key, $isListNode(parent) ? parent.getListType() : null)
+      }
+      const list = lists.get(key)
+      return action.value === 'none' ? list === null : list === action.value
     })
   return undefined
 }
@@ -140,6 +184,7 @@ export function useFormatActions(
   editorRef: RefObject<LexicalEditor | null>,
   documentId: string | undefined,
   actions: FormatAction[],
+  active = true,
 ) {
   const [state, setState] = useState<{
     enabled: boolean
@@ -155,16 +200,26 @@ export function useFormatActions(
         frame = requestAnimationFrame(connect)
         return
       }
-      const update = () =>
-        editor.getEditorState().read(() => {
+      const update = () => {
+        const editorState = editor.getEditorState()
+        editorState.read(() => {
           const selection = $getSelection()
-          setState({
-            enabled: editor.isEditable() && $isRangeSelection(selection),
-            checked: $isRangeSelection(selection)
-              ? actions.map((action) => $checked(action, selection))
-              : [],
-          })
+          const enabled = editor.isEditable() && $isRangeSelection(selection)
+          const summary = $isRangeSelection(selection)
+            ? $selectionSummary(editorState, selection)
+            : null
+          const checked = summary
+            ? actions.map((action) => $checked(action, summary))
+            : []
+          setState((current) =>
+            current.enabled === enabled &&
+            current.checked.length === checked.length &&
+            current.checked.every((value, index) => value === checked[index])
+              ? current
+              : { enabled, checked },
+          )
         })
+      }
       update()
       const unregisterUpdate = editor.registerUpdateListener(update)
       const unregisterEditable = editor.registerEditableListener(update)
@@ -173,12 +228,12 @@ export function useFormatActions(
         unregisterEditable()
       }
     }
-    if (documentId) connect()
+    if (documentId && active) connect()
     return () => {
       cancelAnimationFrame(frame)
       cleanup()
     }
-  }, [editorRef, documentId, actions])
+  }, [editorRef, documentId, actions, active])
 
   async function run(action: FormatAction) {
     const editor = editorRef.current

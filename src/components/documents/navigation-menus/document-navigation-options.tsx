@@ -1,12 +1,10 @@
 import { importFormats } from '#/lib/documents/import/formats'
 import type { ImportFormat } from '#/lib/documents/import/formats'
-import { toast } from 'sonner'
 import type { ExportFormat } from '#/lib/documents/export'
 import { formatSections } from './format-options'
-import { useFormatActions } from './use-format-actions'
+import type { useFormatActions } from './use-format-actions'
 
-import { useEditActions } from './use-edit-actions'
-import type { EditAction } from './use-edit-actions'
+import type { EditAction, useEditActions } from './use-edit-actions'
 import { useDocumentWorkspace } from '../document-workspace-context'
 import {
   CopyIcon,
@@ -36,7 +34,7 @@ import {
 } from 'lucide-react'
 import { useTheme } from '#/components/theme-provider'
 
-const formatActions = formatSections.flatMap((section) =>
+export const formatActions = formatSections.flatMap((section) =>
   section.choices.map((choice) => choice.action),
 )
 
@@ -369,18 +367,18 @@ export type NavigationMenuItem =
       children: NavigationMenuItem[]
     })
 
-export function useDocumentNavigationOptions() {
+export type NavigationActions = Pick<NavigationContext, 'edit' | 'format'>
+
+const disabledActions: NavigationActions = {
+  edit: { run: async () => {}, disabled: () => true },
+  format: { run: async () => {}, disabled: true, checked: () => undefined },
+}
+
+export function useDocumentNavigationOptions({
+  edit,
+  format,
+}: NavigationActions = disabledActions) {
   const workspace = useDocumentWorkspace()
-  const edit = useEditActions(
-    workspace.editorRef,
-    workspace.document?.id,
-    (message) => toast.error(message),
-  )
-  const format = useFormatActions(
-    workspace.editorRef,
-    workspace.document?.id,
-    formatActions,
-  )
   const context: NavigationContext = {
     edit,
     format,

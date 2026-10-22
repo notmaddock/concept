@@ -4,7 +4,7 @@ import { $getRoot } from 'lexical'
 import type { LexicalEditor } from 'lexical'
 import type { Doc } from 'yjs'
 import type { DocumentInfo } from '#/lib/documents/storage'
-import { serializeConcept } from '#/lib/documents/concept-file'
+import { serializeConcept } from '#/lib/documents/serialization'
 import {
   Dialog,
   DialogContent,
@@ -61,18 +61,22 @@ export function DocumentDetailsDialog({
       const editor = editorRef.current
       const doc = documentRef.current
       if (!editor || !doc) return false
+      const segmenter = new Intl.Segmenter(undefined, { granularity: 'word' })
+      let pending = false
+      let disposed = false
       function refresh() {
         if (!editor || !doc) return
         const text = editor
           .getEditorState()
           .read(() => $getRoot().getTextContent())
-        const words = Array.from(
-          new Intl.Segmenter(undefined, { granularity: 'word' }).segment(text),
-        ).filter((part) => part.isWordLike).length
+        let words = 0
+        for (const part of segmenter.segment(text)) if (part.isWordLike) words++
+        let characters = 0
+        for (const _character of text) characters++
         const bytes = new Blob([serializeConcept(document.name, doc)]).size
         setStatistics([
           ['Words', words.toLocaleString()],
-          ['Characters', Array.from(text).length.toLocaleString()],
+          ['Characters', characters.toLocaleString()],
           [
             'File size (.concept)',
             `${bytes.toLocaleString()} bytes (${(bytes / 1024).toFixed(1)} KB)`,
@@ -81,9 +85,24 @@ export function DocumentDetailsDialog({
         ])
       }
       refresh()
-      unsubscribe = editor.registerUpdateListener(refresh)
-      doc.on('update', refresh)
-      detach = () => doc.off('update', refresh)
+      const schedule = () => {
+        if (pending) return
+        pending = true
+        queueMicrotask(() => {
+          pending = false
+          if (!disposed) refresh()
+        })
+      }
+      unsubscribe = editor.registerUpdateListener(
+        ({ dirtyElements, dirtyLeaves }) => {
+          if (dirtyElements.size || dirtyLeaves.size) schedule()
+        },
+      )
+      doc.on('update', schedule)
+      detach = () => {
+        disposed = true
+        doc.off('update', schedule)
+      }
       return true
     }
     const timer = connect()

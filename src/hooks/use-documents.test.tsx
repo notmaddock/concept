@@ -131,3 +131,49 @@ it('rejects blank names and reports failed renames without changing documents', 
   expect(actions.documents).toEqual([first, second])
   expect(actions.error).toContain('Could not save the document name')
 })
+
+it('uses change payloads without rereading the library', async () => {
+  await mount()
+  const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
+  await act(() => {
+    listener({ type: 'upsert', document: { ...first, name: 'Updated' } })
+    listener({ type: 'delete', id: second.id })
+  })
+  expect(storage.list).toHaveBeenCalledTimes(1)
+  expect(actions.documents).toEqual([{ ...first, name: 'Updated' }])
+})
+
+it('preserves changes received while a library reconciliation is in flight', async () => {
+  let resolveRead!: (items: (typeof first)[]) => void
+  vi.mocked(storage.list).mockReturnValue(
+    new Promise((resolve) => {
+      resolveRead = resolve
+    }),
+  )
+  await mount()
+  const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
+  const renamed = { ...first, name: 'Changed during read' }
+  await act(() => {
+    listener({ type: 'upsert', document: renamed })
+    listener({ type: 'delete', id: second.id })
+    window.dispatchEvent(new Event('focus'))
+    resolveRead([first, second])
+  })
+  expect(actions.documents).toEqual([renamed])
+  expect(actions.loaded).toBe(true)
+  expect(storage.list).toHaveBeenCalledTimes(1)
+})
+
+it('retains its library subscription across document navigation', async () => {
+  function Harness({ id }: { id: string }) {
+    actions = useDocuments(id, storage)
+    return null
+  }
+  await act(() => root.render(<Harness id="first" />))
+  await act(() => root.render(<Harness id="second" />))
+  expect(storage.subscribe).toHaveBeenCalledTimes(1)
+  expect(storage.list).toHaveBeenCalledTimes(1)
+  const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
+  await act(() => listener({ type: 'delete', id: second.id }))
+  expect(navigate).toHaveBeenCalledWith({ to: '/d' })
+})

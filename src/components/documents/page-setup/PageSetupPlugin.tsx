@@ -7,8 +7,23 @@ import {
   DEFAULT_PAGE_SETUP,
   pageDimensions,
 } from '#/lib/documents/page-setup'
-import { afterPageLoad } from '#/lib/loading/after-page-load'
 import { DocumentLoading } from '../DocumentLoading'
+import type { PageSetup } from '#/lib/documents/page-setup'
+
+function sameSetup(first: PageSetup, second: PageSetup) {
+  return (
+    first === second ||
+    (first.mode === second.mode &&
+      first.size === second.size &&
+      first.orientation === second.orientation &&
+      first.width === second.width &&
+      first.height === second.height &&
+      first.margins.top === second.margins.top &&
+      first.margins.right === second.margins.right &&
+      first.margins.bottom === second.margins.bottom &&
+      first.margins.left === second.margins.left)
+  )
+}
 
 const loadDialog = () => import('./PageSetupDialog')
 const PageSetupDialog = lazy(() =>
@@ -22,16 +37,25 @@ export function PageSetupPlugin({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  useEffect(() => afterPageLoad(loadDialog), [])
   const [editor] = useLexicalComposerContext()
   const [setup, setSetup] = useState(DEFAULT_PAGE_SETUP)
   useEffect(() => {
+    let appliedSetup: PageSetup | undefined
+    let appliedSheet: HTMLElement | null = null
     const update = () => {
       const value = editor.getEditorState().read($getPageSetup)
-      setSetup(value)
+      setSetup((current) => (sameSetup(current, value) ? current : value))
       const root = editor.getRootElement()
       const sheet = root?.closest<HTMLElement>('[data-document-sheet]')
       if (!root || !sheet) return
+      if (
+        sheet === appliedSheet &&
+        appliedSetup &&
+        sameSetup(appliedSetup, value)
+      )
+        return
+      appliedSetup = value
+      appliedSheet = sheet
       const paper = value.mode === 'paper'
       const { width, height } = pageDimensions(value)
       sheet.style.width = paper ? `${width}mm` : '100%'

@@ -1,3 +1,4 @@
+import '#/styles/editor.css'
 import { EditorRefPlugin } from '@lexical/react/LexicalEditorRefPlugin'
 import type { RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'

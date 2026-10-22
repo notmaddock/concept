@@ -15,6 +15,7 @@ import {
 } from './DocumentDetails'
 import { localDocumentStorage } from '#/lib/documents/storage'
 import { serializeConcept } from '#/lib/documents/concept-file'
+import * as serialization from '#/lib/documents/serialization'
 
 let root: Root
 let container: HTMLDivElement
@@ -150,4 +151,51 @@ it('opens sidebar metadata only after a second without loading document content'
   expect(value('Words')).toBeUndefined()
   expect(openDocument).not.toHaveBeenCalled()
   openDocument.mockRestore()
+})
+
+it('coalesces document updates and skips serialization for selection-only changes', async () => {
+  const serialize = vi.spyOn(serialization, 'serializeConcept')
+  const editor = createEditor()
+  editor.update(
+    () => {
+      $getRoot().append(
+        $createParagraphNode().append($createTextNode('Initial')),
+      )
+    },
+    { discrete: true },
+  )
+  await act(() =>
+    root.render(
+      <DocumentDetailsDialog
+        document={info}
+        documentRef={{ current: doc }}
+        editorRef={{ current: editor }}
+        onOpenChange={() => {}}
+      />,
+    ),
+  )
+  serialize.mockClear()
+  await act(() => {
+    editor.update(
+      () => {
+        $getRoot().getFirstChild()?.selectEnd()
+      },
+      { discrete: true },
+    )
+  })
+  expect(serialize).not.toHaveBeenCalled()
+  await act(() => {
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append($createTextNode('updated')),
+        )
+      },
+      { discrete: true },
+    )
+    doc.getText('statistics').insert(0, 'update')
+  })
+  expect(serialize).toHaveBeenCalledTimes(1)
+  expect(value('Words')).toBe('2')
+  serialize.mockRestore()
 })

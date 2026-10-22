@@ -1,5 +1,5 @@
 import { publishDocumentChange, subscribeToLibrary } from '../library-channel'
-import { IndexeddbPersistence } from 'y-indexeddb'
+import type { IndexeddbPersistence } from 'y-indexeddb'
 import type { Doc } from 'yjs'
 import type {
   DocumentInfo,
@@ -7,14 +7,35 @@ import type {
   DocumentStorage,
 } from '../storage'
 
+const databases = new WeakMap<IDBFactory, Promise<IDBDatabase>>()
+
 function database(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('concept-documents', 1)
+  const factory = indexedDB
+  const existing = databases.get(factory)
+  if (existing) return existing
+  const connection = new Promise<IDBDatabase>((resolve, reject) => {
+    const request = factory.open('concept-documents', 1)
     request.onupgradeneeded = () =>
       request.result.createObjectStore('documents', { keyPath: 'id' })
-    request.onsuccess = () => resolve(request.result)
+    request.onsuccess = () => {
+      const db = request.result
+      const invalidate = () => {
+        if (databases.get(factory) === connection) databases.delete(factory)
+      }
+      db.onversionchange = () => {
+        db.close()
+        invalidate()
+      }
+      db.onclose = invalidate
+      resolve(db)
+    }
     request.onerror = () => reject(request.error)
   })
+  databases.set(factory, connection)
+  void connection.catch(() => {
+    if (databases.get(factory) === connection) databases.delete(factory)
+  })
+  return connection
 }
 
 async function query<T>(
@@ -26,15 +47,12 @@ async function query<T>(
     const transaction = db.transaction('documents', mode)
     const request = action(transaction.objectStore('documents'))
     transaction.oncomplete = () => {
-      db.close()
       resolve(request.result)
     }
     transaction.onabort = () => {
-      db.close()
       reject(transaction.error ?? request.error)
     }
     transaction.onerror = () => {
-      db.close()
       reject(transaction.error ?? request.error)
     }
   })
@@ -98,6 +116,8 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
       (store) => store.get(id),
     )
     if (!document) throw new Error('Document not found')
+    ensureOpen()
+    const { IndexeddbPersistence } = await import('y-indexeddb')
     ensureOpen()
     persistence = new IndexeddbPersistence(documentDatabaseName(id), doc)
     await persistence.whenSynced
@@ -168,15 +188,12 @@ export const localDocumentStorage: DocumentStorage = {
         store.put(updated)
       }
       transaction.oncomplete = () => {
-        db.close()
         if (updated) resolve(updated)
       }
       transaction.onabort = () => {
-        db.close()
         reject(transaction.error ?? new Error('Document not found'))
       }
       transaction.onerror = () => {
-        db.close()
         reject(transaction.error)
       }
     })

@@ -13,7 +13,6 @@ import type { Doc } from 'yjs'
 import type { ImportFormat } from '#/lib/documents/import/formats'
 import type { ExportFormat } from '#/lib/documents/export'
 import { useDocuments } from '#/hooks/use-documents'
-import { afterPageLoad } from '#/lib/loading/after-page-load'
 import { DocumentLoading } from './DocumentLoading'
 
 const loadDocumentStorageDialog = () => import('./DocumentStorageDialog')
@@ -146,17 +145,6 @@ export function DocumentWorkspaceProvider({
 }) {
   const { workspace, fileAction, closeFileDialog } = useWorkspaceState(id)
   const { document, documentRef } = workspace
-  useEffect(
-    () =>
-      afterPageLoad(() =>
-        Promise.all([
-          loadDocumentStorageDialog(),
-          loadDocumentDetailsDialog(),
-          loadDocumentShareDialog(),
-        ]),
-      ),
-    [],
-  )
 
   return (
     <DocumentWorkspaceContext value={workspace}>

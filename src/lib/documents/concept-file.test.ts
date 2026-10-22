@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
-import { Doc, XmlText } from 'yjs'
+import { applyUpdate, Doc, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { importConcept, parseConcept, serializeConcept } from './concept-file'
 import { localDocumentStorage } from './storage'
@@ -73,4 +73,57 @@ it('can reopen downloaded documents whose names exceed the copy field limit', ()
   const name = 'Long document name '.repeat(100)
   expect(parseConcept(serializeConcept(name, doc)).name).toBe(name.trim())
   doc.destroy()
+})
+
+it('round trips content larger than the base64 encoding chunk size', () => {
+  const source = new Doc()
+  const content = 'Large unicode text 🌎 café '.repeat(12000)
+  source.get('root', XmlText).insert(0, content)
+  const file = parseConcept(serializeConcept('Large', source))
+  expect(file.update.length).toBeGreaterThan(8192)
+  const restored = new Doc()
+  const binary = Uint8Array.from(atob(file.update), (character) =>
+    character.charCodeAt(0),
+  )
+  applyUpdate(restored, binary)
+  expect(restored.get('root', XmlText).toString()).toBe(content)
+  source.destroy()
+  restored.destroy()
+})
+
+it.each([
+  null,
+  [],
+  {
+    format: 'concept',
+    version: 1,
+    origin: 'Concept',
+    name: '  ',
+    update: 'AAA=',
+  },
+  {
+    format: 'concept',
+    version: 1,
+    origin: 'Concept',
+    name: 123,
+    update: 'AAA=',
+  },
+  {
+    format: 'concept',
+    version: 1,
+    origin: 'Other',
+    name: 'Name',
+    update: 'AAA=',
+  },
+  {
+    format: 'concept',
+    version: 1,
+    origin: 'Concept',
+    name: 'Name',
+    update: 123,
+  },
+])('rejects invalid file metadata: %j', (value) => {
+  expect(() => parseConcept(JSON.stringify(value))).toThrow(
+    'not a supported .concept document',
+  )
 })

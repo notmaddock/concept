@@ -191,3 +191,27 @@ it('disables submenu parents when all their children are disabled', async () => 
     navigation.options.find((option) => option.id === 'export-pdf')?.menuLabel,
   ).toBe('PDF (.pdf)')
 })
+
+it('binds editor actions supplied by the lazy editor navigation', async () => {
+  workspace.enabled = true
+  const edit = { run: vi.fn(), disabled: () => false }
+  const format = {
+    run: vi.fn(),
+    disabled: false,
+    checked: () => true,
+  }
+  function Harness() {
+    navigation = useDocumentNavigationOptions({ edit, format })
+    return null
+  }
+  await act(() => root.render(<Harness />))
+  const undo = navigation.options.find((option) => option.id === 'undo')!
+  expect(undo.disabled).toBe(false)
+  undo.onSelect()
+  expect(edit.run).toHaveBeenCalledWith('undo')
+  const bold = navigation.options.find((option) => option.id === 'format-bold')!
+  expect(bold.checked).toBe(true)
+  expect(bold.disabled).toBe(false)
+  bold.onSelect()
+  expect(format.run).toHaveBeenCalledWith({ kind: 'text', value: 'bold' })
+})

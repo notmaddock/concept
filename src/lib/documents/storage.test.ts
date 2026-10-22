@@ -138,3 +138,23 @@ it('does not recreate a deleted database from a stale open request', async () =>
   await rejected
   expect(await databaseNames()).not.toContain(`concept-document:${document.id}`)
 })
+
+it('reuses its metadata connection and releases it for database upgrades', async () => {
+  const openDatabase = vi.spyOn(indexedDB, 'open')
+  const document = await localDocumentStorage.create()
+  await localDocumentStorage.list()
+  await localDocumentStorage.rename(document.id, 'Renamed')
+  await localDocumentStorage.get(document.id)
+  expect(openDatabase).toHaveBeenCalledTimes(1)
+  await new Promise<void>((resolve, reject) => {
+    const upgrade = indexedDB.open('concept-documents', 2)
+    upgrade.onsuccess = () => {
+      upgrade.result.close()
+      resolve()
+    }
+    upgrade.onerror = () => reject(upgrade.error)
+    upgrade.onblocked = () =>
+      reject(new Error('Metadata connection blocked upgrade'))
+  })
+  openDatabase.mockRestore()
+})

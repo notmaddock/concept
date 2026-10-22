@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import {
   $getSelection,
   $isRangeSelection,
@@ -19,10 +19,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '#/components/ui/tooltip'
-import { CustomColor } from './CustomColor'
 import { colorPalette, highlightPalette } from './color-palette'
 import { formatSections } from '#/components/documents/navigation-menus/format-options'
 import { cssRGB, elementBackground, readableColor } from './color-contrast'
+
+const CustomColor = lazy(() =>
+  import('./CustomColor').then((module) => ({ default: module.CustomColor })),
+)
 
 export function ColorSelect({
   sectionId,
@@ -63,27 +66,35 @@ export function ColorSelect({
             ? current[0] || null
             : null,
         )
-        const match = palette.find(({ value }) =>
-          elements.every((element) => {
-            if (sectionId === 'highlight') {
-              const style = document.createElement('span').style
-              style.backgroundColor = value
-              return (
-                getComputedStyle(element).backgroundColor ===
-                style.backgroundColor
+        let match: (typeof palette)[number] | undefined
+        if (sectionId === 'highlight') {
+          const highlights = elements.map(
+            (element) => getComputedStyle(element).backgroundColor,
+          )
+          const style = document.createElement('span').style
+          match = palette.find(({ value }) => {
+            style.backgroundColor = value
+            return highlights.every((color) => color === style.backgroundColor)
+          })
+        } else {
+          const backgrounds = new Map<HTMLElement, ReturnType<typeof cssRGB>>()
+          const rootColor = getComputedStyle(root).color
+          const colors = elements.map((element) => ({
+            background: elementBackground(element, backgrounds),
+            foreground: cssRGB(getComputedStyle(element).color),
+          }))
+          match = palette.find(({ value }) =>
+            colors.every(({ foreground, background }) => {
+              const expected = readableColor(
+                cssRGB(value || rootColor, background),
+                background,
               )
-            }
-            const actual = cssRGB(getComputedStyle(element).color)
-            const expected = readableColor(
-              cssRGB(
-                value || getComputedStyle(root).color,
-                elementBackground(element),
-              ),
-              elementBackground(element),
-            )
-            return actual.every((channel, index) => channel === expected[index])
-          }),
-        )
+              return foreground.every(
+                (channel, index) => channel === expected[index],
+              )
+            }),
+          )
+        }
         setSelectedColor(match?.value ?? null)
       })
     update()
@@ -291,15 +302,27 @@ export function ColorSelect({
               finalFocus={false}
               className="w-72 max-w-[calc(100vw-1rem)] rounded-2xl p-3"
             >
-              <CustomColor
-                key={currentColor ?? 'automatic'}
-                initialColor={currentColor}
-                onApply={(value) => {
-                  apply(value)
-                  setCustomOpen(false)
-                  setOpen(false)
-                }}
-              />
+              {customOpen && (
+                <Suspense
+                  fallback={
+                    <div
+                      role="status"
+                      aria-label="Loading custom color"
+                      className="h-48"
+                    />
+                  }
+                >
+                  <CustomColor
+                    key={currentColor ?? 'automatic'}
+                    initialColor={currentColor}
+                    onApply={(value) => {
+                      apply(value)
+                      setCustomOpen(false)
+                      setOpen(false)
+                    }}
+                  />
+                </Suspense>
+              )}
             </PopoverContent>
           </Popover>
         </div>

@@ -79,6 +79,7 @@ export function FloatingTextFormatToolbar({
     editorRef,
     'selection-toolbar',
     toolbarActions,
+    isOpen,
   )
   const [panel, setPanel] = useState<'type' | null>(null)
   const [isPanelAnimating, setIsPanelAnimating] = useState(false)
@@ -182,7 +183,12 @@ export function FloatingTextFormatToolbar({
           className="min-h-0 h-0 max-h-[min(50vh,24rem)] overflow-x-hidden opacity-0 [interpolate-size:allow-keywords] transition-[height,opacity] duration-200 ease-out data-[expanded=true]:h-auto data-[expanded=true]:opacity-100 motion-reduce:transition-none"
         >
           <div className="mt-1 border-t p-1 pt-1.5">
-            <TypographyControls editor={editor} run={run} checked={checked} />
+            <TypographyControls
+              editor={editor}
+              run={run}
+              checked={checked}
+              active={isOpen && panel === 'type'}
+            />
           </div>
         </div>
       </PopoverContent>

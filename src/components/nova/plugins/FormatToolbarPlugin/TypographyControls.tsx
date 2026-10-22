@@ -32,6 +32,7 @@ import { FormatSelect } from './FormatOptions'
 
 type Props = {
   editor: LexicalEditor
+  active?: boolean
   run: (action: FormatAction) => void
   checked: (action: FormatAction) => boolean | undefined
 }
@@ -82,9 +83,10 @@ export function FormatIcon({
   )
 }
 
-function useTypography(editor: LexicalEditor) {
+function useTypography(editor: LexicalEditor, active: boolean) {
   const [value, setValue] = useState({ family: '', size: '' })
   useEffect(() => {
+    if (!active) return
     const update = () =>
       editor.getEditorState().read(() => {
         const selection = $getSelection()
@@ -105,7 +107,7 @@ function useTypography(editor: LexicalEditor) {
             String(Math.round(parseFloat(style.fontSize) * 0.75 * 100) / 100),
           ),
         )
-        setValue({
+        const nextValue = {
           family:
             families.size === 1
               ? styles[0].fontFamily
@@ -114,16 +116,26 @@ function useTypography(editor: LexicalEditor) {
                   .replace(' Variable', '')
               : 'Mixed fonts',
           size: sizes.size === 1 ? [...sizes][0] : '',
-        })
+        }
+        setValue((current) =>
+          current.family === nextValue.family && current.size === nextValue.size
+            ? current
+            : nextValue,
+        )
       })
     update()
     return editor.registerUpdateListener(update)
-  }, [editor])
+  }, [editor, active])
   return value
 }
 
-export function TypographyControls({ editor, run, checked }: Props) {
-  const { family, size } = useTypography(editor)
+export function TypographyControls({
+  editor,
+  run,
+  checked,
+  active = true,
+}: Props) {
+  const { family, size } = useTypography(editor, active)
   const [draft, setDraft] = useState<string | null>(null)
   const commit = () => {
     if (draft === null) return
