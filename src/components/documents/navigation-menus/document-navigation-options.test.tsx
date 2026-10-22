@@ -85,10 +85,14 @@ it('exposes every menu action to search with the same state and handler', async 
   await navigation.options
     .find((option) => option.id === 'new-document')
     ?.onSelect()
-  navigation.options.find((option) => option.id === 'page-setup')?.onSelect()
-  navigation.options.find((option) => option.id === 'theme-dark')?.onSelect()
+  await navigation.options
+    .find((option) => option.id === 'page-setup')
+    ?.onSelect()
+  await navigation.options
+    .find((option) => option.id === 'theme-dark')
+    ?.onSelect()
   expect(onCreate).toHaveBeenCalledOnce()
-  navigation.options.find((option) => option.id === 'details')?.onSelect()
+  await navigation.options.find((option) => option.id === 'details')?.onSelect()
   expect(workspace.showDetails).toHaveBeenCalledOnce()
   expect(onPageSetup).toHaveBeenCalledOnce()
   expect(theme.setTheme).toHaveBeenCalledWith('dark')
@@ -142,7 +146,7 @@ it.each(['print', 'export-pdf'])(
   async (id) => {
     const print = vi.spyOn(window, 'print').mockImplementation(() => {})
     await render()
-    navigation.options.find((option) => option.id === id)?.onSelect()
+    await navigation.options.find((option) => option.id === id)?.onSelect()
     expect(print).toHaveBeenCalledOnce()
     print.mockRestore()
   },
@@ -207,11 +211,11 @@ it('binds editor actions supplied by the lazy editor navigation', async () => {
   await act(() => root.render(<Harness />))
   const undo = navigation.options.find((option) => option.id === 'undo')!
   expect(undo.disabled).toBe(false)
-  undo.onSelect()
+  await undo.onSelect()
   expect(edit.run).toHaveBeenCalledWith('undo')
   const bold = navigation.options.find((option) => option.id === 'format-bold')!
   expect(bold.checked).toBe(true)
   expect(bold.disabled).toBe(false)
-  bold.onSelect()
+  await bold.onSelect()
   expect(format.run).toHaveBeenCalledWith({ kind: 'text', value: 'bold' })
 })

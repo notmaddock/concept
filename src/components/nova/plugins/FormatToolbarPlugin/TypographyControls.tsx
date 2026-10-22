@@ -33,7 +33,7 @@ import { FormatSelect } from './FormatOptions'
 type Props = {
   editor: LexicalEditor
   active?: boolean
-  run: (action: FormatAction) => void
+  run: (action: FormatAction) => void | Promise<void>
   checked: (action: FormatAction) => boolean | undefined
 }
 
@@ -148,7 +148,7 @@ export function TypographyControls({
       number <= 200 &&
       number !== Number(size)
     )
-      run({ kind: 'style', property: 'font-size', value: `${number}pt` })
+      void run({ kind: 'style', property: 'font-size', value: `${number}pt` })
   }
   const step = (delta: number) => {
     setDraft(null)

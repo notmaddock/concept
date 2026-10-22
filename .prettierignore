@@ -4,3 +4,11 @@ yarn.lock
 lexical-playground
 
 src/components/ui
+
+dist
+.output
+.wrangler
+.tanstack
+coverage
+src/routeTree.gen.ts
+worker-configuration.d.ts

@@ -51,7 +51,7 @@ export const toolbarActions = formatSections.flatMap((section) =>
 type Props = {
   displayValue?: string
   sectionId: string
-  run: (action: FormatAction) => void
+  run: (action: FormatAction) => void | Promise<void>
   checked: (action: FormatAction) => boolean | undefined
 }
 
@@ -75,7 +75,7 @@ export function FormatSelect({ sectionId, run, checked, displayValue }: Props) {
       value={selected?.id ?? null}
       onValueChange={(value) => {
         const choice = choices.find((item) => item.id === value)
-        if (choice) run(choice.action)
+        if (choice) void run(choice.action)
       }}
     >
       <SelectTrigger

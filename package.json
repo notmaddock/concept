@@ -11,14 +11,15 @@
     "generate-routes": "tsr generate",
     "build": "vite build",
     "preview": "pnpm run build && wrangler dev",
-    "lint": "eslint",
+    "lint": "eslint . --max-warnings 0",
     "format": "eslint --fix && prettier --write .",
     "check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "wrangler": "wrangler",
     "deploy": "pnpm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
-    "test": "vitest run"
+    "test": "vitest run",
+    "validate": "pnpm run check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -73,6 +74,8 @@
     "@vitejs/plugin-react": "^6.1.1",
     "babel-plugin-react-compiler": "^1.0.0",
     "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "fake-indexeddb": "^6.2.6",
     "jsdom": "^30.1.1",
     "prettier": "^3.9.8",

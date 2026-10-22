@@ -38,13 +38,15 @@ function useWorkspaceState(id?: string) {
   const library = useDocuments(id)
   const { document } = library
 
+  const documentName = document?.name
   useEffect(() => {
     const previousTitle = window.document.title
-    window.document.title = document ? `${document.name} — Concept` : 'Concept'
+    window.document.title =
+      documentName === undefined ? 'Concept' : `${documentName} — Concept`
     return () => {
       window.document.title = previousTitle
     }
-  }, [document?.name])
+  }, [documentName])
   const documentRef = useRef<Doc | null>(null)
   const editorRef = useRef<LexicalEditor | null>(null)
   const [fileAction, setFileAction] = useState<

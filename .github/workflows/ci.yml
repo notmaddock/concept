@@ -43,6 +43,9 @@ jobs:
       - name: Run type checking (TypeScript)
         run: pnpm run typecheck
 
+      - name: Run tests (Vitest)
+        run: pnpm run test
+
       - name: Build application (Vite)
         run: pnpm run build
 
@@ -112,7 +115,6 @@ jobs:
 
   deploy:
     name: Deploy to Cloudflare Workers
-    needs: [code-quality, security-audit, secret-scan, codeql-analysis]
     needs: [code-quality, security-audit, secret-scan]
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
