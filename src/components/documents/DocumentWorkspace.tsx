@@ -2,7 +2,7 @@ import {
   DocumentWorkspaceProvider,
   useDocumentWorkspace,
 } from './document-workspace-context'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { FileTextIcon, PlusIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -13,19 +13,23 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
 } from '#/components/ui/sidebar'
 import { DocumentNavigation } from './DocumentNavigation'
-import { DocumentContextMenu } from './DocumentContextMenu'
-import { DocumentDetailsPopover } from './DocumentDetails'
-import { DocumentEditor } from './DocumentEditor'
+import { DocumentList } from './DocumentList'
+import { DocumentLoading } from './DocumentLoading'
+
+const loadEditor = () => import('./DocumentEditor')
+const DocumentEditor = lazy(() =>
+  loadEditor().then((module) => ({ default: module.DocumentEditor })),
+)
 
 export function DocumentWorkspace({ id }: { id?: string }) {
+  useEffect(() => {
+    if (id) void loadEditor().catch(() => {})
+  }, [id])
   return (
     <DocumentWorkspaceProvider id={id}>
       <DocumentWorkspaceContent id={id} />
@@ -67,26 +71,12 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupLabel>Documents</SidebarGroupLabel>
-            <SidebarMenu>
-              {documents.map((item) => (
-                <SidebarMenuItem key={item.id}>
-                  <DocumentContextMenu
-                    name={item.name}
-                    onDelete={() => deleteDocument(item.id)}
-                  >
-                    <DocumentDetailsPopover document={item}>
-                      <SidebarMenuButton
-                        isActive={item.id === id}
-                        render={<Link to="/d/$id" params={{ id: item.id }} />}
-                      >
-                        <FileTextIcon />
-                        <span>{item.name}</span>
-                      </SidebarMenuButton>
-                    </DocumentDetailsPopover>
-                  </DocumentContextMenu>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
+            <DocumentList
+              documents={documents}
+              activeId={id}
+              loading={!loaded && !error}
+              onDelete={deleteDocument}
+            />
           </SidebarGroup>
         </SidebarContent>
       </Sidebar>
@@ -109,22 +99,28 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
         )}
         <main
           aria-label="Document workspace"
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-4 md:px-6"
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-4 md:px-6"
         >
           {document ? (
             <div
               data-document-sheet
-              className="mx-auto min-h-full w-full max-w-[960px] rounded-lg bg-card shadow-sm"
+              className="mx-auto flex min-h-full w-full shrink-0 grow flex-col max-w-[960px] rounded-lg bg-card shadow-sm"
             >
-              <DocumentEditor
-                key={document.id}
-                documentRef={documentRef}
-                id={document.id}
-                editorRef={editorRef}
-                pageSetupOpen={pageSetupOpen}
-                onPageSetupOpenChange={onPageSetupOpenChange}
-              />
+              <Suspense fallback={<DocumentLoading />}>
+                <DocumentEditor
+                  key={document.id}
+                  documentRef={documentRef}
+                  id={document.id}
+                  editorRef={editorRef}
+                  pageSetupOpen={pageSetupOpen}
+                  onPageSetupOpenChange={onPageSetupOpenChange}
+                />
+              </Suspense>
             </div>
+          ) : !loaded && !error ? (
+            <DocumentLoading
+              label={id ? 'Opening document…' : 'Loading documents…'}
+            />
           ) : (
             <div className="flex min-h-full flex-col items-center justify-center gap-4 rounded-xl bg-card p-8 text-center">
               <FileTextIcon className="size-10 text-muted-foreground" />

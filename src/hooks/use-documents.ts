@@ -20,20 +20,24 @@ export function useDocuments(
     let active = true
     let revision = 0
     const refresh = () => {
+      const startedAt = performance.now()
       const requestRevision = ++revision
       void storage
         .list()
         .then((items) => {
+          performance.measure('concept:library-read', { start: startedAt })
           if (active && requestRevision === revision) {
             setDocuments(items)
             setLoaded(true)
           }
         })
         .catch(() => {
-          if (active)
+          if (active) {
+            setLoaded(true)
             setError(
               'Could not open local documents. Check that browser storage is available, then reload.',
             )
+          }
         })
     }
     const unsubscribe = storage.subscribe((change) => {

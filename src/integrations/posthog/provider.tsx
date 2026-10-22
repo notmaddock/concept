@@ -1,21 +1,26 @@
-import posthog from 'posthog-js'
-import { PostHogProvider as BasePostHogProvider } from '@posthog/react'
+import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 
-if (typeof window !== 'undefined' && import.meta.env.VITE_POSTHOG_KEY) {
-  posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
-    api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
-    ui_host: 'https://googl.com.org',
-    person_profiles: 'identified_only',
-    capture_pageview: false,
-    defaults: '2026-08-30',
-  })
-}
+let initialization: Promise<unknown> | undefined
 
-interface PostHogProviderProps {
-  children: ReactNode
-}
+export default function PostHogProvider({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    if (!import.meta.env.VITE_POSTHOG_KEY) return
+    initialization ??= import('posthog-js')
+      .then(({ default: posthog }) => {
+        posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
+          api_host:
+            import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
+          ui_host: 'https://googl.com.org',
+          person_profiles: 'identified_only',
+          capture_pageview: false,
+          defaults: '2026-08-30',
+        })
+      })
+      .catch(() => {
+        initialization = undefined
+      })
+  }, [])
 
-export default function PostHogProvider({ children }: PostHogProviderProps) {
-  return <BasePostHogProvider client={posthog}>{children}</BasePostHogProvider>
+  return children
 }

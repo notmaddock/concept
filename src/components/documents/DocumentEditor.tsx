@@ -1,9 +1,11 @@
 import type { RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'
+import type { DocumentPersistence } from '#/lib/documents/storage'
 import { useEffect, useState } from 'react'
 import { LexicalCollaboration } from '@lexical/react/LexicalCollaborationContext'
 import { CollaborationPlugin } from '@lexical/react/LexicalCollaborationPlugin'
 import { Doc } from 'yjs'
+import { DocumentLoading } from './DocumentLoading'
 import { Nova } from '#/components/nova/Nova'
 import { initializeDocument } from '#/lib/documents/initial-document'
 import { LocalProvider } from '#/lib/documents/local-provider'
@@ -23,34 +25,49 @@ export function DocumentEditor({
   onPageSetupOpenChange: (open: boolean) => void
 }) {
   const [error, setError] = useState('')
+  const [ready, setReady] = useState(false)
   const [session, setSession] = useState<{
     doc: Doc
     provider: LocalProvider
   } | null>(null)
 
   useEffect(() => {
+    const startedAt = performance.now()
     let active = true
     const doc = new Doc()
-    const persistence = localDocumentStorage.open(id, doc)
-    const provider = new LocalProvider(id, doc, persistence, initializeDocument)
-    void persistence.whenSynced
-      .then(() => {
-        if (active) documentRef.current = doc
-      })
-      .catch(() => {})
+    let persistence: DocumentPersistence | undefined
+    // Lexical must observe the Yjs root before IndexedDB applies existing content.
+    const provider = new LocalProvider(
+      id,
+      doc,
+      () => {
+        persistence = localDocumentStorage.open(id, doc)
+        void persistence.whenSynced.catch(() => {
+          if (active)
+            setError(
+              'Could not open this document. It may have been deleted in another tab.',
+            )
+        })
+        return persistence
+      },
+      initializeDocument,
+    )
+    const onSync = (synced: boolean) => {
+      if (!active || !synced) return
+      performance.measure('concept:document-storage', { start: startedAt })
+      documentRef.current = doc
+      setReady(true)
+    }
+    provider.on('sync', onSync)
     setSession({ doc, provider })
-    void persistence.whenSynced.catch(() => {
-      provider.destroy()
-      if (active)
-        setError(
-          'Could not open this document. It may have been deleted in another tab.',
-        )
-    })
     return () => {
       active = false
       documentRef.current = null
+      provider.off('sync', onSync)
       provider.destroy()
-      void persistence.destroy().finally(() => doc.destroy())
+      void (persistence?.destroy() ?? Promise.resolve()).finally(() =>
+        doc.destroy(),
+      )
     }
   }, [id, documentRef])
 
@@ -61,26 +78,30 @@ export function DocumentEditor({
       </p>
     )
 
-  if (!session)
-    return <p className="p-8 text-muted-foreground">Opening document…</p>
+  if (!session) return <DocumentLoading />
 
   return (
-    <LexicalCollaboration>
-      <Nova
-        editorRef={editorRef}
-        pageSetupOpen={pageSetupOpen}
-        onPageSetupOpenChange={onPageSetupOpenChange}
-        collaboration={
-          <CollaborationPlugin
-            id={id}
-            providerFactory={(_, documents) => {
-              documents.set(id, session.doc)
-              return session.provider
-            }}
-            shouldBootstrap={false}
+    <>
+      {!ready && <DocumentLoading />}
+      <div className={ready ? 'contents' : 'hidden'}>
+        <LexicalCollaboration>
+          <Nova
+            editorRef={editorRef}
+            pageSetupOpen={pageSetupOpen}
+            onPageSetupOpenChange={onPageSetupOpenChange}
+            collaboration={
+              <CollaborationPlugin
+                id={id}
+                providerFactory={(_, documents) => {
+                  documents.set(id, session.doc)
+                  return session.provider
+                }}
+                shouldBootstrap={false}
+              />
+            }
           />
-        }
-      />
-    </LexicalCollaboration>
+        </LexicalCollaboration>
+      </div>
+    </>
   )
 }

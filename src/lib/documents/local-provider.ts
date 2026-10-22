@@ -46,7 +46,7 @@ export class LocalProvider
   constructor(
     private id: string,
     private doc: Doc,
-    private persistence: DocumentPersistence,
+    private persistence: DocumentPersistence | (() => DocumentPersistence),
     private initialize?: (doc: Doc) => void,
   ) {
     super()
@@ -116,6 +116,8 @@ export class LocalProvider
     if (this.connected) return
     this.connected = true
     const revision = ++this.revision
+    if (typeof this.persistence === 'function')
+      this.persistence = this.persistence()
     void this.persistence.whenSynced
       .then(() => {
         if (!this.connected || revision !== this.revision) return

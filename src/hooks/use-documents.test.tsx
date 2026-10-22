@@ -97,3 +97,10 @@ it('updates document titles and closes a remotely deleted document without windo
   expect(actions.document).toBeUndefined()
   expect(navigate).toHaveBeenCalledWith({ to: '/d' })
 })
+
+it('finishes the loading state when the library cannot be read', async () => {
+  vi.mocked(storage.list).mockRejectedValue(new Error('Storage unavailable'))
+  await mount()
+  expect(actions.loaded).toBe(true)
+  expect(actions.error).toContain('Could not open local documents')
+})

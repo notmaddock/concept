@@ -29,7 +29,7 @@ export function Nova({
       contentEditable={null}
     >
       {editorRef && <EditorRefPlugin editorRef={editorRef} />}
-      <div className="relative size-full" ref={setAnchorElement}>
+      <div className="relative min-h-full w-full grow" ref={setAnchorElement}>
         <NovaContentEditable />
         {collaboration}
         <PageSetupPlugin

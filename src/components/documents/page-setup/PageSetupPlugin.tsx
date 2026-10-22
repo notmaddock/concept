@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { SKIP_DOM_SELECTION_TAG } from 'lexical'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import {
@@ -7,7 +7,13 @@ import {
   DEFAULT_PAGE_SETUP,
   pageDimensions,
 } from '#/lib/documents/page-setup'
-import { PageSetupDialog } from './PageSetupDialog'
+import { afterPageLoad } from '#/lib/loading/after-page-load'
+import { DocumentLoading } from '../DocumentLoading'
+
+const loadDialog = () => import('./PageSetupDialog')
+const PageSetupDialog = lazy(() =>
+  loadDialog().then((module) => ({ default: module.PageSetupDialog })),
+)
 
 export function PageSetupPlugin({
   open,
@@ -16,6 +22,7 @@ export function PageSetupPlugin({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  useEffect(() => afterPageLoad(loadDialog), [])
   const [editor] = useLexicalComposerContext()
   const [setup, setSetup] = useState(DEFAULT_PAGE_SETUP)
   useEffect(() => {
@@ -49,17 +56,19 @@ export function PageSetupPlugin({
       unregisterUpdate()
     }
   }, [editor])
-  return (
-    <PageSetupDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      value={setup}
-      onApply={(value) =>
-        // Page settings must not restore editor focus while the dialog is closing.
-        editor.update(() => $setPageSetup(value), {
-          tag: SKIP_DOM_SELECTION_TAG,
-        })
-      }
-    />
-  )
+  return open ? (
+    <Suspense fallback={<DocumentLoading label="Loading page setup…" />}>
+      <PageSetupDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        value={setup}
+        onApply={(value) =>
+          // Page settings must not restore editor focus while the dialog is closing.
+          editor.update(() => $setPageSetup(value), {
+            tag: SKIP_DOM_SELECTION_TAG,
+          })
+        }
+      />
+    </Suspense>
+  ) : null
 }

@@ -1,12 +1,37 @@
-import { createContext, useContext, useRef, useState } from 'react'
+import {
+  createContext,
+  lazy,
+  Suspense,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import type { ReactNode } from 'react'
 import type { LexicalEditor } from 'lexical'
 import type { Doc } from 'yjs'
 import { useDocuments } from '#/hooks/use-documents'
-import { downloadConcept } from '#/lib/documents/concept-file'
-import { DocumentStorageDialog } from './DocumentStorageDialog'
-import { DocumentDetailsDialog } from './DocumentDetails'
-import { DocumentShareDialog } from './DocumentShareDialog'
+import { afterPageLoad } from '#/lib/loading/after-page-load'
+import { DocumentLoading } from './DocumentLoading'
+
+const loadDocumentStorageDialog = () => import('./DocumentStorageDialog')
+const DocumentStorageDialog = lazy(() =>
+  loadDocumentStorageDialog().then((module) => ({
+    default: module.DocumentStorageDialog,
+  })),
+)
+const loadDocumentDetailsDialog = () => import('./DocumentDetails')
+const DocumentDetailsDialog = lazy(() =>
+  loadDocumentDetailsDialog().then((module) => ({
+    default: module.DocumentDetailsDialog,
+  })),
+)
+const loadDocumentShareDialog = () => import('./DocumentShareDialog')
+const DocumentShareDialog = lazy(() =>
+  loadDocumentShareDialog().then((module) => ({
+    default: module.DocumentShareDialog,
+  })),
+)
 
 function useWorkspaceState(id?: string) {
   const library = useDocuments(id)
@@ -31,13 +56,15 @@ function useWorkspaceState(id?: string) {
       )
   }
 
-  function downloadDocument() {
+  async function downloadDocument() {
     try {
       if (!document || !documentRef.current)
         throw new Error(
           'Open a document and wait for it to load before downloading.',
         )
-      downloadConcept(document.name, documentRef.current)
+      const source = { name: document.name, doc: documentRef.current }
+      const { downloadConcept } = await import('#/lib/documents/concept-file')
+      downloadConcept(source.name, source.doc)
       setFileError('')
     } catch (cause) {
       setFileError(
@@ -85,36 +112,51 @@ export function DocumentWorkspaceProvider({
 }) {
   const { workspace, fileAction, closeFileDialog } = useWorkspaceState(id)
   const { document, documentRef } = workspace
+  useEffect(
+    () =>
+      afterPageLoad(() =>
+        Promise.all([
+          loadDocumentStorageDialog(),
+          loadDocumentDetailsDialog(),
+          loadDocumentShareDialog(),
+        ]),
+      ),
+    [],
+  )
 
   return (
     <DocumentWorkspaceContext value={workspace}>
       {children}
-      {workspace.detailsOpen && document && (
-        <DocumentDetailsDialog
-          key={document.id}
-          document={document}
-          documentRef={documentRef}
-          editorRef={workspace.editorRef}
-          onOpenChange={workspace.onDetailsOpenChange}
-        />
-      )}
-      <DocumentShareDialog
-        open={workspace.shareOpen}
-        onOpenChange={workspace.onShareOpenChange}
-        onCopy={workspace.copyDocument}
-      />
-      {fileAction && (
-        <DocumentStorageDialog
-          key={fileAction}
-          mode={fileAction}
-          source={
-            document && documentRef.current
-              ? { name: document.name, doc: documentRef.current }
-              : undefined
-          }
-          onClose={closeFileDialog}
-        />
-      )}
+      <Suspense fallback={<DocumentLoading label="Loading dialog…" />}>
+        {workspace.detailsOpen && document && (
+          <DocumentDetailsDialog
+            key={document.id}
+            document={document}
+            documentRef={documentRef}
+            editorRef={workspace.editorRef}
+            onOpenChange={workspace.onDetailsOpenChange}
+          />
+        )}
+        {workspace.shareOpen && (
+          <DocumentShareDialog
+            open={workspace.shareOpen}
+            onOpenChange={workspace.onShareOpenChange}
+            onCopy={workspace.copyDocument}
+          />
+        )}
+        {fileAction && (
+          <DocumentStorageDialog
+            key={fileAction}
+            mode={fileAction}
+            source={
+              document && documentRef.current
+                ? { name: document.name, doc: documentRef.current }
+                : undefined
+            }
+            onClose={closeFileDialog}
+          />
+        )}
+      </Suspense>
     </DocumentWorkspaceContext>
   )
 }
