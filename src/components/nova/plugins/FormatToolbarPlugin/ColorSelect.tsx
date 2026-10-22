@@ -7,7 +7,7 @@ import {
 } from 'lexical'
 import type { LexicalEditor } from 'lexical'
 import { $patchStyleText } from '@lexical/selection'
-import { Baseline, Highlighter, Check, Pipette } from 'lucide-react'
+import { Baseline, Highlighter, Pipette } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   Popover,
@@ -20,8 +20,8 @@ import {
   TooltipTrigger,
 } from '#/components/ui/tooltip'
 import { colorPalette, highlightPalette } from './color-palette'
+import { ColorSwatch } from './ColorSwatch'
 import { formatSections } from '#/components/documents/navigation-menus/format-options'
-import { cssRGB, elementBackground, readableColor } from './color-contrast'
 
 const CustomColor = lazy(() =>
   import('./CustomColor').then((module) => ({ default: module.CustomColor })),
@@ -37,12 +37,12 @@ export function ColorSelect({
   const section = formatSections.find((item) => item.id === sectionId)!
   const [open, setOpen] = useState(false)
   const [customOpen, setCustomOpen] = useState(false)
+  const [shadeColor, setShadeColor] = useState<string | null>(null)
   const palette = sectionId === 'highlight' ? highlightPalette : colorPalette
   const choices = [
     { label: sectionId === 'highlight' ? 'None' : 'Automatic', value: '' },
     ...palette,
   ]
-  const [selectedColor, setSelectedColor] = useState<string | null>(null)
   const [currentColor, setCurrentColor] = useState<string | null>(null)
   useEffect(() => {
     const update = () =>
@@ -66,36 +66,6 @@ export function ColorSelect({
             ? current[0] || null
             : null,
         )
-        let match: (typeof palette)[number] | undefined
-        if (sectionId === 'highlight') {
-          const highlights = elements.map(
-            (element) => getComputedStyle(element).backgroundColor,
-          )
-          const style = document.createElement('span').style
-          match = palette.find(({ value }) => {
-            style.backgroundColor = value
-            return highlights.every((color) => color === style.backgroundColor)
-          })
-        } else {
-          const backgrounds = new Map<HTMLElement, ReturnType<typeof cssRGB>>()
-          const rootColor = getComputedStyle(root).color
-          const colors = elements.map((element) => ({
-            background: elementBackground(element, backgrounds),
-            foreground: cssRGB(getComputedStyle(element).color),
-          }))
-          match = palette.find(({ value }) =>
-            colors.every(({ foreground, background }) => {
-              const expected = readableColor(
-                cssRGB(value || rootColor, background),
-                background,
-              )
-              return foreground.every(
-                (channel, index) => channel === expected[index],
-              )
-            }),
-          )
-        }
-        setSelectedColor(match?.value ?? null)
       })
     update()
     return editor.registerUpdateListener(update)
@@ -110,42 +80,7 @@ export function ColorSelect({
         if (!$isRangeSelection(selection)) return
         const property =
           sectionId === 'text-color' ? 'color' : 'background-color'
-        $patchStyleText(selection, {
-          color: (current, target) => {
-            const element = !$isRangeSelection(target)
-              ? (editor.getElementByKey(target.getKey()) ??
-                editor.getElementByKey(target.getParent()?.getKey() ?? ''))
-              : null
-            const root = editor.getRootElement()!
-            const style = document.createElement('span').style
-            style.cssText =
-              !$isRangeSelection(target) && 'getStyle' in target
-                ? target.getStyle()
-                : ''
-            const background =
-              property === 'background-color'
-                ? value
-                  ? cssRGB(
-                      value,
-                      elementBackground(element?.parentElement ?? root),
-                    )
-                  : elementBackground(element?.parentElement ?? root)
-                : style.backgroundColor
-                  ? cssRGB(
-                      style.backgroundColor,
-                      elementBackground(element?.parentElement ?? root),
-                    )
-                  : elementBackground(element ?? root)
-            const foreground =
-              property === 'color'
-                ? value || getComputedStyle(root).color
-                : current || getComputedStyle(element ?? root).color
-            return `rgb(${readableColor(cssRGB(foreground, background), background).join(', ')})`
-          },
-          ...(property === 'background-color'
-            ? { 'background-color': value || null }
-            : {}),
-        })
+        $patchStyleText(selection, { [property]: value || null })
       },
       { tag: HISTORY_PUSH_TAG },
     )
@@ -156,7 +91,10 @@ export function ColorSelect({
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        if (!next) setCustomOpen(false)
+        if (!next) {
+          setCustomOpen(false)
+          setShadeColor(null)
+        }
       }}
       modal={false}
     >
@@ -239,44 +177,35 @@ export function ColorSelect({
           }}
         >
           {palette.map(({ label, value }) => (
-            <Tooltip key={value}>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={label}
-                    aria-pressed={selectedColor === value}
-                    className="relative aspect-square rounded-full border-0 p-0"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      apply(value)
-                      setOpen(false)
-                    }}
-                  />
-                }
-              >
-                <span
-                  className="block size-5 shrink-0 rounded-full forced-color-adjust-none"
-                  style={{
-                    backgroundColor:
-                      sectionId === 'highlight'
-                        ? colorPalette.find((color) => color.label === label)
-                            ?.value
-                        : value,
-                  }}
-                />
-                {selectedColor === value && (
-                  <Check
-                    aria-hidden="true"
-                    className="absolute size-3 text-white"
-                  />
-                )}
-              </TooltipTrigger>
-              <TooltipContent>{label}</TooltipContent>
-            </Tooltip>
+            <ColorSwatch
+              key={value}
+              label={label}
+              value={value}
+              color={colorPalette.find((color) => color.label === label)!.value}
+              highlight={sectionId === 'highlight'}
+              currentColor={currentColor}
+              open={shadeColor === value}
+              onOpenChange={(next) => {
+                setShadeColor((current) =>
+                  next ? value : current === value ? null : current,
+                )
+                if (next) setCustomOpen(false)
+              }}
+              onApply={(color) => {
+                apply(color)
+                setOpen(false)
+                setShadeColor(null)
+              }}
+            />
           ))}
-          <Popover open={customOpen} onOpenChange={setCustomOpen} modal={false}>
+          <Popover
+            open={customOpen}
+            onOpenChange={(next) => {
+              setCustomOpen(next)
+              if (next) setShadeColor(null)
+            }}
+            modal={false}
+          >
             <Tooltip>
               <TooltipTrigger
                 render={
