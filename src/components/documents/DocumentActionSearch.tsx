@@ -153,61 +153,63 @@ export function DocumentActionSearch({
           )}
         </div>
         {searchOpen && (
-          <CommandList
+          <div
             className={
               hasQuery
-                ? 'absolute left-0 top-8 w-full rounded-2xl bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/5 dark:ring-foreground/10'
+                ? 'absolute left-0 top-8 w-full overflow-hidden rounded-2xl bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/5 dark:ring-foreground/10'
                 : 'hidden'
             }
           >
-            {hasQuery && (
-              <>
-                <CommandEmpty className="px-3 py-4 text-xs text-muted-foreground">
-                  No matching actions.
-                </CommandEmpty>
-                {groups.map((group) => (
-                  <CommandGroup key={group} heading={group} className="p-0">
-                    {options
-                      .filter((option) => option.group === group)
-                      .map((option) => {
-                        const Icon = option.icon
-                        return (
-                          <CommandItem
-                            key={option.id}
-                            value={option.id}
-                            keywords={[
-                              option.label,
-                              option.group,
-                              ...option.keywords,
-                              ...(option.shortcut?.keys ?? []),
-                              ...(option.shortcut?.macKeys ?? []),
-                            ]}
-                            disabled={option.disabled}
-                            className="min-h-7 py-1 [&>svg:last-child]:hidden"
-                            onSelect={() => {
-                              closeSearch()
-                              void Promise.resolve(option.onSelect()).then(
-                                () => {
-                                  if (option.focusAfterSelect === 'editor') {
-                                    focusEditor()
-                                  }
-                                },
-                              )
-                            }}
-                          >
-                            <Icon className="text-muted-foreground" />
-                            <span className="min-w-0 truncate">
-                              {option.label}
-                            </span>
-                            <ActionShortcut shortcut={option.shortcut} />
-                          </CommandItem>
-                        )
-                      })}
-                  </CommandGroup>
-                ))}
-              </>
-            )}
-          </CommandList>
+            <CommandList className="max-h-70">
+              {hasQuery && (
+                <>
+                  <CommandEmpty className="px-3 py-4 text-xs text-muted-foreground">
+                    No matching actions.
+                  </CommandEmpty>
+                  {groups.map((group) => (
+                    <CommandGroup key={group} heading={group} className="p-0">
+                      {options
+                        .filter((option) => option.group === group)
+                        .map((option) => {
+                          const Icon = option.icon
+                          return (
+                            <CommandItem
+                              key={option.id}
+                              value={option.id}
+                              keywords={[
+                                option.label,
+                                option.group,
+                                ...option.keywords,
+                                ...(option.shortcut?.keys ?? []),
+                                ...(option.shortcut?.macKeys ?? []),
+                              ]}
+                              disabled={option.disabled}
+                              className="min-h-7 py-1 [&>svg:last-child]:hidden"
+                              onSelect={() => {
+                                closeSearch()
+                                void Promise.resolve(option.onSelect()).then(
+                                  () => {
+                                    if (option.focusAfterSelect === 'editor') {
+                                      focusEditor()
+                                    }
+                                  },
+                                )
+                              }}
+                            >
+                              <Icon className="text-muted-foreground" />
+                              <span className="min-w-0 truncate">
+                                {option.label}
+                              </span>
+                              <ActionShortcut shortcut={option.shortcut} />
+                            </CommandItem>
+                          )
+                        })}
+                    </CommandGroup>
+                  ))}
+                </>
+              )}
+            </CommandList>
+          </div>
         )}
       </Command>
     </div>
