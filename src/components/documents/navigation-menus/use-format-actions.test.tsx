@@ -232,3 +232,38 @@ it('pauses hidden formatting controls and refreshes when they become active', as
   expect(actions.disabled).toBe(false)
   expect(actions.checked(italic)).toBe(true)
 })
+
+it('returns focus from a menu before committing formatting and preserves the selected range', async () => {
+  const editable = document.createElement('div')
+  editable.contentEditable = 'true'
+  editable.tabIndex = 0
+  const menu = document.createElement('button')
+  document.body.append(editable, menu)
+  editor.setRootElement(editable)
+  menu.focus()
+  const warn = vi.spyOn(console, 'warn')
+  const focusOnCommit: boolean[] = []
+  const unregister = editor.registerUpdateListener(({ dirtyLeaves }) => {
+    if (dirtyLeaves.size)
+      focusOnCommit.push(document.activeElement === editable)
+  })
+  try {
+    await act(() =>
+      actions.run({ kind: 'style', property: 'font-family', value: 'Georgia' }),
+    )
+    expect(focusOnCommit).toEqual([true])
+    editor.getEditorState().read(() => {
+      expect($getSelection()?.getTextContent()).toBe('hello')
+      const nodes = $getRoot().getAllTextNodes()
+      expect(nodes[0].getStyle()).toContain('font-family: Georgia')
+      expect(nodes[1].getStyle()).toBe('')
+    })
+    expect(warn.mock.calls.flat().join(' ')).not.toContain('updateEditorSync')
+  } finally {
+    unregister()
+    warn.mockRestore()
+    editor.setRootElement(null)
+    editable.remove()
+    menu.remove()
+  }
+})

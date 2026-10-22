@@ -3,6 +3,8 @@ import type { LexicalEditor } from 'lexical'
 import { $patchStyleText } from '@lexical/selection'
 
 export function stepFontSize(editor: LexicalEditor, delta: number) {
+  // Focus before committing: restoring the DOM selection can synchronously fire focus events.
+  editor.getRootElement()?.focus({ preventScroll: true })
   editor.update(
     () => {
       const selection = $getSelection()

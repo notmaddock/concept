@@ -102,6 +102,8 @@ export function ColorSelect({
   }, [editor, palette, sectionId])
   const Icon = sectionId === 'text-color' ? Baseline : Highlighter
   const apply = (value: string) => {
+    // Focus before committing: restoring the DOM selection can synchronously fire focus events.
+    editor.getRootElement()?.focus({ preventScroll: true })
     editor.update(
       () => {
         const selection = $getSelection()
