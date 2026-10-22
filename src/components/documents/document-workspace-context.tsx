@@ -5,6 +5,7 @@ import type { Doc } from 'yjs'
 import { useDocuments } from '#/hooks/use-documents'
 import { downloadConcept } from '#/lib/documents/concept-file'
 import { DocumentStorageDialog } from './DocumentStorageDialog'
+import { DocumentShareDialog } from './DocumentShareDialog'
 
 function useWorkspaceState(id?: string) {
   const library = useDocuments(id)
@@ -14,6 +15,7 @@ function useWorkspaceState(id?: string) {
   const [fileAction, setFileAction] = useState<'open' | 'copy' | null>(null)
   const [fileError, setFileError] = useState('')
   const [pageSetupOpen, setPageSetupOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   function openDocument() {
     setFileAction('open')
@@ -50,6 +52,9 @@ function useWorkspaceState(id?: string) {
     enabled: Boolean(document),
     documentRef,
     editorRef,
+    shareOpen,
+    onShareOpenChange: setShareOpen,
+    shareDocument: () => setShareOpen(true),
     pageSetupOpen,
     onPageSetupOpenChange: setPageSetupOpen,
     openDocument,
@@ -79,6 +84,11 @@ export function DocumentWorkspaceProvider({
   return (
     <DocumentWorkspaceContext value={workspace}>
       {children}
+      <DocumentShareDialog
+        open={workspace.shareOpen}
+        onOpenChange={workspace.onShareOpenChange}
+        onCopy={workspace.copyDocument}
+      />
       {fileAction && (
         <DocumentStorageDialog
           key={fileAction}

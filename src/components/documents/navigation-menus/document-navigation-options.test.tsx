@@ -15,6 +15,7 @@ const workspace = vi.hoisted(() => ({
   openPageSetup: vi.fn(),
   openDocument: vi.fn(),
   copyDocument: vi.fn(),
+  shareDocument: vi.fn(),
   downloadDocument: vi.fn(),
 }))
 vi.mock('../document-workspace-context', () => ({
@@ -29,6 +30,7 @@ const {
   openPageSetup: onPageSetup,
   openDocument: onOpen,
   copyDocument: onCopy,
+  shareDocument: onShare,
   downloadDocument: onDownload,
 } = workspace
 
@@ -108,11 +110,12 @@ it('updates creation availability and selected theme in both consumers', async (
 
 it('connects file actions to their handlers and keeps Open available without a document', async () => {
   await render()
-  for (const id of ['open', 'make-copy', 'download']) {
+  for (const id of ['open', 'make-copy', 'share', 'download']) {
     await navigation.options.find((option) => option.id === id)?.onSelect()
   }
   expect(onOpen).toHaveBeenCalledOnce()
   expect(onCopy).toHaveBeenCalledOnce()
+  expect(onShare).toHaveBeenCalledOnce()
   expect(onDownload).toHaveBeenCalledOnce()
   await render(false, false)
   expect(
