@@ -111,6 +111,10 @@ export function DocumentActionSearch({
                   aria-label="Search menus and actions"
                   aria-expanded={searchOpen}
                   onClick={() => {
+                    if (searchOpen) {
+                      closeSearch(true)
+                      return
+                    }
                     setOpen(true)
                     inputRef.current?.focus()
                   }}
