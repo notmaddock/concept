@@ -251,6 +251,7 @@ export function FloatingTextFormatToolbarPlugin() {
       unregister()
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current)
+        rafIdRef.current = null
       }
     }
   }, [editor, updatePopup, scheduleUpdate])
