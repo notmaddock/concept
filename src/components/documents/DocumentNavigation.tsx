@@ -4,12 +4,18 @@ import { useDocumentNavigationOptions } from './navigation-menus/document-naviga
 import { Menubar } from '#/components/ui/menubar'
 
 export function DocumentNavigation({
+  onOpen,
+  onCopy,
+  onDownload,
   onPageSetup,
   onCreate,
   creating,
   enabled,
   onFocusEditor,
 }: {
+  onOpen: () => void
+  onCopy: () => void
+  onDownload: () => void
   onPageSetup: () => void
   onCreate: () => Promise<void>
   creating: boolean
@@ -17,6 +23,10 @@ export function DocumentNavigation({
   onFocusEditor: () => void
 }) {
   const { menus, options } = useDocumentNavigationOptions({
+    enabled,
+    onOpen,
+    onCopy,
+    onDownload,
     onPageSetup,
     onCreate,
     creating,
@@ -33,7 +43,11 @@ export function DocumentNavigation({
         onFocusEditor={onFocusEditor}
       />
       {menus.map((menu) => (
-        <DocumentMenu key={menu.label} disabled={!enabled} {...menu} />
+        <DocumentMenu
+          key={menu.label}
+          disabled={!enabled && menu.label !== 'File'}
+          {...menu}
+        />
       ))}
     </Menubar>
   )

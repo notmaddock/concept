@@ -13,6 +13,9 @@ let container: HTMLDivElement
 let navigation: ReturnType<typeof useDocumentNavigationOptions>
 const onCreate = vi.fn<() => Promise<void>>()
 const onPageSetup = vi.fn()
+const onOpen = vi.fn()
+const onCopy = vi.fn()
+const onDownload = vi.fn()
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -27,10 +30,14 @@ afterEach(async () => {
   await act(() => root.unmount())
 })
 
-async function render(creating = false) {
+async function render(creating = false, enabled = true) {
   function Harness() {
     navigation = useDocumentNavigationOptions({
       onCreate,
+      onOpen,
+      onCopy,
+      onDownload,
+      enabled,
       onPageSetup,
       creating,
     })
@@ -87,5 +94,25 @@ it('updates creation availability and selected theme in both consumers', async (
   ).toBe(false)
   expect(
     navigation.options.find((option) => option.id === 'theme-dark')?.checked,
+  ).toBe(true)
+})
+
+it('connects file actions to their handlers and keeps Open available without a document', async () => {
+  await render()
+  for (const id of ['open', 'make-copy', 'download']) {
+    await navigation.options.find((option) => option.id === id)?.onSelect()
+  }
+  expect(onOpen).toHaveBeenCalledOnce()
+  expect(onCopy).toHaveBeenCalledOnce()
+  expect(onDownload).toHaveBeenCalledOnce()
+  await render(false, false)
+  expect(
+    navigation.options.find((option) => option.id === 'open')?.disabled,
+  ).toBe(false)
+  expect(
+    navigation.options.find((option) => option.id === 'make-copy')?.disabled,
+  ).toBe(true)
+  expect(
+    navigation.options.find((option) => option.id === 'download')?.disabled,
   ).toBe(true)
 })

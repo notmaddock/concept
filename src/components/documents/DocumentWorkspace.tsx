@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import type { Doc } from 'yjs'
+import { downloadConcept } from '#/lib/documents/concept-file'
+import { DocumentStorageDialog } from './DocumentStorageDialog'
 import type { LexicalEditor } from 'lexical'
 import { Link } from '@tanstack/react-router'
 import { FileTextIcon, PlusIcon } from 'lucide-react'
@@ -23,6 +26,9 @@ import { DocumentContextMenu } from './DocumentContextMenu'
 import { DocumentEditor } from './DocumentEditor'
 
 export function DocumentWorkspace({ id }: { id?: string }) {
+  const documentRef = useRef<Doc | null>(null)
+  const [fileAction, setFileAction] = useState<'open' | 'copy' | null>(null)
+  const [fileError, setFileError] = useState('')
   const editorRef = useRef<LexicalEditor | null>(null)
   const [pageSetupOpen, setPageSetupOpen] = useState(false)
   const {
@@ -86,6 +92,30 @@ export function DocumentWorkspace({ id }: { id?: string }) {
             />
           </div>
           <DocumentNavigation
+            onOpen={() => setFileAction('open')}
+            onCopy={() => {
+              if (documentRef.current && document) setFileAction('copy')
+              else
+                setFileError(
+                  'Open a document and wait for it to load before making a copy.',
+                )
+            }}
+            onDownload={() => {
+              try {
+                if (!document || !documentRef.current)
+                  throw new Error(
+                    'Open a document and wait for it to load before downloading.',
+                  )
+                downloadConcept(document.name, documentRef.current)
+                setFileError('')
+              } catch (cause) {
+                setFileError(
+                  cause instanceof Error
+                    ? cause.message
+                    : 'Could not download the document.',
+                )
+              }
+            }}
             onPageSetup={() => setPageSetupOpen(true)}
             onCreate={createDocument}
             creating={creating}
@@ -93,9 +123,9 @@ export function DocumentWorkspace({ id }: { id?: string }) {
             onFocusEditor={() => editorRef.current?.focus()}
           />
         </header>
-        {error && (
+        {(error || fileError) && (
           <p role="alert" className="px-6 pb-3 text-sm text-destructive">
-            {error}
+            {error || fileError}
           </p>
         )}
         <main
@@ -109,6 +139,7 @@ export function DocumentWorkspace({ id }: { id?: string }) {
             >
               <DocumentEditor
                 key={document.id}
+                documentRef={documentRef}
                 id={document.id}
                 editorRef={editorRef}
                 pageSetupOpen={pageSetupOpen}
@@ -139,6 +170,18 @@ export function DocumentWorkspace({ id }: { id?: string }) {
           )}
         </main>
       </div>
+      {fileAction && (
+        <DocumentStorageDialog
+          key={fileAction}
+          mode={fileAction}
+          source={
+            document && documentRef.current
+              ? { name: document.name, doc: documentRef.current }
+              : undefined
+          }
+          onClose={() => setFileAction(null)}
+        />
+      )}
     </SidebarProvider>
   )
 }

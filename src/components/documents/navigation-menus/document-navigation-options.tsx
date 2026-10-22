@@ -19,6 +19,10 @@ import {
 import { useTheme } from '#/components/theme-provider'
 
 type NavigationContext = {
+  enabled?: boolean
+  onOpen?: () => void
+  onCopy?: () => void
+  onDownload?: () => void
   onPageSetup: () => void
   onCreate: () => Promise<void>
   creating: boolean
@@ -72,7 +76,7 @@ export const documentNavigation: MenuDefinition[] = [
         keywords: ['open file'],
         icon: FolderOpenIcon,
         focusAfterSelect: 'action',
-        onSelect: () => {},
+        onSelect: (context) => context.onOpen?.(),
       },
       {
         id: 'make-copy',
@@ -80,7 +84,7 @@ export const documentNavigation: MenuDefinition[] = [
         keywords: ['duplicate'],
         icon: CopyIcon,
         focusAfterSelect: 'action',
-        onSelect: () => {},
+        onSelect: (context) => context.onCopy?.(),
       },
       {
         id: 'share',
@@ -97,7 +101,7 @@ export const documentNavigation: MenuDefinition[] = [
         keywords: [],
         icon: DownloadIcon,
         focusAfterSelect: 'action',
-        onSelect: () => {},
+        onSelect: (context) => context.onDownload?.(),
       },
       {
         id: 'export',
@@ -235,7 +239,16 @@ export type NavigationMenuItem =
     })
 
 export function useDocumentNavigationOptions(
-  props: Pick<NavigationContext, 'onPageSetup' | 'onCreate' | 'creating'>,
+  props: Pick<
+    NavigationContext,
+    | 'onPageSetup'
+    | 'onCreate'
+    | 'creating'
+    | 'onOpen'
+    | 'onCopy'
+    | 'onDownload'
+    | 'enabled'
+  >,
 ) {
   const context: NavigationContext = { ...props, ...useTheme() }
   const options: NavigationOption[] = []
@@ -255,7 +268,10 @@ export function useDocumentNavigationOptions(
       ...item,
       group,
       onSelect: () => item.onSelect(context),
-      disabled: item.disabled?.(context),
+      disabled:
+        item.disabled?.(context) ||
+        (context.enabled === false &&
+          !['new-document', 'open'].includes(item.id)),
       checked: item.checked?.(context),
     }
     options.push(option)

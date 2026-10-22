@@ -10,11 +10,13 @@ import { LocalProvider } from '#/lib/documents/local-provider'
 import { localDocumentStorage } from '#/lib/documents/storage'
 
 export function DocumentEditor({
+  documentRef,
   id,
   pageSetupOpen,
   editorRef,
   onPageSetupOpenChange,
 }: {
+  documentRef: RefObject<Doc | null>
   id: string
   editorRef?: RefObject<LexicalEditor | null>
   pageSetupOpen: boolean
@@ -31,6 +33,11 @@ export function DocumentEditor({
     const doc = new Doc()
     const persistence = localDocumentStorage.open(id, doc)
     const provider = new LocalProvider(id, doc, persistence, initializeDocument)
+    void persistence.whenSynced
+      .then(() => {
+        if (active) documentRef.current = doc
+      })
+      .catch(() => {})
     setSession({ doc, provider })
     void persistence.whenSynced.catch(() => {
       provider.destroy()
@@ -41,10 +48,11 @@ export function DocumentEditor({
     })
     return () => {
       active = false
+      documentRef.current = null
       provider.destroy()
       void persistence.destroy().finally(() => doc.destroy())
     }
-  }, [id])
+  }, [id, documentRef])
 
   if (error)
     return (
