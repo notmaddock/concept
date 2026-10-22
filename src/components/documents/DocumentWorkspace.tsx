@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { LexicalEditor } from 'lexical'
 import { Link } from '@tanstack/react-router'
 import { FileTextIcon, PlusIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -22,6 +23,7 @@ import { DocumentContextMenu } from './DocumentContextMenu'
 import { DocumentEditor } from './DocumentEditor'
 
 export function DocumentWorkspace({ id }: { id?: string }) {
+  const editorRef = useRef<LexicalEditor | null>(null)
   const [pageSetupOpen, setPageSetupOpen] = useState(false)
   const {
     documents,
@@ -88,6 +90,7 @@ export function DocumentWorkspace({ id }: { id?: string }) {
             onCreate={createDocument}
             creating={creating}
             enabled={Boolean(document)}
+            onFocusEditor={() => editorRef.current?.focus()}
           />
         </header>
         {error && (
@@ -107,6 +110,7 @@ export function DocumentWorkspace({ id }: { id?: string }) {
               <DocumentEditor
                 key={document.id}
                 id={document.id}
+                editorRef={editorRef}
                 pageSetupOpen={pageSetupOpen}
                 onPageSetupOpenChange={setPageSetupOpen}
               />

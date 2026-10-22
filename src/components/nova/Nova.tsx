@@ -1,3 +1,6 @@
+import { EditorRefPlugin } from '@lexical/react/LexicalEditorRefPlugin'
+import type { RefObject } from 'react'
+import type { LexicalEditor } from 'lexical'
 import { PageSetupPlugin } from '#/components/documents/page-setup/PageSetupPlugin'
 import { LexicalExtensionComposer } from '@lexical/react/LexicalExtensionComposer'
 import { collaborativeEditorExtension, editorExtension } from './editor'
@@ -9,9 +12,11 @@ import { FloatingTextFormatToolbarPlugin } from './plugins/FormatToolbarPlugin'
 
 export function Nova({
   collaboration,
+  editorRef,
   pageSetupOpen = false,
   onPageSetupOpenChange = () => {},
 }: {
+  editorRef?: RefObject<LexicalEditor | null>
   collaboration?: React.ReactNode
   pageSetupOpen?: boolean
   onPageSetupOpenChange?: (open: boolean) => void
@@ -23,6 +28,7 @@ export function Nova({
       extension={collaboration ? collaborativeEditorExtension : editorExtension}
       contentEditable={null}
     >
+      {editorRef && <EditorRefPlugin editorRef={editorRef} />}
       <div className="relative size-full" ref={setAnchorElement}>
         <NovaContentEditable />
         {collaboration}

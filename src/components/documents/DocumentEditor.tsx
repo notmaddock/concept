@@ -1,3 +1,5 @@
+import type { RefObject } from 'react'
+import type { LexicalEditor } from 'lexical'
 import { useEffect, useState } from 'react'
 import { LexicalCollaboration } from '@lexical/react/LexicalCollaborationContext'
 import { CollaborationPlugin } from '@lexical/react/LexicalCollaborationPlugin'
@@ -10,9 +12,11 @@ import { localDocumentStorage } from '#/lib/documents/storage'
 export function DocumentEditor({
   id,
   pageSetupOpen,
+  editorRef,
   onPageSetupOpenChange,
 }: {
   id: string
+  editorRef?: RefObject<LexicalEditor | null>
   pageSetupOpen: boolean
   onPageSetupOpenChange: (open: boolean) => void
 }) {
@@ -55,6 +59,7 @@ export function DocumentEditor({
   return (
     <LexicalCollaboration>
       <Nova
+        editorRef={editorRef}
         pageSetupOpen={pageSetupOpen}
         onPageSetupOpenChange={onPageSetupOpenChange}
         collaboration={
