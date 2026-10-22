@@ -10,5 +10,7 @@ export interface FormatState {
   isItalic: boolean
   isUnderline: boolean
   isStrikethrough: boolean
+  isSubscript: boolean
+  isSuperscript: boolean
   isCode: boolean
 }

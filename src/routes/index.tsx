@@ -9,7 +9,7 @@ function Home() {
     <main className="fixed inset-0 flex flex-col gap-4 justify-center items-center">
       <h1 className="text-4xl text-primary">Welcome to Concept (beta)</h1>
 
-      <Button render={<Link to="/new" />} size={'lg'}>
+      <Button nativeButton={false} render={<Link to="/d" />} size={'lg'}>
         <PlusIcon /> New document
       </Button>
     </main>

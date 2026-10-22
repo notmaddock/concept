@@ -1,0 +1,132 @@
+@media print {
+  @page {
+    @top-left-corner {
+      content: '';
+    }
+    @top-left {
+      content: '';
+    }
+    @top-center {
+      content: '';
+    }
+    @top-right {
+      content: '';
+    }
+    @top-right-corner {
+      content: '';
+    }
+    @bottom-left-corner {
+      content: '';
+    }
+    @bottom-left {
+      content: '';
+    }
+    @bottom-center {
+      content: '';
+    }
+    @bottom-right {
+      content: '';
+    }
+    @bottom-right-corner {
+      content: '';
+    }
+    @left-top {
+      content: '';
+    }
+    @left-middle {
+      content: '';
+    }
+    @left-bottom {
+      content: '';
+    }
+    @right-top {
+      content: '';
+    }
+    @right-middle {
+      content: '';
+    }
+    @right-bottom {
+      content: '';
+    }
+  }
+
+  /* Remove sibling UI at every level without leaving hidden boxes or pages. */
+  body:has([data-document-content])
+    :is(body, *):has([data-document-content])
+    > :not(:has([data-document-content])):not([data-document-content]) {
+    display: none !important;
+  }
+
+  body:has([data-document-content]) > :not(:has([data-document-content])) {
+    display: none !important;
+  }
+
+  html:has([data-document-content]),
+  body:has([data-document-content]),
+  body :has([data-document-content]),
+  [data-document-content] {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+    color: black !important;
+    transform: none !important;
+  }
+
+  [data-document-content] {
+    caret-color: transparent;
+    font-size: 12pt;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    --muted-foreground: #444;
+    --primary: #444;
+    --primary-foreground: #fff;
+    --border: #888;
+  }
+
+  [data-document-content] :is(p, li, blockquote) {
+    orphans: 3;
+    widows: 3;
+  }
+
+  [data-document-content] :is(h1, h2, h3, h4, h5, h6) {
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  [data-document-content] :is(pre, blockquote, ul, ol, li) {
+    break-inside: auto;
+  }
+
+  [data-document-content] pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  [data-document-content] :is(img, svg, table) {
+    max-width: 100%;
+  }
+
+  [data-document-content] :is(img, svg, tr, hr) {
+    break-inside: avoid;
+  }
+
+  [data-document-content] img {
+    height: auto;
+  }
+
+  [data-document-content] [data-lexical-decorator] {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+}

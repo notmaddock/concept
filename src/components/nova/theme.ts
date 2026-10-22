@@ -7,6 +7,9 @@ export const defaultEditorTheme: EditorThemeClasses = {
     h1: 'text-3xl font-bold tracking-tight mb-4',
     h2: 'text-2xl font-semibold tracking-tight mb-3',
     h3: 'text-xl font-semibold mb-2',
+    h4: 'text-lg font-semibold mb-2',
+    h5: 'text-base font-semibold mb-2',
+    h6: 'text-sm font-semibold mb-2',
   },
 
   quote: 'border-l-2 border-primary/60 pl-4 italic text-muted-foreground my-3',
@@ -28,6 +31,12 @@ export const defaultEditorTheme: EditorThemeClasses = {
   },
 
   text: {
+    code: 'rounded bg-muted px-1 font-mono text-sm',
+    subscript: 'align-sub text-xs',
+    superscript: 'align-super text-xs',
+    lowercase: 'lowercase',
+    uppercase: 'uppercase',
+    capitalize: 'capitalize',
     bold: 'font-bold',
     italic: 'italic',
     underline: 'underline',

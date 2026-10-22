@@ -55,7 +55,7 @@ export function SlashMenuPluginMenu({
         const index = options.findIndex((o) => o.key === value)
         if (index !== -1) setHighlightedIndex(index)
       }}
-      className="min-w-64 min-h-48 max-h-128 rounded-sm border bg-popover shadow-sm animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+      className="min-w-64 min-h-48 max-h-128 border bg-popover shadow-sm animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
     >
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>

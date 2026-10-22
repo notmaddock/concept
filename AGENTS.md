@@ -17,6 +17,9 @@ This document outlines the operational rules and standards that all AI agents mu
 
 ## 2. UI Components & shadcn CLI
 
+- **Keep UI components reusable**: Prefer focused components with clear, typed props and compose existing components where practical.
+- **Split growing components**: When a component becomes too large or handles multiple responsibilities, extract cohesive UI sections into separate components and supporting logic into hooks or helpers as appropriate.
+
 - **Always use the official shadcn CLI to add components**:
   - Run `pnpm dlx shadcn@latest add <component>` to add any component from the registry.
   - **NEVER** write or manually recreate components that belong in the component library. All base UI primitives and shadcn components must be installed via the CLI.
@@ -28,6 +31,8 @@ This document outlines the operational rules and standards that all AI agents mu
 ---
 
 ## 3. Code Comments & Documentation
+
+- **Avoid unnecessary UI clarification text**: Do not add descriptions or explanatory footnotes that repeat what titles, labels, or values already communicate. Add clarification only when it helps users make a decision or prevents a concrete misunderstanding; prefer precise labels over extra prose.
 
 - **Comment only when code is not self-explanatory**: Code should be clean, declarative, and self-documenting through clear naming and modular structure.
 - **Avoid redundant comments**: Do not add comments that state the obvious or mirror what the code syntax already conveys (e.g., do not write `// handle click`, `// define user state`, or `// export component`).

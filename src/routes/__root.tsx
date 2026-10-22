@@ -2,7 +2,7 @@ import {
   ErrorComponent,
   HeadContent,
   Scripts,
-  createRootRouteWithContext,
+  createRootRoute,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
@@ -10,19 +10,12 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import { ThemeProvider } from '#/components/theme-provider'
 import { NotFound } from '#/components/not-found'
 import { TooltipProvider } from '#/components/ui/tooltip'
-import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
 import PostHogProvider from '../integrations/posthog/provider'
 
 import appCss from '../styles.css?url'
 
-import type { QueryClient } from '@tanstack/react-query'
-
-interface MyRouterContext {
-  queryClient: QueryClient
-}
-
-export const Route = createRootRouteWithContext<MyRouterContext>()({
+export const Route = createRootRoute({
   head: () => ({
     meta: [
       {
@@ -35,6 +28,8 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       {
         title: 'Concept',
       },
+      { name: 'application-name', content: 'Concept' },
+      { name: 'creator', content: 'Concept' },
     ],
     links: [
       {
@@ -78,7 +73,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                     name: 'Tanstack Router',
                     render: <TanStackRouterDevtoolsPanel />,
                   },
-                  TanStackQueryDevtools,
                 ]}
               />
             </TooltipProvider>
