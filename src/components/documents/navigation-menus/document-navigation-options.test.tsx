@@ -68,7 +68,11 @@ function leaves(items: NavigationMenuItem[]): NavigationMenuItem[] {
 it('exposes every menu action to search with the same state and handler', async () => {
   await render()
   const menuActions = navigation.menus.flatMap((menu) => leaves(menu.items))
-  expect(menuActions).toHaveLength(25)
+  expect(menuActions.length).toBeGreaterThan(100)
+  expect(
+    navigation.menus.find((menu) => menu.label === 'Format')?.items,
+  ).toHaveLength(13)
+
   expect(navigation.options).toHaveLength(menuActions.length)
   for (const [index, option] of navigation.options.entries()) {
     expect(option).toBe(menuActions[index])

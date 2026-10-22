@@ -26,6 +26,8 @@ const INITIAL_FORMAT_STATE: FormatState = {
   isUnderline: false,
   isStrikethrough: false,
   isCode: false,
+  isSubscript: false,
+  isSuperscript: false,
 }
 
 export function FloatingTextFormatToolbarPlugin() {
@@ -45,7 +47,11 @@ export function FloatingTextFormatToolbarPlugin() {
     }
 
     editor.read('latest', () => {
-      if (editor.isComposing() || !editor.isEditable()) {
+      if (
+        editor.isComposing() ||
+        !editor.isEditable() ||
+        document.activeElement?.closest('[role="menu"], [role="menubar"]')
+      ) {
         setIsOpen(false)
         return
       }
@@ -125,6 +131,8 @@ export function FloatingTextFormatToolbarPlugin() {
         isUnderline: selection.hasFormat('underline'),
         isStrikethrough: selection.hasFormat('strikethrough'),
         isCode: selection.hasFormat('code'),
+        isSubscript: selection.hasFormat('subscript'),
+        isSuperscript: selection.hasFormat('superscript'),
       })
 
       setRangeRect({
@@ -175,6 +183,7 @@ export function FloatingTextFormatToolbarPlugin() {
 
     const unregister = mergeRegister(
       registerEventListener(document, 'selectionchange', updatePopup),
+      registerEventListener(document, 'focusin', updatePopup),
       registerEventListener(document, 'pointerdown', handlePointerDown),
       registerEventListener(document, 'pointerup', handlePointerUp),
       registerEventListener(document, 'pointercancel', handlePointerUp),

@@ -11,9 +11,13 @@ import { RichTextExtension } from '@lexical/rich-text'
 import { defineExtension } from 'lexical'
 import { getInitialState } from './initial-state'
 import { defaultEditorTheme } from './theme'
+import { paragraphDOM } from './paragraph-format'
 
 export const editorExtension = defineExtension({
   name: '[root]',
+  init(config) {
+    config.dom = { ...config.dom, ...paragraphDOM }
+  },
   dependencies: [
     RichTextExtension,
     HistoryExtension,

@@ -1,5 +1,8 @@
 import { toast } from 'sonner'
 import type { ExportFormat } from '#/lib/documents/export'
+import { formatSections } from './format-options'
+import { useFormatActions } from './use-format-actions'
+
 import { useEditActions } from './use-edit-actions'
 import type { EditAction } from './use-edit-actions'
 import { useDocumentWorkspace } from '../document-workspace-context'
@@ -31,6 +34,10 @@ import {
 } from 'lucide-react'
 import { useTheme } from '#/components/theme-provider'
 
+const formatActions = formatSections.flatMap((section) =>
+  section.choices.map((choice) => choice.action),
+)
+
 export type ActionShortcut = {
   keys: string[]
   macKeys?: string[]
@@ -49,6 +56,7 @@ const editShortcuts: Record<EditAction, ActionShortcut> = {
 }
 
 type NavigationContext = {
+  format: ReturnType<typeof useFormatActions>
   edit: ReturnType<typeof useEditActions>
   enabled?: boolean
   onOpen?: () => void
@@ -74,7 +82,8 @@ type ActionDefinition = {
   focusAfterSelect: 'editor' | 'action'
   onSelect: (context: NavigationContext) => void | Promise<void>
   disabled?: (context: NavigationContext) => boolean
-  checked?: (context: NavigationContext) => boolean
+  toggle?: boolean
+  checked?: (context: NavigationContext) => boolean | undefined
   separatorBefore?: boolean
 }
 
@@ -299,7 +308,27 @@ export const documentNavigation: MenuDefinition[] = [
     ],
   },
   { label: 'Insert', items: [] },
-  { label: 'Format', items: [] },
+  {
+    label: 'Format',
+    items: formatSections.map((section) => ({
+      id: `format-${section.id}`,
+      label: section.label,
+      icon: section.icon,
+      children: section.choices.map((choice) => ({
+        id: choice.id,
+        label: choice.label,
+        icon: section.icon,
+        toggle: true,
+        keywords: ['format', section.label],
+        focusAfterSelect: 'editor' as const,
+        onSelect: (context: NavigationContext) =>
+          context.format.run(choice.action),
+        disabled: (context: NavigationContext) => context.format.disabled,
+        checked: (context: NavigationContext) =>
+          context.format.checked(choice.action),
+      })),
+    })),
+  },
   { label: 'Tools', items: [] },
   { label: 'Help', items: [] },
 ]
@@ -327,8 +356,14 @@ export function useDocumentNavigationOptions() {
     workspace.document?.id,
     (message) => toast.error(message),
   )
+  const format = useFormatActions(
+    workspace.editorRef,
+    workspace.document?.id,
+    formatActions,
+  )
   const context: NavigationContext = {
     edit,
+    format,
     enabled: workspace.enabled,
     creating: workspace.creating,
     onOpen: workspace.openDocument,

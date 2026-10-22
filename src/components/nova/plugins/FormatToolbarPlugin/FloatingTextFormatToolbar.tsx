@@ -1,6 +1,14 @@
 import { FORMAT_TEXT_COMMAND } from 'lexical'
 import type { LexicalEditor, TextFormatType } from 'lexical'
-import { Bold, Code, Italic, Strikethrough, Underline } from 'lucide-react'
+import {
+  Bold,
+  Code,
+  Italic,
+  Strikethrough,
+  Underline,
+  Subscript,
+  Superscript,
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
@@ -35,6 +43,18 @@ const FORMAT_BUTTONS: FormatConfig[] = [
     label: 'strikethrough',
   },
   { format: 'code', stateKey: 'isCode', icon: Code, label: 'code' },
+  {
+    format: 'subscript',
+    stateKey: 'isSubscript',
+    icon: Subscript,
+    label: 'subscript',
+  },
+  {
+    format: 'superscript',
+    stateKey: 'isSuperscript',
+    icon: Superscript,
+    label: 'superscript',
+  },
 ]
 
 export interface FloatingTextFormatToolbarProps {
@@ -83,7 +103,7 @@ export function FloatingTextFormatToolbar({
         finalFocus={false}
         role="toolbar"
         aria-label="Text formatting"
-        className="w-auto p-1 border shadow-sm flex flex-row items-center gap-0.5 bg-popover"
+        className="max-w-[calc(100vw-1rem)] flex-wrap w-auto p-1 border shadow-sm flex flex-row items-center gap-0.5 bg-popover"
       >
         {FORMAT_BUTTONS.map(({ format, stateKey, icon: Icon, label }) => {
           const isActive = formatState[stateKey]

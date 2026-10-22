@@ -11,6 +11,7 @@ import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuCheckboxItem,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -53,11 +54,28 @@ function MenuItems({
     return (
       <Fragment key={item.id}>
         {item.separatorBefore && <DropdownMenuSeparator />}
-        {item.checked !== undefined ? (
+        {item.toggle && item.checked !== undefined ? (
+          <DropdownMenuCheckboxItem
+            closeOnClick
+            className={documentMenuItemClassName}
+            checked={item.checked}
+            disabled={item.disabled}
+            onClick={() => {
+              if (item.focusAfterSelect === 'editor') onEditorAction()
+              void item.onSelect()
+            }}
+          >
+            <Icon /> {item.menuLabel ?? item.label}
+          </DropdownMenuCheckboxItem>
+        ) : item.checked !== undefined ? (
           <DropdownMenuRadioItem
             className={documentMenuItemClassName}
             value={item.id}
             disabled={item.disabled}
+            onClick={() => {
+              if (item.focusAfterSelect === 'editor') onEditorAction()
+              void item.onSelect()
+            }}
           >
             <Icon /> {item.menuLabel ?? item.label}
           </DropdownMenuRadioItem>
@@ -79,15 +97,9 @@ function MenuItems({
   })
 
   return items.some(
-    (item) => 'checked' in item && item.checked !== undefined,
+    (item) => 'checked' in item && item.checked !== undefined && !item.toggle,
   ) ? (
-    <DropdownMenuRadioGroup
-      value={selected?.id}
-      onValueChange={(value) => {
-        const item = items.find((option) => option.id === value)
-        if (item && !('children' in item)) void item.onSelect()
-      }}
-    >
+    <DropdownMenuRadioGroup value={selected?.id}>
       {content}
     </DropdownMenuRadioGroup>
   ) : (
@@ -140,7 +152,7 @@ export function DocumentMenu({
         align="start"
         // Returning focus during a switch can reopen the menu being closed.
         finalFocus={() => !editorAction.current && restoreFocus}
-        className={`${label === 'Edit' ? 'w-80 p-1' : documentMenuContentClassName} ${instant ? 'data-open:animate-none data-closed:animate-none' : ''}`}
+        className={`${label === 'Edit' || label === 'Format' ? 'w-80 p-1' : documentMenuContentClassName} ${instant ? 'data-open:animate-none data-closed:animate-none' : ''}`}
       >
         {items.length > 0 ? (
           <MenuItems
