@@ -2,8 +2,12 @@ import { FORMAT_TEXT_COMMAND } from 'lexical'
 import type { LexicalEditor, TextFormatType } from 'lexical'
 import { Bold, Code, Italic, Strikethrough, Underline } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { useMemo } from 'react'
-import { Popover, PopoverContent } from '#/components/ui/popover'
+import { createPortal } from 'react-dom'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '#/components/ui/popover'
 import { Button } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
 import type { FormatState, PositionRect } from './types'
@@ -48,27 +52,30 @@ export function FloatingTextFormatToolbar({
   formatState,
   onOpenChange,
 }: FloatingTextFormatToolbarProps) {
-  const anchor = useMemo(() => {
-    if (!rangeRect) return null
-    return {
-      getBoundingClientRect: () =>
-        new DOMRect(
-          rangeRect.left,
-          rangeRect.top,
-          Math.max(rangeRect.width, 1),
-          Math.max(rangeRect.height, 1),
-        ),
-    }
-  }, [rangeRect])
-
   return (
     <Popover
       open={isOpen && Boolean(rangeRect)}
       onOpenChange={onOpenChange}
       modal={false}
     >
+      {rangeRect &&
+        createPortal(
+          <PopoverTrigger
+            aria-hidden="true"
+            tabIndex={-1}
+            style={{
+              position: 'fixed',
+              pointerEvents: 'none',
+              opacity: 0,
+              left: rangeRect.left,
+              top: rangeRect.top,
+              width: Math.max(rangeRect.width, 1),
+              height: Math.max(rangeRect.height, 1),
+            }}
+          />,
+          document.body,
+        )}
       <PopoverContent
-        anchor={anchor}
         side="top"
         sideOffset={8}
         align="center"
@@ -76,7 +83,7 @@ export function FloatingTextFormatToolbar({
         finalFocus={false}
         role="toolbar"
         aria-label="Text formatting"
-        className="w-auto p-1 rounded-sm border shadow-sm flex flex-row items-center gap-0.5 bg-popover"
+        className="w-auto p-1 border shadow-sm flex flex-row items-center gap-0.5 bg-popover"
       >
         {FORMAT_BUTTONS.map(({ format, stateKey, icon: Icon, label }) => {
           const isActive = formatState[stateKey]
@@ -87,7 +94,7 @@ export function FloatingTextFormatToolbar({
               variant="ghost"
               size="icon-sm"
               className={cn(
-                'rounded-[calc(var(--radius-sm)-0.25rem)] text-muted-foreground hover:text-foreground',
+                'text-muted-foreground hover:text-foreground',
                 isActive && 'bg-accent text-accent-foreground',
               )}
               aria-label={`Format ${label}`}

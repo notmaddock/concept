@@ -67,7 +67,6 @@ body {
   --radius-4xl: calc(var(--radius) * 2.6);
   --font-mono: IBM Plex Mono, monospace;
   --font-serif: 'Lora Variable', serif;
-  --radius: 1.25rem;
   --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
   --tracking-tight: calc(var(--tracking-normal) - 0.025em);
   --tracking-wide: calc(var(--tracking-normal) + 0.025em);
@@ -117,7 +116,7 @@ body {
   --chart-3: oklch(0.4851 0.057 72.6827);
   --chart-4: oklch(0.6777 0.0624 64.7755);
   --chart-5: oklch(0.7264 0.0581 66.6967);
-  --radius: 1.25rem;
+  --radius: 0.625rem;
   --sidebar: oklch(0.9239 0.019 83.0636);
   --sidebar-foreground: oklch(0.376 0.0225 64.3434);
   --sidebar-primary: oklch(0.618 0.0778 65.5444);
@@ -192,7 +191,6 @@ body {
   --sidebar-border: oklch(0.3795 0.0181 57.128);
   --sidebar-ring: oklch(0.7264 0.0581 66.6967);
   --destructive-foreground: oklch(1 0 0);
-  --radius: 1.25rem;
   --font-sans: 'DM Sans Variable', ui-sans-serif, sans-serif, system-ui;
   --font-serif: 'Lora Variable', serif;
   --font-mono: IBM Plex Mono, monospace;
