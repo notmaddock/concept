@@ -61,6 +61,23 @@ export function ThemeProvider({
   }, [defaultTheme, storageKey])
 
   useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== storageKey) return
+      if (
+        event.newValue === 'light' ||
+        event.newValue === 'dark' ||
+        event.newValue === 'system'
+      ) {
+        setThemeState(event.newValue)
+      } else if (event.newValue === null) {
+        setThemeState(defaultTheme)
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [defaultTheme, storageKey])
+
+  useEffect(() => {
     if (!mounted) return
     applyTheme(theme)
   }, [theme, mounted])
