@@ -202,7 +202,6 @@ it('preserves changes received while a library reconciliation is in flight', asy
   await act(() => {
     listener({ type: 'upsert', document: renamed })
     listener({ type: 'delete', id: second.id })
-    window.dispatchEvent(new Event('focus'))
     resolveRead([first, second])
   })
   expect(actions.documents).toEqual([renamed])
@@ -289,4 +288,23 @@ it('fetches direct document via storage.get when missing from initial list', asy
   expect(storage.get).toHaveBeenCalledWith('unlisted')
   expect(actions.document).toEqual(directDoc)
   expect(actions.documents).toContainEqual(directDoc)
+})
+
+it('replays focus invalidation received during an in-flight library read', async () => {
+  let resolveRead!: (items: (typeof first)[]) => void
+  vi.mocked(storage.list)
+    .mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRead = resolve
+      }),
+    )
+    .mockResolvedValueOnce([second])
+  await mount('second')
+  await act(() => {
+    window.dispatchEvent(new Event('focus'))
+    window.dispatchEvent(new Event('focus'))
+    resolveRead([first, second])
+  })
+  expect(storage.list).toHaveBeenCalledTimes(2)
+  expect(actions.documents).toEqual([second])
 })

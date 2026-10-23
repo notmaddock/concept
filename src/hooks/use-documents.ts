@@ -28,9 +28,13 @@ export function useDocuments(
   useEffect(() => {
     let active = true
     let reading = false
+    let refreshQueued = false
     const changesDuringRead = new Map<string, DocumentChange>()
     const refresh = () => {
-      if (reading) return
+      if (reading) {
+        refreshQueued = true
+        return
+      }
       reading = true
       changesDuringRead.clear()
       const startedAt = performance.now()
@@ -40,7 +44,11 @@ export function useDocuments(
           performance.measure('concept:library-read', { start: startedAt })
           let initialItems = items
           const directId = activeId.current
-          if (active && directId && !items.some((item) => item.id === directId)) {
+          if (
+            active &&
+            directId &&
+            !items.some((item) => item.id === directId)
+          ) {
             try {
               const direct = await storage.get(directId)
               if (direct) {
@@ -53,7 +61,9 @@ export function useDocuments(
             }
           }
           if (!active) return
-          const reconciled = new Map(initialItems.map((item) => [item.id, item]))
+          const reconciled = new Map(
+            initialItems.map((item) => [item.id, item]),
+          )
           for (const change of changesDuringRead.values()) {
             if (change.type === 'upsert')
               reconciled.set(change.document.id, change.document)
@@ -80,6 +90,10 @@ export function useDocuments(
         .finally(() => {
           reading = false
           changesDuringRead.clear()
+          if (active && refreshQueued) {
+            refreshQueued = false
+            refresh()
+          }
         })
     }
     const unsubscribe = storage.subscribe((change) => {
@@ -113,31 +127,33 @@ export function useDocuments(
     }
   }, [storage, navigate])
 
-  const createDocument = useCallback(async (options?: { replace?: boolean }) => {
-    if (createPending.current) return
-    createPending.current = true
-    setCreating(true)
-    try {
-      const created = await storage.create()
-      setDocuments((items) =>
-        [
-          created,
-          ...items.filter((item) => item.id !== created.id),
-        ].sort((a, b) => b.updatedAt - a.updatedAt),
-      )
-      setError('')
-      await navigate({
-        to: '/d/$id',
-        params: { id: created.id },
-        ...(options?.replace ? { replace: true } : {}),
-      })
-    } catch {
-      setError('Could not create the document. Please try again.')
-    } finally {
-      createPending.current = false
-      setCreating(false)
-    }
-  }, [storage, navigate])
+  const createDocument = useCallback(
+    async (options?: { replace?: boolean }) => {
+      if (createPending.current) return
+      createPending.current = true
+      setCreating(true)
+      try {
+        const created = await storage.create()
+        setDocuments((items) =>
+          [created, ...items.filter((item) => item.id !== created.id)].sort(
+            (a, b) => b.updatedAt - a.updatedAt,
+          ),
+        )
+        setError('')
+        await navigate({
+          to: '/d/$id',
+          params: { id: created.id },
+          ...(options?.replace ? { replace: true } : {}),
+        })
+      } catch {
+        setError('Could not create the document. Please try again.')
+      } finally {
+        createPending.current = false
+        setCreating(false)
+      }
+    },
+    [storage, navigate],
+  )
 
   const renameDocumentById = useCallback(
     async (documentId: string, name: string) => {
