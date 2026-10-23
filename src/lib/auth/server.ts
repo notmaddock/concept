@@ -89,7 +89,14 @@ export function getAuth() {
     baseURL: env.BETTER_AUTH_URL,
     secret: env.BETTER_AUTH_SECRET,
     plugins: [
-      passkey({ rpName: 'Concept', origin: env.BETTER_AUTH_URL }),
+      passkey({
+        rpName: 'Concept',
+        origin: env.BETTER_AUTH_URL,
+        authenticatorSelection: {
+          residentKey: 'required',
+          userVerification: 'preferred',
+        },
+      }),
       oneTap({ clientId: env.GOOGLE_CLIENT_ID }),
     ],
     socialProviders: {
