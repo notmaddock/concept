@@ -95,10 +95,8 @@ it('pastes plain text without inheriting formatting', async () => {
       }
     },
   )
-  vi.stubGlobal('navigator', {
-    platform: 'Linux',
-    clipboard: { readText: async () => 'pasted' },
-  })
+  vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Linux')
+  vi.spyOn(navigator.clipboard, 'readText').mockResolvedValue('pasted')
   await act(() => actions.run('paste-plain'))
   editor.getEditorState().read(() => {
     expect($getRoot().getTextContent()).toBe('pasted world')
@@ -108,14 +106,8 @@ it('pastes plain text without inheriting formatting', async () => {
 })
 
 it('preserves text and reports denied clipboard access', async () => {
-  vi.stubGlobal('navigator', {
-    platform: 'Linux',
-    clipboard: {
-      read: async () => {
-        throw new Error('denied')
-      },
-    },
-  })
+  vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Linux')
+  vi.spyOn(navigator.clipboard, 'read').mockRejectedValue(new Error('denied'))
   await act(() => actions.run('paste'))
   expect(onError).toHaveBeenCalledWith(expect.stringContaining('Ctrl+V'))
   editor
@@ -156,6 +148,7 @@ it('leaves the bold shortcut available to the editor', async () => {
 })
 
 it('shows clipboard failures as Sonner toasts', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   vi.stubGlobal('matchMedia', () => ({
     matches: false,
     addEventListener: () => {},
@@ -172,17 +165,11 @@ it('shows clipboard failures as Sonner toasts', async () => {
       </>,
     ),
   )
-  vi.stubGlobal('navigator', {
-    platform: 'Linux',
-    clipboard: {
-      read: async () => {
-        throw new Error('denied')
-      },
-    },
-  })
+  vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Linux')
+  vi.spyOn(navigator.clipboard, 'read').mockRejectedValue(new Error('denied'))
   await act(async () => {
     await actions.run('paste')
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await vi.advanceTimersByTimeAsync(20)
   })
   expect(
     container.querySelector('[data-sonner-toast][data-type="error"]')
@@ -207,15 +194,12 @@ it('does not paste into a closed document after clipboard permission resolves', 
       }
     },
   )
-  vi.stubGlobal('navigator', {
-    platform: 'Linux',
-    clipboard: {
-      readText: () =>
-        new Promise<string>((resolve) => {
-          complete = resolve
-        }),
-    },
-  })
+  vi.spyOn(navigator.clipboard, 'readText').mockImplementation(
+    () =>
+      new Promise<string>((resolve) => {
+        complete = resolve
+      }),
+  )
   let paste!: Promise<void>
   await act(async () => {
     paste = actions.run('paste-plain')

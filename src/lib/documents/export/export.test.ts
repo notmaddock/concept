@@ -85,9 +85,11 @@ describe('local export', () => {
   })
   it('downloads a Blob with a safe filename and releases its URL', () => {
     vi.useFakeTimers()
-    const create = vi.fn(() => 'blob:export')
-    const revoke = vi.fn()
-    vi.stubGlobal('URL', { createObjectURL: create, revokeObjectURL: revoke })
+    const create = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:export')
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    expect(new URL('https://example.com').hostname).toBe('example.com')
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')
       .mockImplementation(function (this: HTMLAnchorElement) {
