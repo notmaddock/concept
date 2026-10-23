@@ -141,6 +141,14 @@ jobs:
       - name: Build production bundle
         run: pnpm run build
 
+      - name: Apply production database migrations
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: pnpm
+          command: d1 migrations apply AUTH_DB --remote
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v4
         with:
