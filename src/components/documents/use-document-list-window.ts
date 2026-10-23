@@ -61,7 +61,9 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
 
   function reveal(index: number) {
     const list = listRef.current
-    const scroller = scrollerRef.current
+    const scroller =
+      scrollerRef.current ??
+      list?.closest<HTMLElement>('[data-sidebar="content"]')
     if (!list || !scroller) return
     const offset =
       list.getBoundingClientRect().top -
@@ -75,16 +77,18 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
         0,
         bottom - (scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT),
       )
-    const relativeTop = Math.max(0, scroller.scrollTop - offset)
-    setViewport({
-      top: relativeTop,
-      height: scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT,
-    })
+    if (virtual) {
+      const relativeTop = Math.max(0, scroller.scrollTop - offset)
+      setViewport({
+        top: relativeTop,
+        height: scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT,
+      })
+    }
   }
 
   useEffect(() => {
-    if (virtual && activeIndex >= 0) reveal(activeIndex)
-  }, [activeIndex, virtual])
+    if (activeIndex >= 0) reveal(activeIndex)
+  }, [activeIndex])
 
   const start = virtual
     ? Math.max(

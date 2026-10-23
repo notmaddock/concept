@@ -158,3 +158,23 @@ it('allows Tab to navigate out of the document list without intercepting it', as
   first.dispatchEvent(event)
   expect(event.defaultPrevented).toBe(false)
 })
+
+it('reveals active document in non-virtualized lists (count <= 60)', async () => {
+  const shortDocs = Array.from({ length: 50 }, (_, index) => ({
+    id: `doc-${index}`,
+    name: `Document ${index}`,
+    updatedAt: index,
+  }))
+  await act(() =>
+    root.render(
+      <DocumentList
+        documents={shortDocs}
+        activeId="doc-45"
+        onDelete={vi.fn()}
+      />,
+    ),
+  )
+  const list = container.querySelector('ul')!
+  list.getBoundingClientRect = () => ({ top: -container.scrollTop }) as DOMRect
+  expect(container.scrollTop).toBeGreaterThan(0)
+})
