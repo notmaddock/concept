@@ -11,7 +11,10 @@ export function getDOMRangeRect(
   if (range && points.anchorNode !== rootElement) {
     return range.getBoundingClientRect()
   }
-  const focusNode = nativeSelection.focusNode
+  const focusNode =
+    nativeSelection.focusNode === rootElement
+      ? rootElement.childNodes[Math.max(0, nativeSelection.focusOffset - 1)]
+      : nativeSelection.focusNode
   if (focusNode) {
     const element =
       focusNode instanceof HTMLElement ? focusNode : focusNode.parentElement

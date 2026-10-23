@@ -66,3 +66,21 @@ describe('getDOMRangeRect', () => {
     outside.remove()
   })
 })
+
+it('uses the focused child boundary when both selection points are on the root', () => {
+  const root = document.createElement('div')
+  root.append(document.createElement('p'), document.createElement('p'))
+  const rect = new DOMRect(0, 500, 100, 20)
+  vi.spyOn(root.lastElementChild!, 'getBoundingClientRect').mockReturnValue(
+    rect,
+  )
+  const selection = {
+    anchorNode: root,
+    anchorOffset: 0,
+    focusNode: root,
+    focusOffset: 2,
+    isCollapsed: false,
+    rangeCount: 0,
+  } as unknown as Selection
+  expect(getDOMRangeRect(selection, root)).toBe(rect)
+})
