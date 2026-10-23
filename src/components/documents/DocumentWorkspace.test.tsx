@@ -389,6 +389,9 @@ describe('DocumentWorkspace', () => {
       root.render(<DocumentWorkspace id={sampleCloudDoc.id} />)
     })
     expect(window.document.title).toBe('Cloud Roadmap — Concept')
+    expect(
+      document.querySelectorAll('input[aria-label="Document name"]'),
+    ).toHaveLength(1)
     const switchedSync = document.querySelector('[data-testid="sync-status"]')
     expect(switchedSync?.getAttribute('data-state')).toBe('pending')
     expect(switchedSync?.textContent).toContain(
