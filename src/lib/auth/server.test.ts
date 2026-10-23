@@ -179,6 +179,32 @@ describe('persisted credentials', () => {
       })
     },
   )
+
+  it('defers account deletion during user deletion to ON DELETE CASCADE while preserving unlink checks', async () => {
+    getAuth()
+    const config = options.current as unknown as {
+      databaseHooks: {
+        account: {
+          delete: {
+            before: (
+              account: { id: string },
+              ctx?: { path?: string } | null,
+            ) => Promise<boolean | undefined>
+          }
+        }
+      }
+    }
+    const beforeDelete = config.databaseHooks.account.delete.before
+    await expect(
+      beforeDelete({ id: 'owned-account' }, { path: '/delete-user' }),
+    ).resolves.toBe(false)
+    await expect(
+      beforeDelete({ id: 'owned-account' }, { path: '/delete-user/callback' }),
+    ).resolves.toBe(false)
+    await expect(
+      beforeDelete({ id: 'owned-account' }, { path: '/unlink-account' }),
+    ).resolves.toBeUndefined()
+  })
 })
 
 describe('explicit storage consent', () => {

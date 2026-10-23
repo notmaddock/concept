@@ -60,8 +60,15 @@ it('allows removing a passkey when Google remains available', () => {
 })
 
 it('allows cascading user deletion without the sign-in guard blocking cleanup', () => {
-  addPasskey('key-1')
   database.exec("DELETE FROM user WHERE id = 'user-1'")
+  expect(
+    database.prepare('SELECT COUNT(*) AS count FROM account').get()?.count,
+  ).toBe(0)
+
+  database.exec(`INSERT INTO user (id, name, email, createdAt, updatedAt) VALUES ('user-2', 'Example 2', 'example2@example.com', 0, 0);
+    INSERT INTO account (id, accountId, providerId, userId, createdAt, updatedAt) VALUES ('google-2', 'subject-2', 'google', 'user-2', 0, 0);
+    INSERT INTO passkey (id, publicKey, userId, credentialID, counter, deviceType, backedUp) VALUES ('key-2', 'public-key', 'user-2', 'key-2', 0, 'singleDevice', 0);`)
+  database.exec("DELETE FROM user WHERE id = 'user-2'")
   expect(
     database.prepare('SELECT COUNT(*) AS count FROM account').get()?.count,
   ).toBe(0)

@@ -73,6 +73,14 @@ export function getAuth() {
           before: async (account) => ({ data: { ...account, idToken: null } }),
           after: recordStorageConsent,
         },
+        delete: {
+          // Let `ON DELETE CASCADE` on `user` remove accounts during user deletion so `0003_sign_in_guards.sql` only guards unlinking.
+          before: async (_account, ctx) =>
+            ctx?.path === '/delete-user' ||
+            ctx?.path === '/delete-user/callback'
+              ? false
+              : undefined,
+        },
       },
     },
     // Only server-side storage adapters may retrieve provider credentials.
