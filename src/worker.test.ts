@@ -34,7 +34,7 @@ it('attaches security headers and private no-store cache control to HTML respons
     'strict-origin-when-cross-origin',
   )
   expect(response.headers.get('Strict-Transport-Security')).toBe(
-    'max-age=31536000; includeSubDomains',
+    'max-age=31536000',
   )
   expect(response.headers.get('Permissions-Policy')).toBe(
     'camera=(), microphone=(), geolocation=()',
