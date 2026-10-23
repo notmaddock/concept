@@ -39,7 +39,7 @@ let root: Root
 let editor: ReturnType<typeof createEditor>
 
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
     'matchMedia',
     vi.fn().mockImplementation((query: string) => ({

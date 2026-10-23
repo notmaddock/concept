@@ -35,7 +35,7 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.clearAllMocks()
   container = document.createElement('div')
   document.body.appendChild(container)

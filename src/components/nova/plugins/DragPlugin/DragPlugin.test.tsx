@@ -32,7 +32,7 @@ let anchor: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   capturedPluginProps = null
   container = document.createElement('div')
   anchor = document.createElement('div')
