@@ -192,12 +192,15 @@ export function useFormatActions(
   }>({ enabled: false, checked: [] })
   useEffect(() => {
     let frame = 0
+    let retries = 0
     let cleanup = () => {}
     setState({ enabled: false, checked: [] })
     function connect() {
       const editor = editorRef.current
       if (!editor) {
-        frame = requestAnimationFrame(connect)
+        if (retries++ < 60) {
+          frame = requestAnimationFrame(connect)
+        }
         return
       }
       const update = () => {

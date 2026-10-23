@@ -255,6 +255,8 @@ This review covers the core Nova editor components (`Nova.tsx`, `NovaContentEdit
 
 ### 3.2 Unbounded `requestAnimationFrame` Polling in `useFormatActions`
 
+- **Status**: FIXED
+- **Evidence & Validation**: Confirmed unbounded polling occurred when `editorRef.current` was null or delayed. Added retry counter capped at 60 animation frames before abandoning polling. Verified with unit test in `src/components/documents/navigation-menus/use-format-actions-polling.test.tsx` that RAF calls stop after 60 retries.
 - **File & Line**: [`src/components/documents/navigation-menus/use-format-actions.ts#L138-L144`](file:///home/maddock/concept/src/components/documents/navigation-menus/use-format-actions.ts#L138-L144)
 - **Root Cause**:
   ```tsx
