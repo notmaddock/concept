@@ -558,3 +558,97 @@ it('does not retry a sensitive action before the Google reauthentication redirec
   expect(client.getSession).not.toHaveBeenCalled()
   expect(client.passkey.addPasskey).toHaveBeenCalledTimes(1)
 })
+
+it('resets dialog open state on session loss so it does not auto-open on next login', async () => {
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+
+  // Session expires / is lost
+  sessionState.current = null
+  await act(() => root.render(<AccountManager />))
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+
+  // Next login
+  sessionState.current = defaultSession
+  await act(() => root.render(<AccountManager />))
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+})
+
+it('clears previous user accounts when user changes and handles failed loads cleanly', async () => {
+  client.listAccounts.mockResolvedValueOnce({
+    data: [
+      {
+        id: 'user1-google',
+        accountId: 'subject-1',
+        providerId: 'google',
+        driveConnected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/drive.file',
+          'https://www.googleapis.com/auth/drive.install',
+        ],
+      },
+    ],
+  })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Connections')
+  expect(
+    document.querySelector('[aria-label="Storage connections"]')?.textContent,
+  ).toContain('Connected')
+
+  // Switch to user 2
+  sessionState.current = {
+    user: {
+      id: 'user-2',
+      name: 'Bob User',
+      email: 'bob@example.com',
+      image: null,
+    },
+  }
+  // User 2 fails to load accounts
+  client.listAccounts.mockResolvedValueOnce({
+    error: { message: 'Could not load connections.' },
+  })
+
+  await act(() => root.render(<AccountManager />))
+  // Open dialog for user 2
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Connections')
+
+  // Should NOT display user 1's connection or action
+  expect(
+    document.querySelector('[aria-label="Storage connections"]')?.textContent,
+  ).not.toContain('Connected')
+  expect(
+    document.querySelector('[aria-label="Storage connections"]')?.textContent,
+  ).toContain('Retry connections')
+})
+
+it('ignores stale action completion when session changes before action finishes', async () => {
+  let resolveAction: (val: {
+    error?: { message?: string } | null
+  }) => void = () => {}
+  const actionPromise = new Promise<{
+    error?: { message?: string } | null
+  }>((resolve) => {
+    resolveAction = resolve
+  })
+  client.linkSocial.mockReturnValueOnce(actionPromise)
+
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Connections')
+  await click('button', 'Connect')
+
+  // While action is pending, session is lost
+  sessionState.current = null
+  await act(() => root.render(<AccountManager />))
+
+  // Action now resolves with error
+  await act(() => resolveAction({ error: { message: 'Stale error' } }))
+
+  // Error toast should NOT have been shown for stale user action
+  expect(toastError).not.toHaveBeenCalledWith('Stale error')
+})

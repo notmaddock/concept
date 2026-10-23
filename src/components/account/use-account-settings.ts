@@ -1,6 +1,6 @@
 import { cancelOneTapPrompt } from '#/lib/auth/google-identity'
 import { toast } from 'sonner'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { authClient } from '#/lib/auth/client'
 import { disconnectStorage } from '#/lib/auth/functions'
 import type { LinkedAccount } from './StorageConnections'
@@ -8,6 +8,10 @@ import { isFreshSessionError } from './ReauthDialog'
 
 export function useAccountSettings() {
   const { data: session, isPending } = authClient.useSession()
+  const userId = session?.user.id
+  const userIdRef = useRef(userId)
+  userIdRef.current = userId
+
   const [open, setOpen] = useState(false)
   const [section, setSection] = useState<'sign-in' | 'connections'>('sign-in')
   const [accounts, setAccounts] = useState<Array<LinkedAccount>>([])
@@ -23,11 +27,36 @@ export function useAccountSettings() {
   const [reauthAction, setReauthAction] = useState<
     (() => Promise<unknown>) | null
   >(null)
+  const actionIdRef = useRef(0)
 
   function reportError(message: string) {
     setError(message)
     toast.error(message)
   }
+
+  useEffect(() => {
+    if (!session) {
+      setOpen(false)
+      setAccounts([])
+      setAccountsError('')
+      setError('')
+      setLoading(false)
+      setBusy(false)
+      setSignInMethod(null)
+    }
+  }, [session])
+
+  useEffect(() => {
+    actionIdRef.current++
+    setReauthOpen(false)
+    setReauthAction(null)
+    setBusy(false)
+    setSignInMethod(null)
+    setAccounts([])
+    setAccountsError('')
+    setError('')
+    setLoading(false)
+  }, [userId])
 
   useEffect(() => {
     const url = new URL(window.location.href)
@@ -55,8 +84,9 @@ export function useAccountSettings() {
   }
 
   useEffect(() => {
-    if (!open || !session) return
+    if (!open || !userId) return
     let active = true
+    const currentUserId = userId
     setLoading(true)
     setAccountsError('')
     function reportAccountsError(message: string) {
@@ -66,7 +96,7 @@ export function useAccountSettings() {
     void authClient
       .listAccounts()
       .then((result) => {
-        if (!active) return
+        if (!active || userIdRef.current !== currentUserId) return
         setLoading(false)
         if (result.error)
           reportAccountsError(
@@ -75,7 +105,7 @@ export function useAccountSettings() {
         else setAccounts(result.data)
       })
       .catch(() => {
-        if (active) {
+        if (active && userIdRef.current === currentUserId) {
           setLoading(false)
           reportAccountsError('Could not load connections. Try again.')
         }
@@ -83,31 +113,46 @@ export function useAccountSettings() {
     return () => {
       active = false
     }
-  }, [open, session, revision])
+  }, [open, userId, revision])
 
   async function run(
     action: () => Promise<{
       error?: { message?: string; code?: string } | null
     }>,
   ) {
+    const actionUserId = userIdRef.current
+    const actionId = ++actionIdRef.current
     setBusy(true)
     setError('')
     try {
       const result = await action()
+      if (actionId !== actionIdRef.current) return result
+      if (actionUserId && userIdRef.current !== actionUserId) return result
       if (result.error) {
         if (isFreshSessionError(result.error)) {
-          setReauthAction(() => () => run(action))
+          setReauthAction(() => () => {
+            if (userIdRef.current !== actionUserId) return Promise.resolve()
+            return run(action)
+          })
           setReauthOpen(true)
           return
         }
         reportError(result.error.message ?? 'Could not update your account.')
       }
+      return result
     } catch {
+      if (actionId !== actionIdRef.current)
+        return { error: { message: 'aborted' } }
+      if (actionUserId && userIdRef.current !== actionUserId)
+        return { error: { message: 'aborted' } }
       reportError(
         'Could not reach the server. Check your connection and try again.',
       )
+      return { error: { message: 'Could not reach the server.' } }
     } finally {
-      setBusy(false)
+      if (actionId === actionIdRef.current) {
+        setBusy(false)
+      }
     }
   }
 
@@ -143,26 +188,30 @@ export function useAccountSettings() {
       setSignInMethod(null)
     }
   }
-  const unlinkGoogle = () =>
-    run(async () => {
+  const unlinkGoogle = () => {
+    const actionUserId = userIdRef.current
+    return run(async () => {
       if (!google) return {}
       const result = await authClient.unlinkAccount({ accountId: google.id })
-      if (!result.error) reload()
+      if (userIdRef.current === actionUserId && !result.error) reload()
       return result
     })
-  const disconnectDrive = () =>
-    run(async () => {
+  }
+  const disconnectDrive = () => {
+    const actionUserId = userIdRef.current
+    return run(async () => {
       if (!google) return {}
       await disconnectStorage({ data: { accountId: google.id } })
-      reload()
+      if (userIdRef.current === actionUserId) reload()
       return {}
     })
+  }
   return {
     section,
     setSection,
     session,
     isPending,
-    open,
+    open: open && Boolean(session),
     setOpen,
     accounts,
     accountsError,
