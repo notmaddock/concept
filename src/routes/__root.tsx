@@ -1,16 +1,12 @@
 import { OneTapPrompt } from '#/components/account/OneTapPrompt'
 import { AppToaster } from '#/components/app-toaster'
-import {
-  ErrorComponent,
-  HeadContent,
-  Scripts,
-  createRootRoute,
-} from '@tanstack/react-router'
+import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
 import { ThemeProvider } from '#/components/theme-provider'
 import { NotFound } from '#/components/not-found'
+import { RouteError } from '#/components/route-error'
 import { TooltipProvider } from '#/components/ui/tooltip'
 
 import PostHogProvider from '../integrations/posthog/provider'
@@ -64,7 +60,7 @@ export const Route = createRootRoute({
       },
     ],
   }),
-  errorComponent: ErrorComponent,
+  errorComponent: RouteError,
   notFoundComponent: NotFound,
   shellComponent: RootDocument,
 })
