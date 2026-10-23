@@ -8,7 +8,7 @@ import {
 } from 'lexical'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { $getParagraphStyle, $setParagraphStyle } from '../../paragraph-format'
-import { getBlockOptions } from './options'
+import { filterBlockOptions, getBlockOptions } from './options'
 
 describe('slash block conversion', () => {
   it.each(['text', 'heading-1', 'heading-2', 'heading-3', 'quote'])(
@@ -45,4 +45,29 @@ describe('slash block conversion', () => {
       })
     },
   )
+
+  it.each(['/[', '/*', '/(', '[', '*', '(', '+', '?', '\\'])(
+    'filters options safely without throwing SyntaxError on regex metacharacter query %s',
+    (query) => {
+      const editor = createEditor({ nodes: [HeadingNode, QuoteNode] })
+      const baseOptions = getBlockOptions(editor)
+
+      expect(() => filterBlockOptions(baseOptions, query)).not.toThrow()
+      expect(filterBlockOptions(baseOptions, query)).toEqual([])
+    },
+  )
+
+  it('filters options case-insensitively by title and keywords', () => {
+    const editor = createEditor({ nodes: [HeadingNode, QuoteNode] })
+    const baseOptions = getBlockOptions(editor)
+
+    expect(filterBlockOptions(baseOptions, null)).toEqual(baseOptions)
+    expect(filterBlockOptions(baseOptions, '')).toEqual(baseOptions)
+    expect(
+      filterBlockOptions(baseOptions, 'HEADING 1').map((option) => option.key),
+    ).toEqual(['heading-1'])
+    expect(
+      filterBlockOptions(baseOptions, 'TODO').map((option) => option.key),
+    ).toEqual(['list-checked'])
+  })
 })

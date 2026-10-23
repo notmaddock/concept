@@ -62,6 +62,21 @@ function $copyParagraphFormat(previous: ElementNode, next: ElementNode) {
   $setParagraphStyle(next, $getParagraphStyle(previous))
 }
 
+export function filterBlockOptions(
+  options: BlockOption[],
+  queryString: string | null,
+): BlockOption[] {
+  if (!queryString) return options
+
+  const query = queryString.toLowerCase()
+
+  return options.filter(
+    (option) =>
+      option.title.toLowerCase().includes(query) ||
+      option.keywords?.some((keyword) => keyword.toLowerCase().includes(query)),
+  )
+}
+
 export function getBlockOptions(editor: LexicalEditor): BlockOption[] {
   return [
     new BlockOption('text', {

@@ -4,7 +4,7 @@ import {
 } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import { useCallback, useMemo, useState } from 'react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { getBlockOptions } from './options'
+import { filterBlockOptions, getBlockOptions } from './options'
 import type { BlockOption } from './options'
 import type { OnSelectOptionCallback } from './types'
 import { SlashMenuPluginMenu } from './SlashMenuPluginMenu'
@@ -18,17 +18,10 @@ export function SlashMenuPlugin() {
     minLength: 0,
   })
 
-  const options = useMemo<BlockOption[]>(() => {
-    const base = getBlockOptions(editor)
-
-    if (!queryString) return base
-
-    const regex = new RegExp(queryString, 'i')
-
-    return base.filter(
-      (o) => regex.test(o.title) || o.keywords?.some((k) => regex.test(k)),
-    )
-  }, [editor, queryString])
+  const options = useMemo<BlockOption[]>(
+    () => filterBlockOptions(getBlockOptions(editor), queryString),
+    [editor, queryString],
+  )
 
   const onSelectOption = useCallback<OnSelectOptionCallback<BlockOption>>(
     (selectedOption, queryNode, closeMenu, _) => {
