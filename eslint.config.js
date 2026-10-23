@@ -46,7 +46,6 @@ export default [
       '@typescript-eslint/array-type': 'off',
       '@typescript-eslint/require-await': 'off',
       eqeqeq: ['error', 'always', { null: 'ignore' }],
-      'no-throw-literal': 'error',
     },
   },
   {
