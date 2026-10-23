@@ -28,14 +28,19 @@ export function RenameDocumentDialog({
     pendingRef.current = true
     setPending(true)
     setError('')
+    let closed = false
     try {
-      if (await onRename(value.trim())) onClose()
-      else setError('Could not rename the document. Please try again.')
+      if (await onRename(value.trim())) {
+        closed = true
+        onClose()
+      } else {
+        setError('Could not rename the document. Please try again.')
+      }
     } catch {
       setError('Could not rename the document. Please try again.')
     } finally {
       pendingRef.current = false
-      setPending(false)
+      if (!closed) setPending(false)
     }
   }
 
@@ -82,7 +87,7 @@ export function RenameDocumentDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={pending || !value.trim()}>
-              {pending ? 'Saving…' : 'Save'}
+              {pending ? 'Saving\u2026' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

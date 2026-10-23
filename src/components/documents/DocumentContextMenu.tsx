@@ -2,7 +2,7 @@ import {
   documentMenuContentClassName,
   documentMenuItemClassName,
 } from './navigation-menus/menu-styles'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { RenameDocumentDialog } from './RenameDocumentDialog'
 import { ExternalLinkIcon, PencilIcon, Trash2Icon } from 'lucide-react'
@@ -43,15 +43,26 @@ export function DocumentContextMenu({
   const [renaming, setRenaming] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const deletingRef = useRef(false)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   async function confirmDelete() {
-    if (deleting) return
+    if (deletingRef.current) return
+    deletingRef.current = true
     setDeleting(true)
     try {
       await onDelete()
-      setConfirming(false)
+      if (mountedRef.current) setConfirming(false)
     } finally {
-      setDeleting(false)
+      deletingRef.current = false
+      if (mountedRef.current) setDeleting(false)
     }
   }
 
@@ -98,14 +109,19 @@ export function DocumentContextMenu({
           onClose={() => setRenaming(false)}
         />
       )}
-      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+      <AlertDialog
+        open={confirming}
+        onOpenChange={(open) => {
+          if (!deletingRef.current) setConfirming(open)
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete document?</AlertDialogTitle>
             <AlertDialogDescription>
               {backedUp
-                ? `“${name}” and any unsynced changes will be removed from this browser. The saved file remains in Google Drive.`
-                : `“${name}” will be removed from your documents. Are you sure you want to delete it?`}
+                ? `\u201c${name}\u201d and any unsynced changes will be removed from this browser. The saved file remains in Google Drive.`
+                : `\u201c${name}\u201d will be removed from your documents. Are you sure you want to delete it?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -113,9 +129,12 @@ export function DocumentContextMenu({
             <AlertDialogAction
               variant="destructive"
               disabled={deleting}
-              onClick={confirmDelete}
+              onClick={(event) => {
+                event.preventDefault()
+                void confirmDelete()
+              }}
             >
-              {deleting ? 'Deleting…' : 'Delete document'}
+              {deleting ? 'Deleting\u2026' : 'Delete document'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
