@@ -4,7 +4,11 @@ import {
 } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import { useCallback, useMemo, useState } from 'react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { filterBlockOptions, getBlockOptions } from './options'
+import {
+  $selectBlockOption,
+  filterBlockOptions,
+  getBlockOptions,
+} from './options'
 import type { BlockOption } from './options'
 import type { OnSelectOptionCallback } from './types'
 import { SlashMenuPluginMenu } from './SlashMenuPluginMenu'
@@ -24,17 +28,10 @@ export function SlashMenuPlugin() {
   )
 
   const onSelectOption = useCallback<OnSelectOptionCallback<BlockOption>>(
-    (selectedOption, queryNode, closeMenu, _) => {
-      editor.update(() => {
-        if (queryNode !== null) {
-          queryNode.remove()
-        }
-
-        selectedOption.onSelect()
-        closeMenu()
-      })
+    (selectedOption, queryNode, closeMenu) => {
+      $selectBlockOption(selectedOption, queryNode, closeMenu)
     },
-    [editor],
+    [],
   )
 
   return (

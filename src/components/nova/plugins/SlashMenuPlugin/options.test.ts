@@ -3,12 +3,18 @@ import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  $getSelection,
   $isElementNode,
+  $isRangeSelection,
   createEditor,
 } from 'lexical'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { $getParagraphStyle, $setParagraphStyle } from '../../paragraph-format'
-import { filterBlockOptions, getBlockOptions } from './options'
+import {
+  $selectBlockOption,
+  filterBlockOptions,
+  getBlockOptions,
+} from './options'
 
 describe('slash block conversion', () => {
   it.each(['text', 'heading-1', 'heading-2', 'heading-3', 'quote'])(
@@ -45,6 +51,44 @@ describe('slash block conversion', () => {
       })
     },
   )
+
+  it('removes the query node and converts the block synchronously before closing the menu', () => {
+    const editor = createEditor({ nodes: [HeadingNode, QuoteNode] })
+    let blockTypeWhenClosing: string | undefined
+    let textWhenClosing: string | undefined
+
+    editor.update(
+      () => {
+        const paragraph = $createParagraphNode()
+        const textNode = $createTextNode('/h1')
+        paragraph.append(textNode)
+        $getRoot().append(paragraph)
+        textNode.select(3, 3)
+
+        const [queryNode] = textNode.splitText(3)
+        const headingOption = getBlockOptions(editor).find(
+          (option) => option.key === 'heading-1',
+        )!
+
+        $selectBlockOption(headingOption, queryNode, () => {
+          const currentBlock = $getRoot().getFirstChild()!
+          blockTypeWhenClosing = currentBlock.getType()
+          textWhenClosing = currentBlock.getTextContent()
+        })
+      },
+      { discrete: true },
+    )
+
+    expect(blockTypeWhenClosing).toBe('heading')
+    expect(textWhenClosing).toBe('')
+    editor.read('latest', () => {
+      const block = $getRoot().getFirstChild()!
+      const selection = $getSelection()
+      expect(block.getType()).toBe('heading')
+      expect(block.getTextContent()).toBe('')
+      expect($isRangeSelection(selection)).toBe(true)
+    })
+  })
 
   it.each(['/[', '/*', '/(', '[', '*', '(', '+', '?', '\\'])(
     'filters options safely without throwing SyntaxError on regex metacharacter query %s',

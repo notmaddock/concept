@@ -8,7 +8,7 @@ import { MenuOption } from '@lexical/react/LexicalMenuOption'
 import { $createHeadingNode, $createQuoteNode } from '@lexical/rich-text'
 import { $copyBlockFormatIndent, $setBlocksType } from '@lexical/selection'
 import { $createParagraphNode, $getSelection, $isRangeSelection } from 'lexical'
-import type { ElementNode, LexicalEditor } from 'lexical'
+import type { ElementNode, LexicalEditor, TextNode } from 'lexical'
 import { $getParagraphStyle, $setParagraphStyle } from '../../paragraph-format'
 import {
   Heading1Icon,
@@ -77,6 +77,19 @@ export function filterBlockOptions(
   )
 }
 
+export function $selectBlockOption(
+  selectedOption: BlockOption,
+  queryNode: TextNode | null,
+  closeMenu: () => void,
+) {
+  if (queryNode !== null && queryNode.isAttached()) {
+    queryNode.remove()
+  }
+
+  selectedOption.onSelect()
+  closeMenu()
+}
+
 export function getBlockOptions(editor: LexicalEditor): BlockOption[] {
   return [
     new BlockOption('text', {
@@ -84,68 +97,64 @@ export function getBlockOptions(editor: LexicalEditor): BlockOption[] {
       icon: <PilcrowIcon />,
       category: categories.BASIC_BLOCKS,
       keywords: ['paragraph', 'text', 'p', 'normal'],
-      onSelect: () =>
-        editor.update(() => {
-          const selection = $getSelection()
-          if ($isRangeSelection(selection)) {
-            $setBlocksType(
-              selection,
-              () => $createParagraphNode(),
-              $copyParagraphFormat,
-            )
-          }
-        }),
+      onSelect: () => {
+        const selection = $getSelection()
+        if ($isRangeSelection(selection)) {
+          $setBlocksType(
+            selection,
+            () => $createParagraphNode(),
+            $copyParagraphFormat,
+          )
+        }
+      },
     }),
     new BlockOption('heading-1', {
       title: 'Heading 1',
       category: categories.BASIC_BLOCKS,
       icon: <Heading1Icon />,
       keywords: ['heading', 'title', 'h1'],
-      onSelect: () =>
-        editor.update(() => {
-          const selection = $getSelection()
-          if ($isRangeSelection(selection)) {
-            $setBlocksType(
-              selection,
-              () => $createHeadingNode('h1'),
-              $copyParagraphFormat,
-            )
-          }
-        }),
+      onSelect: () => {
+        const selection = $getSelection()
+        if ($isRangeSelection(selection)) {
+          $setBlocksType(
+            selection,
+            () => $createHeadingNode('h1'),
+            $copyParagraphFormat,
+          )
+        }
+      },
     }),
     new BlockOption('heading-2', {
       title: 'Heading 2',
       icon: <Heading2Icon />,
       category: categories.BASIC_BLOCKS,
       keywords: ['heading', 'subtitle', 'h2'],
-      onSelect: () =>
-        editor.update(() => {
-          const selection = $getSelection()
-          if ($isRangeSelection(selection)) {
-            $setBlocksType(
-              selection,
-              () => $createHeadingNode('h2'),
-              $copyParagraphFormat,
-            )
-          }
-        }),
+      onSelect: () => {
+        const selection = $getSelection()
+        if ($isRangeSelection(selection)) {
+          $setBlocksType(
+            selection,
+            () => $createHeadingNode('h2'),
+            $copyParagraphFormat,
+          )
+        }
+      },
     }),
     new BlockOption('heading-3', {
       title: 'Heading 3',
       icon: <Heading3Icon />,
       category: categories.BASIC_BLOCKS,
       keywords: ['heading', 'h3'],
-      onSelect: () =>
-        editor.update(() => {
-          const selection = $getSelection()
-          if ($isRangeSelection(selection)) {
-            $setBlocksType(
-              selection,
-              () => $createHeadingNode('h3'),
-              $copyParagraphFormat,
-            )
-          }
-        }),
+      onSelect: () => {
+        const selection = $getSelection()
+        if ($isRangeSelection(selection)) {
+          $setBlocksType(
+            selection,
+            () => $createHeadingNode('h3'),
+            $copyParagraphFormat,
+          )
+        }
+      },
     }),
     new BlockOption('list-bullet', {
       title: 'Bulleted list',
@@ -177,17 +186,16 @@ export function getBlockOptions(editor: LexicalEditor): BlockOption[] {
       icon: <QuoteIcon />,
       category: categories.OTHER,
       keywords: ['quote', 'blockquote'],
-      onSelect: () =>
-        editor.update(() => {
-          const selection = $getSelection()
-          if ($isRangeSelection(selection)) {
-            $setBlocksType(
-              selection,
-              () => $createQuoteNode(),
-              $copyParagraphFormat,
-            )
-          }
-        }),
+      onSelect: () => {
+        const selection = $getSelection()
+        if ($isRangeSelection(selection)) {
+          $setBlocksType(
+            selection,
+            () => $createQuoteNode(),
+            $copyParagraphFormat,
+          )
+        }
+      },
     }),
     new BlockOption('horizontal-rule', {
       title: 'Divider',
