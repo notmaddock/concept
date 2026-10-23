@@ -1,3 +1,4 @@
+// @vitest-environment node
 import type * as BetterAuthApi from 'better-auth/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
