@@ -35,6 +35,8 @@ beforeEach(() => {
   sessions = []
 })
 afterEach(async () => {
+  for (const document of await localDocumentStorage.list())
+    await localDocumentStorage.delete(document.id)
   await Promise.all(sessions.map((session) => session.destroy()))
   docs.forEach((doc) => doc.destroy())
   vi.useRealTimers()
@@ -110,6 +112,189 @@ it('stops scheduled uploads when a document is closed', async () => {
   const { session } = await open(target.id)
   await session.destroy()
   expect(save).not.toHaveBeenCalled()
+})
+
+it('finishes pending content saves after navigating away from the editor', async () => {
+  await seed()
+  save.mockImplementation(({ data }: { data: { text: string } }) =>
+    Promise.resolve({ document: target, file: parseConcept(data.text) }),
+  )
+  const { doc, session } = await open(target.id)
+  let state = ''
+  session.subscribeStatus?.((status) => {
+    state = status.state
+  })
+  await vi.waitFor(() => expect(state).toBe('pending'))
+  doc.getMap('metadata').set('closed-editor', 'saved in background')
+  await session.destroy()
+  await vi.waitFor(() => expect(save).toHaveBeenCalled(), { timeout: 3000 })
+  const uploaded = new Doc()
+  docs.push(uploaded)
+  applyYjsUpdate(
+    uploaded,
+    decodeUpdate(parseConcept(save.mock.calls[0][0].data.text)),
+  )
+  expect(uploaded.getMap('metadata').get('closed-editor')).toBe(
+    'saved in background',
+  )
+  await vi.waitFor(async () =>
+    expect(
+      (await localDocumentStorage.get(target.id))?.pendingSync,
+    ).toBeUndefined(),
+  )
+})
+
+it('resumes persisted content-only pending work from the library after reload', async () => {
+  await seed()
+  const { updateDocumentInfo } = await import('./storages/local')
+  await updateDocumentInfo(target.id, (current) => ({
+    ...current!,
+    pendingSync: 'previous-page',
+  }))
+  save.mockImplementation(({ data }: { data: { text: string } }) =>
+    Promise.resolve({ document: target, file: parseConcept(data.text) }),
+  )
+  await workspaceDocumentStorage.list()
+  await vi.waitFor(() => expect(save).toHaveBeenCalled(), { timeout: 3000 })
+  await vi.waitFor(async () =>
+    expect(
+      (await localDocumentStorage.get(target.id))?.pendingSync,
+    ).toBeUndefined(),
+  )
+})
+
+it('retains closed offline edits and uploads them when reconnecting', async () => {
+  await seed()
+  save.mockRejectedValue(new Error('Offline'))
+  const { doc, session } = await open(target.id)
+  let state = ''
+  session.subscribeStatus?.((status) => {
+    state = status.state
+  })
+  await vi.waitFor(() => expect(state).toBe('pending'))
+  doc.getMap('metadata').set('offline-closed', 'recover me')
+  await session.destroy()
+  await vi.waitFor(() => expect(save).toHaveBeenCalledOnce(), { timeout: 3000 })
+  await vi.waitFor(async () =>
+    expect(
+      (await localDocumentStorage.get(target.id))?.pendingSync,
+    ).toBeTruthy(),
+  )
+  save.mockImplementation(({ data }: { data: { text: string } }) =>
+    Promise.resolve({ document: target, file: parseConcept(data.text) }),
+  )
+  window.dispatchEvent(new Event('online'))
+  await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2))
+  const uploaded = new Doc()
+  docs.push(uploaded)
+  applyYjsUpdate(
+    uploaded,
+    decodeUpdate(parseConcept(save.mock.calls[1][0].data.text)),
+  )
+  expect(uploaded.getMap('metadata').get('offline-closed')).toBe('recover me')
+  await vi.waitFor(async () =>
+    expect(
+      (await localDocumentStorage.get(target.id))?.pendingSync,
+    ).toBeUndefined(),
+  )
+})
+
+it('includes persisted peer content before clearing its pending marker', async () => {
+  await seed()
+  const { doc, session } = await open(target.id)
+  // A peer persistence instance writes directly to IndexedDB. No provider or
+  // BroadcastChannel delivers this change to the workspace's in-memory Doc.
+  const peer = new Doc()
+  docs.push(peer)
+  const peerSession = localDocumentStorage.open(target.id, peer)
+  sessions.push(peerSession)
+  await peerSession.whenSynced
+  peer.getMap('metadata').set('peer-only', 'must reach Drive')
+  const { updateDocumentInfo } = await import('./storages/local')
+  await updateDocumentInfo(target.id, (current) => ({
+    ...current!,
+    pendingSync: 'peer-generation',
+  }))
+  expect(doc.getMap('metadata').get('peer-only')).toBeUndefined()
+  save.mockImplementation(({ data }: { data: { text: string } }) =>
+    Promise.resolve({ document: target, file: parseConcept(data.text) }),
+  )
+  session.retrySync?.()
+  await vi.waitFor(() => expect(save).toHaveBeenCalled())
+  const uploaded = new Doc()
+  docs.push(uploaded)
+  applyYjsUpdate(
+    uploaded,
+    decodeUpdate(parseConcept(save.mock.calls[0][0].data.text)),
+  )
+  expect(uploaded.getMap('metadata').get('peer-only')).toBe('must reach Drive')
+  await vi.waitFor(async () =>
+    expect(
+      (await localDocumentStorage.get(target.id))?.pendingSync,
+    ).toBeUndefined(),
+  )
+})
+
+it('preserves pending work when an upload finishes after a newer edit', async () => {
+  await seed()
+  let complete!: (result: {
+    document: DocumentInfo
+    file: ReturnType<typeof parseConcept>
+  }) => void
+  save.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve
+      }),
+  )
+  const { doc, session } = await open(target.id)
+  await vi.waitFor(() => expect(save).toHaveBeenCalledOnce(), { timeout: 3000 })
+  const first = parseConcept(save.mock.calls[0][0].data.text)
+  doc.getMap('metadata').set('later', 'new generation')
+  await vi.waitFor(async () =>
+    expect(
+      (await localDocumentStorage.get(target.id))?.pendingSync,
+    ).toBeTruthy(),
+  )
+  const newer = (await localDocumentStorage.get(target.id))?.pendingSync
+  complete({ document: target, file: first })
+  await vi.waitFor(async () =>
+    expect((await localDocumentStorage.get(target.id))?.updatedAt).toBe(
+      target.updatedAt,
+    ),
+  )
+  await vi.waitFor(async () =>
+    expect((await localDocumentStorage.get(target.id))?.pendingSync).toBe(
+      newer,
+    ),
+  )
+  save.mockImplementation(({ data }: { data: { text: string } }) =>
+    Promise.resolve({ document: target, file: parseConcept(data.text) }),
+  )
+  await session.destroy()
+  await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2), {
+    timeout: 3000,
+  })
+  const uploaded = new Doc()
+  docs.push(uploaded)
+  applyYjsUpdate(
+    uploaded,
+    decodeUpdate(parseConcept(save.mock.calls[1][0].data.text)),
+  )
+  expect(uploaded.getMap('metadata').get('later')).toBe('new generation')
+})
+
+it('preserves a pending content marker when a Drive file is imported again', async () => {
+  const file = await seed()
+  const { updateDocumentInfo } = await import('./storages/local')
+  await updateDocumentInfo(target.id, (current) => ({
+    ...current!,
+    pendingSync: 'unsaved-generation',
+  }))
+  await importConcept(file, target.name, target)
+  expect((await localDocumentStorage.get(target.id))?.pendingSync).toBe(
+    'unsaved-generation',
+  )
 })
 
 it('refreshes already-mounted documents when the same Drive file is explicitly reopened', async () => {

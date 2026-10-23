@@ -3,6 +3,7 @@ import type { Doc } from 'yjs'
 export interface DocumentInfo {
   id: string
   name: string
+  pendingSync?: string
   backing?: {
     provider: string
     fileId: string

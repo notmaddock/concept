@@ -96,6 +96,7 @@ export async function importConcept(
           current
             ? {
                 ...target,
+                pendingSync: current.pendingSync,
                 name:
                   initial.pendingRename ||
                   current.name !== created.name ||

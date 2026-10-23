@@ -1,4 +1,4 @@
-import { applyUpdate, Doc } from 'yjs'
+import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
 import { remoteDocumentOrigin } from './document-channel'
 import {
   localDocumentStorage,
@@ -20,7 +20,7 @@ export const workspaceDocumentStorage: DocumentStorage = {
     for (const document of documents) {
       if (
         document.backing?.provider === 'google-drive' &&
-        document.name !== document.backing.syncedName
+        (document.pendingSync || document.name !== document.backing.syncedName)
       )
         ensureBackgroundSync(document.id)
     }
@@ -40,18 +40,29 @@ export const workspaceDocumentStorage: DocumentStorage = {
       message: 'Stored in this browser.',
     }
     let closed = false
+    let hydrated = false
     let dirty = false
     let running = false
     let timer: ReturnType<typeof setTimeout> | undefined
     const isClosed = () => closed
     const hasChanges = () => dirty
     let unsubscribe: (() => void) | undefined
+    let marking: Promise<unknown> = Promise.resolve()
     function report(next: DocumentSyncStatus) {
       status = next
       listeners.forEach((listener) => listener(status))
     }
     function schedule() {
       if (isClosed()) return
+      const token = crypto.randomUUID()
+      marking = marking
+        .catch(() => {})
+        .then(() =>
+          updateDocumentInfo(id, (current) =>
+            current ? { ...current, pendingSync: token } : undefined,
+          ),
+        )
+      void marking.catch(() => {})
       dirty = true
       const isOnline = typeof navigator === 'undefined' || navigator.onLine
       report({
@@ -72,10 +83,24 @@ export const workspaceDocumentStorage: DocumentStorage = {
       dirty = false
       let retryDelay = 1000
       try {
+        await marking
         const document = await localDocumentStorage.get(id)
         if (document?.backing?.provider !== 'google-drive' || isClosed()) return
         report({ state: 'syncing', message: 'Saving to Google Drive…' })
         const { saveDrive } = await import('./drive/functions')
+        if (isClosed()) return
+        // Include persisted peer edits before acknowledging their marker. A
+        // BroadcastChannel message may arrive later than its metadata write.
+        const cached = new Doc()
+        const cache = localDocumentStorage.open(id, cached)
+        try {
+          await cache.whenSynced
+          if (isClosed()) return
+          applyUpdate(doc, encodeStateAsUpdate(cached), remoteDocumentOrigin)
+        } finally {
+          await cache.destroy()
+          cached.destroy()
+        }
         if (isClosed()) return
         const remote = await saveDrive({
           data: {
@@ -93,11 +118,16 @@ export const workspaceDocumentStorage: DocumentStorage = {
         await updateDocumentInfo(id, (current) =>
           current && !isClosed()
             ? {
+                ...current,
                 ...remote.document,
                 name:
                   current.name === document.name
                     ? remote.document.name
                     : current.name,
+                pendingSync:
+                  current.pendingSync === document.pendingSync
+                    ? undefined
+                    : current.pendingSync,
               }
             : undefined,
         )
@@ -109,6 +139,7 @@ export const workspaceDocumentStorage: DocumentStorage = {
           })
       } catch (cause) {
         dirty = true
+        if (!isClosed()) schedule()
         retryDelay = 30_000
         const isOnline = typeof navigator === 'undefined' || navigator.onLine
         if (!isClosed())
@@ -129,6 +160,7 @@ export const workspaceDocumentStorage: DocumentStorage = {
     }
     void local.whenSynced
       .then(async () => {
+        hydrated = true
         const document = await localDocumentStorage.get(id)
         if (document?.backing?.provider !== 'google-drive' || isClosed()) return
         let name = document.name
@@ -178,14 +210,22 @@ export const workspaceDocumentStorage: DocumentStorage = {
           window.removeEventListener('focus', retry)
         }
         listeners.clear()
+        await marking.catch(() => {})
         await local.destroy()
+        if (!hydrated) return
+        const document = await localDocumentStorage.get(id)
+        if (
+          document?.backing?.provider === 'google-drive' &&
+          document.pendingSync
+        )
+          ensureBackgroundSync(id)
       },
     }
     return session
   },
 }
 
-// Resume persisted pending renames when the library opens after a reload, too.
+// Resume persisted pending content and renames after closing or reloading.
 function ensureBackgroundSync(id: string) {
   if (openSessions.has(id)) return
   const doc = new Doc()
