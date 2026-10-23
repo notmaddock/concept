@@ -7,6 +7,7 @@ import {
   $getPageSetup,
   $setPageSetup,
   DEFAULT_PAGE_SETUP,
+  PAGE_SIZES,
   pageDimensions,
   pageSetupError,
   pageSetupState,
@@ -103,3 +104,31 @@ describe('page setup', () => {
     restored.destroy()
   })
 })
+
+it.each(Object.keys(PAGE_SIZES) as Array<keyof typeof PAGE_SIZES>)(
+  'validates every margin preset for %s in both orientations',
+  (size) => {
+    for (const orientation of ['portrait', 'landscape'] as const) {
+      for (const margin of [12.7, 25.4, 38.1, 50.8]) {
+        const setup = {
+          ...DEFAULT_PAGE_SETUP,
+          mode: 'paper' as const,
+          size,
+          orientation,
+          margins: { top: margin, right: margin, bottom: margin, left: margin },
+        }
+        expect(pageSetupError(setup) === null).toBe(
+          !(size === 'A6' && margin === 50.8),
+        )
+        if (!pageSetupError(setup))
+          expect(pageSetupState.parse(setup)).toEqual(setup)
+        const [width, height] = PAGE_SIZES[size]
+        expect(pageDimensions(setup)).toEqual(
+          orientation === 'portrait'
+            ? { width, height }
+            : { width: height, height: width },
+        )
+      }
+    }
+  },
+)

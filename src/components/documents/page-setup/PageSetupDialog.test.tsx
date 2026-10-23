@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { DEFAULT_PAGE_SETUP, PAGE_SIZES } from '#/lib/documents/page-setup'
+import { DEFAULT_PAGE_SETUP } from '#/lib/documents/page-setup'
 import { PageSetupDialog } from './PageSetupDialog'
 
 let root: ReturnType<typeof createRoot>
@@ -25,12 +25,10 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-it.each(Object.keys(PAGE_SIZES) as Array<keyof typeof PAGE_SIZES>)(
+it.each(['A4', 'Letter'] as const)(
   'submits %s in every display unit without changing millimeter precision',
   async (size) => {
-    for (const margin of [12.7, 25.4, 38.1, 50.8]) {
-      // The widest preset leaves insufficient writing space on A6.
-      if (size === 'A6' && margin === 50.8) continue
+    for (const margin of [25.4]) {
       const value = {
         ...DEFAULT_PAGE_SETUP,
         mode: 'paper' as const,
