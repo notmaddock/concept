@@ -4,7 +4,10 @@ export const googlePermissions = [
     label: 'Concept files in Google Drive',
     description:
       'Create, find, and update files opened or created with Concept.',
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
+    scopes: [
+      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/drive.install',
+    ],
   },
 ] as const
 

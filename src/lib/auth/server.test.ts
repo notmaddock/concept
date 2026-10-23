@@ -45,6 +45,10 @@ vi.mock('better-auth', () => ({
 
 const headers = new Headers()
 const driveScope = 'https://www.googleapis.com/auth/drive.file'
+const driveScopes = [
+  driveScope,
+  'https://www.googleapis.com/auth/drive.install',
+]
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -214,13 +218,17 @@ describe('explicit storage consent', () => {
       },
     })
     await before({
-      path: '/sign-in/social',
+      path: '/link-social',
       body: { provider: 'google', scopes: [driveScope] },
+    })
+    await before({
+      path: '/sign-in/social',
+      body: { provider: 'google', scopes: driveScopes },
     })
     expect(oauth.addContext).not.toHaveBeenCalled()
     await before({
       path: '/link-social',
-      body: { provider: 'google', scopes: [driveScope] },
+      body: { provider: 'google', scopes: driveScopes },
     })
     expect(oauth.addContext).toHaveBeenCalledWith({
       driveConsentUserId: 'user-1',
@@ -271,7 +279,7 @@ describe('explicit storage consent', () => {
       const after = hooks().databaseHooks.account[operation].after
       await after(account)
       expect(database.prepare).not.toHaveBeenCalled()
-      await exchangeScopes([driveScope])
+      await exchangeScopes(driveScopes)
       await after({ ...account, userId: 'other-user' })
       expect(database.prepare).not.toHaveBeenCalled()
       await after(account)
@@ -280,16 +288,21 @@ describe('explicit storage consent', () => {
       )
       expect(database.bind).toHaveBeenCalledWith(
         1,
-        driveScope,
+        driveScopes.join(','),
         'owned-account',
         'user-1',
       )
     },
   )
 
-  it.each([['openid', 'email'], undefined])(
-    'clears consent and stale merged scopes after a partial or absent token scope response: %j',
-    async (scopes) => {
+  it.each([
+    { scopes: [driveScope] },
+    { scopes: ['https://www.googleapis.com/auth/drive.install'] },
+    { scopes: ['openid', 'email'] },
+    { scopes: undefined },
+  ])(
+    'clears consent and stale merged scopes after a partial or absent token scope response: $scopes',
+    async ({ scopes }) => {
       oauth.getState.mockResolvedValue({
         link: { userId: 'user-1' },
         serverContext: { driveConsentUserId: 'user-1' },

@@ -158,7 +158,10 @@ it('shows identity in the menu and separates sign-in from storage settings', asy
   expect(client.linkSocial).toHaveBeenCalledWith(
     expect.objectContaining({
       provider: 'google',
-      scopes: ['https://www.googleapis.com/auth/drive.file'],
+      scopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive.install',
+      ],
     }),
   )
 })
@@ -261,7 +264,10 @@ it('keeps previously granted Drive scopes disconnected after authentication-only
         id: 'google-account',
         accountId: 'subject',
         providerId: 'google',
-        scopes: ['https://www.googleapis.com/auth/drive.file'],
+        scopes: [
+          'https://www.googleapis.com/auth/drive.file',
+          'https://www.googleapis.com/auth/drive.install',
+        ],
         driveConnected: false,
       },
     ],
@@ -274,7 +280,7 @@ it('keeps previously granted Drive scopes disconnected after authentication-only
   ).toBe('ConnectionsGoogle DriveNot connectedConnect')
 })
 
-it('keeps reconnect in Drive options and offers no private data permission', async () => {
+it('offers Connect to upgrade an existing Drive connection without installation permission', async () => {
   client.listAccounts.mockResolvedValueOnce({
     data: [
       {
@@ -283,6 +289,39 @@ it('keeps reconnect in Drive options and offers no private data permission', asy
         providerId: 'google',
         driveConnected: true,
         scopes: ['https://www.googleapis.com/auth/drive.file'],
+      },
+    ],
+  })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Connections')
+  expect(
+    document.querySelector('[aria-label="Storage connections"]')?.textContent,
+  ).toBe('ConnectionsGoogle DriveNot connectedConnect')
+  await click('button', 'Connect')
+  expect(client.linkSocial).toHaveBeenCalledWith(
+    expect.objectContaining({
+      scopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive.install',
+      ],
+      additionalParams: { prompt: 'consent' },
+    }),
+  )
+})
+
+it('keeps reconnect in Drive options and offers no private data permission', async () => {
+  client.listAccounts.mockResolvedValueOnce({
+    data: [
+      {
+        id: 'google-account',
+        accountId: 'subject',
+        providerId: 'google',
+        driveConnected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/drive.file',
+          'https://www.googleapis.com/auth/drive.install',
+        ],
       },
     ],
   })
@@ -302,7 +341,10 @@ it('keeps reconnect in Drive options and offers no private data permission', asy
   await click('[role="menuitem"]', 'Reconnect')
   expect(client.linkSocial).toHaveBeenCalledWith(
     expect.objectContaining({
-      scopes: ['https://www.googleapis.com/auth/drive.file'],
+      scopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive.install',
+      ],
     }),
   )
 })
@@ -364,7 +406,10 @@ it.each(['rejected', 'returned'] as const)(
           accountId: 'subject',
           providerId: 'google',
           driveConnected: true,
-          scopes: ['https://www.googleapis.com/auth/drive.file'],
+          scopes: [
+            'https://www.googleapis.com/auth/drive.file',
+            'https://www.googleapis.com/auth/drive.install',
+          ],
         },
       ],
     })
