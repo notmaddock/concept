@@ -108,3 +108,31 @@ it('stops scheduled uploads when a document is closed', async () => {
   await session.destroy()
   expect(save).not.toHaveBeenCalled()
 })
+
+it('does not recreate content or metadata when deletion wins a concurrent import', async () => {
+  const file = await seed()
+  let deletion: Promise<void> | undefined
+  let started = false
+  const stop = localDocumentStorage.subscribe((change) => {
+    if (
+      !started &&
+      change.type === 'upsert' &&
+      change.document.id === target.id
+    ) {
+      started = true
+      deletion = localDocumentStorage.delete(target.id)
+    }
+  })
+  try {
+    await expect(importConcept(file, target.name, target)).rejects.toThrow(
+      'Document not found',
+    )
+    await deletion
+    expect(await localDocumentStorage.get(target.id)).toBeUndefined()
+    expect((await indexedDB.databases()).map((db) => db.name)).not.toContain(
+      `concept-document:${target.id}`,
+    )
+  } finally {
+    stop()
+  }
+})

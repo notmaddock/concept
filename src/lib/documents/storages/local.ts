@@ -1,6 +1,6 @@
 import { publishDocumentChange, subscribeToLibrary } from '../library-channel'
 import type { IndexeddbPersistence } from 'y-indexeddb'
-import type { Doc } from 'yjs'
+import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
 import type {
   DocumentInfo,
   DocumentPersistence,
@@ -220,4 +220,35 @@ export async function storeDocumentInfo(document: DocumentInfo) {
   await query('readwrite', (store) => store.put(document))
   publishDocumentChange({ type: 'upsert', document })
   return document
+}
+
+// Imports share the lifecycle lock with opening/deleting document content.
+export function persistDocumentUpdate(id: string, update: Uint8Array) {
+  return withDocumentLock(id, async () => {
+    if (!(await localDocumentStorage.get(id)))
+      throw new Error('Document not found')
+    const { IndexeddbPersistence } = await import('y-indexeddb')
+    const doc = new Doc()
+    const persistence = new IndexeddbPersistence(documentDatabaseName(id), doc)
+    try {
+      await persistence.whenSynced
+      applyUpdate(doc, update)
+      const merged = encodeStateAsUpdate(doc)
+      const db = persistence.db
+      if (!db) throw new Error('Local storage is unavailable.')
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction('updates', 'readwrite')
+        transaction.objectStore('updates').add(merged)
+        transaction.oncomplete = () => resolve()
+        transaction.onabort = () =>
+          reject(
+            transaction.error ?? new Error('Could not save document content.'),
+          )
+        transaction.onerror = () => reject(transaction.error)
+      })
+    } finally {
+      await persistence.destroy()
+      doc.destroy()
+    }
+  })
 }

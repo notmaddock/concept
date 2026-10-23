@@ -1,8 +1,7 @@
-import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
-import { IndexeddbPersistence } from 'y-indexeddb'
+import type { Doc } from 'yjs'
 import { localDocumentStorage } from './storage'
 import type { DocumentInfo } from './storage'
-import { storeDocumentInfo } from './storages/local'
+import { persistDocumentUpdate, storeDocumentInfo } from './storages/local'
 import { serializeConcept } from './serialization'
 import { validateDocumentContent } from './validate-content'
 
@@ -82,27 +81,8 @@ export async function importConcept(
   const created = target
     ? await storeDocumentInfo(existing ?? target)
     : await localDocumentStorage.create()
-  const doc = new Doc()
-  let persistence: IndexeddbPersistence | undefined
   try {
-    applyUpdate(doc, decodeUpdate(file))
-    persistence = new IndexeddbPersistence(
-      `concept-document:${created.id}`,
-      doc,
-    )
-    await persistence.whenSynced
-    const db = persistence.db
-    if (!db) throw new Error('Local storage is unavailable.')
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction('updates', 'readwrite')
-      transaction.objectStore('updates').add(encodeStateAsUpdate(doc))
-      transaction.oncomplete = () => resolve()
-      transaction.onabort = () =>
-        reject(
-          transaction.error ?? new Error('Could not save document content.'),
-        )
-      transaction.onerror = () => reject(transaction.error)
-    })
+    await persistDocumentUpdate(created.id, decodeUpdate(file))
     return target
       ? await storeDocumentInfo({
           ...target,
@@ -113,13 +93,8 @@ export async function importConcept(
         })
       : await localDocumentStorage.rename(created.id, name)
   } catch (error) {
-    await persistence?.destroy()
-    persistence = undefined
     if (!existing) await localDocumentStorage.delete(created.id)
     throw error
-  } finally {
-    await persistence?.destroy()
-    doc.destroy()
   }
 }
 
