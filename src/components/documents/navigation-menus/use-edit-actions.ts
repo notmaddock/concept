@@ -156,6 +156,7 @@ export function useEditActions(
     if (!editor || disabled(action)) return
     // Let the menu finish closing before restoring the editor selection.
     await Promise.resolve()
+    if (editorRef.current !== editor) return
     editor.getRootElement()?.focus({ preventScroll: true })
     editor.focus()
     try {
@@ -184,6 +185,8 @@ export function useEditActions(
             }
           }
         }
+        // Clipboard permission can outlive navigation to another document.
+        if (editorRef.current !== editor) return
         editor.getRootElement()?.focus({ preventScroll: true })
         editor.focus()
         if (action === 'paste-plain') {

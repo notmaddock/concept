@@ -192,3 +192,42 @@ it('shows clipboard failures as Sonner toasts', async () => {
   )
   toast.dismiss()
 })
+
+it('does not paste into a closed document after clipboard permission resolves', async () => {
+  let complete!: (text: string) => void
+  vi.stubGlobal(
+    'DataTransfer',
+    class {
+      data = new Map<string, string>()
+      setData(type: string, value: string) {
+        this.data.set(type, value)
+      }
+      getData(type: string) {
+        return this.data.get(type) ?? ''
+      }
+    },
+  )
+  vi.stubGlobal('navigator', {
+    platform: 'Linux',
+    clipboard: {
+      readText: () =>
+        new Promise<string>((resolve) => {
+          complete = resolve
+        }),
+    },
+  })
+  let paste!: Promise<void>
+  await act(async () => {
+    paste = actions.run('paste-plain')
+    await Promise.resolve()
+  })
+  editorRef.current = createEditor()
+  await act(async () => {
+    complete('pasted into stale editor')
+    await paste
+  })
+  editor.getEditorState().read(() => {
+    expect($getRoot().getTextContent()).toBe('hello world')
+  })
+  expect(onError).not.toHaveBeenCalled()
+})
