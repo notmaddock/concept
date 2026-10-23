@@ -396,3 +396,54 @@ it('does not trigger a ping-pong save storm across multiple open tabs', async ()
     secondProvider.destroy()
   }
 })
+
+it('saves concurrent edits after 1 second instead of a 30-second error backoff', async () => {
+  const file = await seed()
+  let resolveFirst!: (result: {
+    document: DocumentInfo
+    file: typeof file
+  }) => void
+  save.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolveFirst = resolve
+      }),
+  )
+  const { doc, session } = await open(target.id)
+  let state = ''
+  session.subscribeStatus?.((next) => {
+    state = next.state
+  })
+  await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1), {
+    timeout: 2000,
+  })
+  expect(state).toBe('syncing')
+  let updated = false
+  const stop = localDocumentStorage.subscribe((change) => {
+    if (change.type === 'upsert' && change.document.id === target.id)
+      updated = true
+  })
+  try {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+
+    // User edits while the first save is in flight
+    doc.getMap('metadata').set('concurrent', 'edited during save')
+    expect(state).toBe('pending')
+
+    save.mockImplementationOnce(({ data }: { data: { text: string } }) =>
+      Promise.resolve({
+        document: target,
+        file: parseConcept(data.text),
+      }),
+    )
+    resolveFirst({ document: target, file })
+    await vi.waitFor(() => expect(updated).toBe(true))
+
+    // Should flush after 1 second (normal debounce), not 30 seconds
+    await vi.advanceTimersByTimeAsync(1000)
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(state).toBe('synced'))
+  } finally {
+    stop()
+  }
+})

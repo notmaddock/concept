@@ -70,6 +70,7 @@ export const workspaceDocumentStorage: DocumentStorage = {
       if (isClosed() || running || !hasChanges()) return
       running = true
       dirty = false
+      let retryDelay = 1000
       try {
         const document = await localDocumentStorage.get(id)
         if (document?.backing?.provider !== 'google-drive' || isClosed()) return
@@ -110,6 +111,7 @@ export const workspaceDocumentStorage: DocumentStorage = {
           })
       } catch (cause) {
         dirty = true
+        retryDelay = 30_000
         if (!isClosed())
           report({
             state: navigator.onLine ? 'error' : 'offline',
@@ -119,7 +121,7 @@ export const workspaceDocumentStorage: DocumentStorage = {
         running = false
         if (hasChanges() && !isClosed()) {
           clearTimeout(timer)
-          timer = setTimeout(() => void sync(), 30_000)
+          timer = setTimeout(() => void sync(), retryDelay)
         }
       }
     }
