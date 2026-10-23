@@ -65,17 +65,10 @@ li.editor-checklist-item-checked::after {
   box-sizing: border-box;
 }
 
-/* Suppress all focus/active outlines on checkboxes and list items */
-li.editor-checklist-item-unchecked:focus,
-li.editor-checklist-item-checked:focus,
-li.editor-checklist-item-unchecked:focus-visible,
-li.editor-checklist-item-checked:focus-visible,
-li.editor-checklist-item-unchecked:focus::before,
-li.editor-checklist-item-checked:focus::before,
 li.editor-checklist-item-unchecked:focus-visible::before,
 li.editor-checklist-item-checked:focus-visible::before {
-  outline: none !important;
-  box-shadow: none !important;
+  outline: 2px solid var(--ring) !important;
+  outline-offset: 2px;
 }
 
 /* Nested list item container wrappers (Lexical wraps nested sublists in a synthetic <li>) */
