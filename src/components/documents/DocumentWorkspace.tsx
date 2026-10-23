@@ -3,11 +3,11 @@ import {
   DocumentWorkspaceProvider,
   useDocumentWorkspace,
 } from './document-workspace-context'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
 import { FileTextIcon, PlusIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
+import { DocumentName } from './DocumentName'
 import {
   Sidebar,
   SidebarContent,
@@ -152,37 +152,6 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
         </main>
       </div>
     </SidebarProvider>
-  )
-}
-
-function DocumentName({
-  name,
-  onSave,
-}: {
-  name: string
-  onSave?: (name: string) => Promise<void>
-}) {
-  const [value, setValue] = useState(name)
-  return (
-    <Input
-      aria-label={onSave ? 'Document name' : 'Workspace name'}
-      readOnly={!onSave}
-      tabIndex={onSave ? 0 : -1}
-      value={value}
-      onChange={(event) => setValue(event.target.value)}
-      onBlur={() => {
-        void onSave?.(value)
-      }}
-      onKeyDown={(event) => {
-        if (!onSave) return
-        if (event.key === 'Enter') event.currentTarget.blur()
-        if (event.key === 'Escape') {
-          setValue(name)
-          event.preventDefault()
-        }
-      }}
-      className="h-8 w-full max-w-md border-transparent bg-transparent text-lg! shadow-none hover:border-input focus-visible:bg-background read-only:pointer-events-none"
-    />
   )
 }
 

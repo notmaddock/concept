@@ -137,7 +137,7 @@ export function useDocuments(
   }
 
   async function renameDocument(name: string) {
-    if (document) await renameDocumentById(document.id, name)
+    return document ? renameDocumentById(document.id, name) : false
   }
 
   async function deleteDocument(documentId: string) {
