@@ -69,6 +69,10 @@ export function openDocument(id: string, doc: Doc): DocumentPersistence {
     ensureOpen()
     persistence = new IndexeddbPersistence(documentDatabaseName(id), doc)
     await persistence.whenSynced
+    if (closed) {
+      await persistence.destroy()
+      throw new Error('Document closed')
+    }
     if (persistence.db)
       persistence.db.onversionchange = () => {
         void session.destroy()
@@ -80,7 +84,7 @@ export function openDocument(id: string, doc: Doc): DocumentPersistence {
       closed = true
       closing ??= (
         persistence
-          ? whenSynced.catch(() => {}).then(() => persistence?.destroy())
+          ? persistence.destroy()
           : Promise.resolve()
       )
         .then(() => {})
@@ -99,6 +103,14 @@ export function openDocument(id: string, doc: Doc): DocumentPersistence {
     activeDocuments.get(id) ?? new Map<DocumentPersistence, Doc>()
   activeDocuments.set(id, documents)
   documents.set(session, doc)
+  void whenSynced.catch(() => {
+    void persistence?.destroy()
+    activeDocuments.get(id)?.delete(session)
+    if (!activeDocuments.get(id)?.size) activeDocuments.delete(id)
+    sessions.delete(session)
+    if (sessions.size === 0 && activeSessions.get(id) === sessions)
+      activeSessions.delete(id)
+  })
   return session
 }
 
