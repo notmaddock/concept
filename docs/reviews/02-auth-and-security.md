@@ -80,4 +80,4 @@ No live deployment, secret values, Google console configuration, production D1 c
 
 ## Integration corrections
 
-OAuth query redaction is fixed by d38bfea. Reauthentication now fails closed on missing/error sessions and verifies the expected identity before passkey action retry. Google starts a redirect and never retries the stale action before callback; the dialog instructs users to retry their action after returning. M3 is assigned to a focused shared-rate-limit continuation.
+OAuth query redaction is fixed by d38bfea. Reauthentication now fails closed on missing/error sessions and verifies the expected identity before passkey action retry. Google starts a redirect and never retries the stale action before callback; the dialog instructs users to retry their action after returning. M3 is fixed by the shared atomic D1 limiter and forward migration 0006.
