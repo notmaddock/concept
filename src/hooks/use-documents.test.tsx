@@ -4,10 +4,13 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Root } from 'react-dom/client'
 import type { DocumentStorage } from '#/lib/documents/storage'
 import { useDocuments } from './use-documents'
+import { workspaceDocumentStorage } from '#/lib/documents/workspace-storage'
 
 const navigate = vi.hoisted(() => vi.fn())
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }))
-vi.mock('#/lib/documents/storage', () => ({ localDocumentStorage: {} }))
+vi.mock('#/lib/documents/workspace-storage', () => ({
+  workspaceDocumentStorage: { rename: vi.fn() },
+}))
 
 let root: Root
 let container: HTMLDivElement
@@ -177,3 +180,38 @@ it('retains its library subscription across document navigation', async () => {
   await act(() => listener({ type: 'delete', id: second.id }))
   expect(navigate).toHaveBeenCalledWith({ to: '/d' })
 })
+
+it.each(['first', undefined])(
+  'routes inactive renames through workspace storage from %s',
+  async (active) => {
+    const renamed = {
+      ...second,
+      name: 'Cloud rename',
+      backing: {
+        provider: 'google-drive' as const,
+        fileId: 'drive-file',
+        accountId: 'account',
+      },
+    }
+    Object.assign(workspaceDocumentStorage, storage)
+    vi.mocked(workspaceDocumentStorage.rename).mockResolvedValue(renamed)
+    function Harness() {
+      actions = useDocuments(active)
+      return null
+    }
+    await act(() => root.render(<Harness />))
+    await act(async () => {
+      expect(await actions.renameDocumentById('second', renamed.name)).toBe(
+        true,
+      )
+    })
+    expect(workspaceDocumentStorage.rename).toHaveBeenCalledWith(
+      'second',
+      renamed.name,
+    )
+    expect(actions.documents.find((item) => item.id === 'second')?.name).toBe(
+      renamed.name,
+    )
+    expect(navigate).not.toHaveBeenCalled()
+  },
+)

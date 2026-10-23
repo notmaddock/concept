@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { localDocumentStorage } from '#/lib/documents/storage'
+import { workspaceDocumentStorage } from '#/lib/documents/workspace-storage'
 import type {
   DocumentChange,
   DocumentInfo,
@@ -9,7 +9,7 @@ import type {
 
 export function useDocuments(
   id?: string,
-  storage: DocumentStorage = localDocumentStorage,
+  storage: DocumentStorage = workspaceDocumentStorage,
 ) {
   const navigate = useNavigate()
   const [documents, setDocuments] = useState<Array<DocumentInfo>>([])

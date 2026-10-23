@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Doc } from 'yjs'
 import { localDocumentStorage } from '#/lib/documents/storage'
+import { workspaceDocumentStorage } from '#/lib/documents/workspace-storage'
 import { NewDocument } from './NewDocument'
 
 const navigate = vi.hoisted(() => vi.fn())
@@ -54,7 +55,7 @@ it('creates one persistent document and opens its stable route under StrictMode'
 it('offers retry when creation fails', async () => {
   vi.stubGlobal('indexedDB', new IDBFactory())
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  vi.spyOn(localDocumentStorage, 'create').mockRejectedValueOnce(
+  vi.spyOn(workspaceDocumentStorage, 'create').mockRejectedValueOnce(
     new Error('Unavailable'),
   )
   root = createRoot(container)

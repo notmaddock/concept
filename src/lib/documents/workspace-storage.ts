@@ -1,14 +1,33 @@
-import { applyUpdate } from 'yjs'
+import { applyUpdate, Doc } from 'yjs'
 import { localDocumentStorage } from './storage'
 import type { DocumentStorage, DocumentSyncStatus } from './storage'
 import { publishDocumentUpdate, updateDocumentInfo } from './storages/local'
 import { serializeConcept } from './serialization'
 
+const openSessions = new Map<string, number>()
+
 // The editor opens a storage session without knowing its backing provider.
 // IndexedDB is always ready first, including offline or after signing out.
 export const workspaceDocumentStorage: DocumentStorage = {
   ...localDocumentStorage,
+  async list() {
+    const documents = await localDocumentStorage.list()
+    for (const document of documents) {
+      if (
+        document.backing?.provider === 'google-drive' &&
+        document.name !== document.backing.syncedName
+      )
+        ensureBackgroundSync(document.id)
+    }
+    return documents
+  },
+  async rename(id, name) {
+    const document = await localDocumentStorage.rename(id, name)
+    if (document.backing?.provider === 'google-drive') ensureBackgroundSync(id)
+    return document
+  },
   open(id, doc) {
+    openSessions.set(id, (openSessions.get(id) ?? 0) + 1)
     const local = localDocumentStorage.open(id, doc)
     const listeners = new Set<(status: DocumentSyncStatus) => void>()
     let status: DocumentSyncStatus = {
@@ -138,6 +157,10 @@ export const workspaceDocumentStorage: DocumentStorage = {
         }
       },
       async destroy() {
+        if (closed) return
+        const remaining = (openSessions.get(id) ?? 1) - 1
+        if (remaining) openSessions.set(id, remaining)
+        else openSessions.delete(id)
         closed = true
         clearTimeout(timer)
         doc.off('update', changed)
@@ -150,4 +173,26 @@ export const workspaceDocumentStorage: DocumentStorage = {
     }
     return session
   },
+}
+
+// Resume persisted pending renames when the library opens after a reload, too.
+function ensureBackgroundSync(id: string) {
+  if (openSessions.has(id)) return
+  const doc = new Doc()
+  const session = workspaceDocumentStorage.open(id, doc)
+  let cleaned = false
+  const cleanup = () => {
+    if (cleaned) return
+    cleaned = true
+    stop?.()
+    unsubscribe()
+    void session.destroy().finally(() => doc.destroy())
+  }
+  const stop = session.subscribeStatus?.((status) => {
+    if (status.state === 'synced') cleanup()
+  })
+  const unsubscribe = localDocumentStorage.subscribe((change) => {
+    if (change.type === 'delete' && change.id === id) cleanup()
+  })
+  void session.whenSynced.catch(cleanup)
 }

@@ -58,7 +58,6 @@ it('never requests remote credentials for local documents', async () => {
   await new Promise((resolve) => setTimeout(resolve, 10))
   expect(save).not.toHaveBeenCalled()
 })
-
 it('keeps a stable Concept ID and merges cached content when reopening from Drive', async () => {
   const file = await seed()
   const { doc } = await open(target.id)
@@ -74,7 +73,6 @@ it('keeps a stable Concept ID and merges cached content when reopening from Driv
     }),
   ).rejects.toThrow('different document')
 })
-
 it('opens cached documents while signed out, reports failed uploads, and retries on reconnect', async () => {
   const file = await seed()
   save.mockRejectedValue(new Error('Sign in to use a storage connection.'))
@@ -101,7 +99,6 @@ it('opens cached documents while signed out, reports failed uploads, and retries
     }),
   })
 })
-
 it('stops scheduled uploads when a document is closed', async () => {
   await seed()
   const { session } = await open(target.id)
@@ -196,6 +193,36 @@ it('atomically preserves a rename queued during upload-completion metadata acces
   }
 })
 
+it.each([false, true])(
+  'syncs an inactive Drive rename with another editor open: %s',
+  async (anotherEditor) => {
+    const file = await seed()
+    if (anotherEditor) {
+      const local = await localDocumentStorage.create()
+      await open(local.id)
+    }
+    const renamed = {
+      ...target,
+      name: 'Sidebar rename',
+      backing: { ...target.backing!, syncedName: 'Sidebar rename' },
+    }
+    save.mockResolvedValue({ document: renamed, file })
+    await workspaceDocumentStorage.rename(target.id, renamed.name)
+    await vi.waitFor(
+      () =>
+        expect(save).toHaveBeenCalledWith({
+          data: expect.objectContaining({ id: target.id, name: renamed.name }),
+        }),
+      { timeout: 2000 },
+    )
+    await vi.waitFor(async () =>
+      expect(
+        (await localDocumentStorage.get(target.id))?.backing?.syncedName,
+      ).toBe(renamed.name),
+    )
+  },
+)
+
 it('does not recreate content or metadata when deletion wins a concurrent import', async () => {
   const file = await seed()
   let deletion: Promise<void> | undefined
@@ -255,6 +282,31 @@ it('broadcasts imported changes to a document provider in another tab', async ()
   } finally {
     provider.destroy()
   }
+})
+
+it('resumes a persisted inactive rename when the library opens after a reload', async () => {
+  const file = await seed()
+  // Represents a rename persisted by a previous page before it went offline.
+  await localDocumentStorage.rename(target.id, 'Rename before reload')
+  const remote = {
+    ...target,
+    name: 'Rename before reload',
+    backing: { ...target.backing!, syncedName: 'Rename before reload' },
+  }
+  save.mockResolvedValue({ document: remote, file })
+  await workspaceDocumentStorage.list()
+  await vi.waitFor(
+    () =>
+      expect(save).toHaveBeenCalledWith({
+        data: expect.objectContaining({ id: target.id, name: remote.name }),
+      }),
+    { timeout: 2000 },
+  )
+  await vi.waitFor(async () =>
+    expect(
+      (await localDocumentStorage.get(target.id))?.backing?.syncedName,
+    ).toBe(remote.name),
+  )
 })
 
 it('preserves a concurrent rename even if its upload finishes during import', async () => {
