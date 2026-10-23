@@ -10,6 +10,7 @@ const api = 'https://www.googleapis.com/drive/v3/files'
 const upload = 'https://www.googleapis.com/upload/drive/v3/files'
 const mimeType = 'application/vnd.concept+json'
 const fields = 'id,name,modifiedTime,appProperties,trashed,version'
+const maxListPages = 10
 interface DriveFile {
   id: string
   name: string
@@ -105,6 +106,7 @@ export async function listDriveDocuments(headers: Headers) {
   const { accountId, accessToken } = await connection(headers)
   const documents: Array<DocumentInfo> = []
   let pageToken: string | undefined
+  let pages = 0
   do {
     const params = new URLSearchParams({
       q: `trashed = false and mimeType = '${mimeType}'`,
@@ -123,7 +125,8 @@ export async function listDriveDocuments(headers: Headers) {
         .map((file) => info(file, accountId)),
     )
     pageToken = page.nextPageToken
-  } while (pageToken)
+    pages++
+  } while (pageToken && pages < maxListPages)
   return documents.sort((a, b) => b.updatedAt - a.updatedAt)
 }
 

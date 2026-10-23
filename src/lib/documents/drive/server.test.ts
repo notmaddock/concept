@@ -103,6 +103,14 @@ it('lists all pages with separate Concept and backing identities and no tokens',
   expect(mocks.fetch.mock.calls[1][0]).toContain('pageToken=next')
   expect(JSON.stringify(documents)).not.toContain('secret-token')
 })
+it('bounds Drive listing pagination to prevent Worker subrequest exhaustion', async () => {
+  mocks.fetch.mockImplementation(async () =>
+    json({ files: [metadata], nextPageToken: 'more' }),
+  )
+  const documents = await listDriveDocuments(headers)
+  expect(mocks.fetch).toHaveBeenCalledTimes(10)
+  expect(documents).toHaveLength(10)
+})
 it('creates a versioned Concept file with independent app identity', async () => {
   mocks.fetch.mockResolvedValue(json(metadata))
   const result = await saveDriveDocument(headers, {
