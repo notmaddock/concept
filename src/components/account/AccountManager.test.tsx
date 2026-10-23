@@ -652,3 +652,19 @@ it('ignores stale action completion when session changes before action finishes'
   // Error toast should NOT have been shown for stale user action
   expect(toastError).not.toHaveBeenCalledWith('Stale error')
 })
+
+it('clears pending passkey reauthentication when the signed-in user changes', async () => {
+  client.passkey.addPasskey.mockResolvedValueOnce({
+    error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+  })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Add')
+  expect(document.body.textContent).toContain('Confirm your identity')
+  sessionState.current = {
+    user: { ...defaultSession.user, id: 'user-2', name: 'Second user' },
+  }
+  await act(() => root.render(<AccountManager />))
+  expect(document.body.textContent).not.toContain('Confirm your identity')
+  expect(client.passkey.addPasskey).toHaveBeenCalledTimes(1)
+})
