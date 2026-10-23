@@ -1,3 +1,7 @@
+import {
+  applyDocumentTheme,
+  resetDocumentTheme,
+} from '#/lib/documents/theme-transition'
 import { AccountManager } from '#/components/account/AccountManager'
 import {
   DocumentWorkspaceProvider,
@@ -28,6 +32,7 @@ const DocumentEditor = lazy(() =>
 )
 
 export function DocumentWorkspace({ id }: { id?: string }) {
+  useEffect(() => resetDocumentTheme, [])
   useEffect(() => {
     if (id) void loadEditor().catch(() => {})
   }, [id])
@@ -50,10 +55,15 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     renameDocumentById,
     deleteDocument,
     documentRef,
+    onDocumentThemeChange,
     editorRef,
     pageSetupOpen,
     onPageSetupOpenChange,
   } = useDocumentWorkspace()
+
+  useEffect(() => {
+    if (loaded && !document) applyDocumentTheme('default')
+  }, [loaded, document])
 
   return (
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
@@ -116,6 +126,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 <DocumentEditor
                   key={document.id}
                   documentRef={documentRef}
+                  onDocumentThemeChange={onDocumentThemeChange}
                   id={document.id}
                   editorRef={editorRef}
                   pageSetupOpen={pageSetupOpen}

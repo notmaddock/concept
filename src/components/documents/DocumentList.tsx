@@ -1,3 +1,4 @@
+import { rememberThemeOrigin } from '#/lib/documents/theme-transition'
 import { Link } from '@tanstack/react-router'
 import { FileTextIcon } from 'lucide-react'
 import type { DocumentInfo } from '#/lib/documents/storage'
@@ -126,6 +127,16 @@ export function DocumentList({
                     <DocumentDetailsPopover document={item}>
                       <SidebarMenuButton
                         isActive={item.id === activeId}
+                        onClick={(event) => {
+                          if (
+                            item.id !== activeId &&
+                            !event.metaKey &&
+                            !event.ctrlKey &&
+                            !event.shiftKey &&
+                            !event.altKey
+                          )
+                            rememberThemeOrigin(event)
+                        }}
                         render={<Link to="/d/$id" params={{ id: item.id }} />}
                       >
                         <FileTextIcon />

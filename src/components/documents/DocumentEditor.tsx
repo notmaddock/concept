@@ -1,3 +1,5 @@
+import { observeDocumentTheme } from '#/lib/documents/document-theme'
+import type { DocumentTheme } from '#/lib/documents/document-theme'
 import type { RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'
 import type { DocumentPersistence } from '#/lib/documents/storage'
@@ -17,7 +19,9 @@ export function DocumentEditor({
   pageSetupOpen,
   editorRef,
   onPageSetupOpenChange,
+  onDocumentThemeChange,
 }: {
+  onDocumentThemeChange?: (theme: DocumentTheme) => void
   documentRef: RefObject<Doc | null>
   id: string
   editorRef?: RefObject<LexicalEditor | null>
@@ -36,6 +40,7 @@ export function DocumentEditor({
     let active = true
     const doc = new Doc()
     let persistence: DocumentPersistence | undefined
+    let stopTheme: (() => void) | undefined
     // Lexical must observe the Yjs root before IndexedDB applies existing content.
     const provider = new LocalProvider(
       id,
@@ -54,6 +59,7 @@ export function DocumentEditor({
     )
     const onSync = (synced: boolean) => {
       if (!active || !synced) return
+      stopTheme ??= observeDocumentTheme(doc, onDocumentThemeChange)
       performance.measure('concept:document-storage', { start: startedAt })
       documentRef.current = doc
       setReady(true)
@@ -62,6 +68,7 @@ export function DocumentEditor({
     setSession({ doc, provider })
     return () => {
       active = false
+      stopTheme?.()
       documentRef.current = null
       provider.off('sync', onSync)
       provider.destroy()
@@ -69,7 +76,7 @@ export function DocumentEditor({
         doc.destroy(),
       )
     }
-  }, [id, documentRef])
+  }, [id, documentRef, onDocumentThemeChange])
 
   if (error)
     return (

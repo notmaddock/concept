@@ -5,9 +5,6 @@ import type { Root } from 'react-dom/client'
 import type { NavigationMenuItem } from './document-navigation-options'
 import { useDocumentNavigationOptions } from './document-navigation-options'
 
-const theme = vi.hoisted(() => ({ theme: 'light', setTheme: vi.fn() }))
-vi.mock('#/components/theme-provider', () => ({ useTheme: () => theme }))
-
 const workspace = vi.hoisted(() => ({
   enabled: true,
   creating: false,
@@ -40,7 +37,6 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.clearAllMocks()
   onCreate.mockResolvedValue(undefined)
-  theme.theme = 'light'
   container = document.createElement('div')
   root = createRoot(container)
 })
@@ -88,35 +84,24 @@ it('exposes every menu action to search with the same state and handler', async 
   await navigation.options
     .find((option) => option.id === 'page-setup')
     ?.onSelect()
-  await navigation.options
-    .find((option) => option.id === 'theme-dark')
-    ?.onSelect()
   expect(onCreate).toHaveBeenCalledOnce()
   await navigation.options.find((option) => option.id === 'details')?.onSelect()
   expect(workspace.showDetails).toHaveBeenCalledOnce()
   expect(onPageSetup).toHaveBeenCalledOnce()
-  expect(theme.setTheme).toHaveBeenCalledWith('dark')
+  expect(
+    navigation.options.some((option) => option.id.startsWith('theme-')),
+  ).toBe(false)
 })
 
-it('updates creation availability and selected theme in both consumers', async () => {
+it('updates creation availability in both consumers', async () => {
   await render()
   expect(
     navigation.options.find((option) => option.id === 'new-document')?.disabled,
   ).toBe(false)
-  expect(
-    navigation.options.find((option) => option.id === 'theme-light')?.checked,
-  ).toBe(true)
 
-  theme.theme = 'dark'
   await render(true)
   expect(
     navigation.options.find((option) => option.id === 'new-document')?.disabled,
-  ).toBe(true)
-  expect(
-    navigation.options.find((option) => option.id === 'theme-light')?.checked,
-  ).toBe(false)
-  expect(
-    navigation.options.find((option) => option.id === 'theme-dark')?.checked,
   ).toBe(true)
 })
 

@@ -4,6 +4,7 @@
 @import './styles/tailwind-utilities.css';
 @import '@fontsource-variable/dm-sans';
 @import './styles/scrollbar.css';
+@import './styles/document-themes.css';
 
 @custom-variant dark (&:is(.dark *));
 

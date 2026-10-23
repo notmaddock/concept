@@ -1,3 +1,5 @@
+import { setDocumentTheme } from '#/lib/documents/document-theme'
+import type { DocumentTheme } from '#/lib/documents/document-theme'
 import {
   createContext,
   lazy,
@@ -53,6 +55,8 @@ function useWorkspaceState(id?: string) {
     'open' | 'copy' | ImportFormat | null
   >(null)
   const [fileError, setFileError] = useState('')
+  const [documentTheme, onDocumentThemeChange] =
+    useState<DocumentTheme>('default')
   const [pageSetupOpen, setPageSetupOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -107,6 +111,11 @@ function useWorkspaceState(id?: string) {
 
   const workspace = {
     ...library,
+    documentTheme,
+    onDocumentThemeChange,
+    changeDocumentTheme: (theme: DocumentTheme) => {
+      if (documentRef.current) setDocumentTheme(documentRef.current, theme)
+    },
     error: library.error || fileError,
     enabled: Boolean(document),
     documentRef,

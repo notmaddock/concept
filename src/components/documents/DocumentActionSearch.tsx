@@ -200,7 +200,17 @@ export function DocumentActionSearch({
                                 )
                               }}
                             >
-                              <Icon className="text-muted-foreground" />
+                              <Icon
+                                className="text-muted-foreground"
+                                style={
+                                  option.iconColor
+                                    ? {
+                                        color: option.iconColor,
+                                        fill: option.iconColor,
+                                      }
+                                    : undefined
+                                }
+                              />
                               <span className="min-w-0 truncate">
                                 {option.label}
                               </span>

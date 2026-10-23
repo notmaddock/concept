@@ -1,3 +1,5 @@
+import { documentThemes } from '#/lib/documents/document-theme'
+import type { DocumentTheme } from '#/lib/documents/document-theme'
 import { importFormats } from '#/lib/documents/import/formats'
 import type { ImportFormat } from '#/lib/documents/import/formats'
 import type { ExportFormat } from '#/lib/documents/export'
@@ -7,6 +9,7 @@ import type { useFormatActions } from './use-format-actions'
 import type { EditAction, useEditActions } from './use-edit-actions'
 import { useDocumentWorkspace } from '../document-workspace-context'
 import {
+  CircleIcon,
   CopyIcon,
   Undo2Icon,
   Redo2Icon,
@@ -23,16 +26,12 @@ import {
   FolderOpenIcon,
   InfoIcon,
   LetterTextIcon,
-  MonitorIcon,
-  MoonIcon,
   PaletteIcon,
   PlusIcon,
   PrinterIcon,
   Settings2Icon,
   Share2Icon,
-  SunIcon,
 } from 'lucide-react'
-import { useTheme } from '#/components/theme-provider'
 
 export const formatActions = formatSections.flatMap((section) =>
   section.choices.map((choice) => choice.action),
@@ -69,8 +68,8 @@ type NavigationContext = {
   onPageSetup: () => void
   onCreate: () => Promise<void>
   creating: boolean
-  theme: ReturnType<typeof useTheme>['theme']
-  setTheme: ReturnType<typeof useTheme>['setTheme']
+  documentTheme?: DocumentTheme
+  changeDocumentTheme?: (theme: DocumentTheme) => void
 }
 
 type ActionDefinition = {
@@ -80,6 +79,7 @@ type ActionDefinition = {
   menuLabel?: string
   keywords: string[]
   icon: typeof PlusIcon
+  iconColor?: string
   focusAfterSelect: 'editor' | 'action'
   onSelect: (context: NavigationContext) => void | Promise<void>
   disabled?: (context: NavigationContext) => boolean
@@ -92,6 +92,7 @@ type SubmenuDefinition = {
   id: string
   label: string
   icon: typeof PlusIcon
+  iconColor?: string
   children: MenuItemDefinition[]
 }
 
@@ -285,41 +286,21 @@ export const documentNavigation: MenuDefinition[] = [
     label: 'View',
     items: [
       {
-        id: 'theme',
-        label: 'Theme',
+        id: 'document-theme',
+        label: 'Document theme',
         icon: PaletteIcon,
-        children: [
-          {
-            id: 'theme-light',
-            label: 'Light theme',
-            menuLabel: 'Light',
-            keywords: ['appearance'],
-            icon: SunIcon,
-            focusAfterSelect: 'editor',
-            onSelect: (context) => context.setTheme('light'),
-            checked: (context) => context.theme === 'light',
-          },
-          {
-            id: 'theme-dark',
-            label: 'Dark theme',
-            menuLabel: 'Dark',
-            keywords: ['appearance'],
-            icon: MoonIcon,
-            focusAfterSelect: 'editor',
-            onSelect: (context) => context.setTheme('dark'),
-            checked: (context) => context.theme === 'dark',
-          },
-          {
-            id: 'theme-system',
-            label: 'System theme',
-            menuLabel: 'System',
-            keywords: ['appearance', 'automatic'],
-            icon: MonitorIcon,
-            focusAfterSelect: 'editor',
-            onSelect: (context) => context.setTheme('system'),
-            checked: (context) => context.theme === 'system',
-          },
-        ],
+        children: documentThemes.map((theme) => ({
+          id: `document-theme-${theme.id}`,
+          label: `${theme.label} document theme`,
+          menuLabel: theme.label,
+          keywords: ['color', 'palette', 'shared', theme.id],
+          icon: CircleIcon,
+          iconColor: theme.color,
+          focusAfterSelect: 'editor',
+          onSelect: (context) => context.changeDocumentTheme?.(theme.id),
+          checked: (context) =>
+            (context.documentTheme ?? 'default') === theme.id,
+        })),
       },
     ],
   },
@@ -393,7 +374,8 @@ export function useDocumentNavigationOptions({
     onExport: workspace.exportDocument,
     onPageSetup: workspace.openPageSetup,
     onCreate: workspace.createDocument,
-    ...useTheme(),
+    documentTheme: workspace.documentTheme,
+    changeDocumentTheme: workspace.changeDocumentTheme,
   }
   const options: NavigationOption[] = []
 

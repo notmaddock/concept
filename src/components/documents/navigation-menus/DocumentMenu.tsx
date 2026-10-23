@@ -1,3 +1,4 @@
+import { rememberThemeOrigin } from '#/lib/documents/theme-transition'
 import { ActionShortcut } from './ActionShortcut'
 import { Fragment, useRef } from 'react'
 import type { NavigationMenuItem } from './document-navigation-options'
@@ -39,7 +40,14 @@ function MenuItems({
             className={`${documentMenuItemClassName} data-disabled:pointer-events-none data-disabled:opacity-50 data-disabled:focus:bg-transparent data-disabled:focus:text-inherit`}
             disabled={item.disabled}
           >
-            <Icon /> {item.label}
+            <Icon
+              style={
+                item.iconColor
+                  ? { color: item.iconColor, fill: item.iconColor }
+                  : undefined
+              }
+            />{' '}
+            {item.label}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
             side="right"
@@ -63,35 +71,62 @@ function MenuItems({
             className={documentMenuItemClassName}
             checked={item.checked}
             disabled={item.disabled}
-            onClick={() => {
+            onClick={(event) => {
+              if (item.id.startsWith('document-theme-'))
+                rememberThemeOrigin(event)
               if (item.focusAfterSelect === 'editor') onEditorAction()
               void item.onSelect()
             }}
           >
-            <Icon /> {item.menuLabel ?? item.label}
+            <Icon
+              style={
+                item.iconColor
+                  ? { color: item.iconColor, fill: item.iconColor }
+                  : undefined
+              }
+            />{' '}
+            {item.menuLabel ?? item.label}
           </DropdownMenuCheckboxItem>
         ) : item.checked !== undefined ? (
           <DropdownMenuRadioItem
             className={documentMenuItemClassName}
             value={item.id}
             disabled={item.disabled}
-            onClick={() => {
+            onClick={(event) => {
+              if (item.id.startsWith('document-theme-'))
+                rememberThemeOrigin(event)
               if (item.focusAfterSelect === 'editor') onEditorAction()
               void item.onSelect()
             }}
           >
-            <Icon /> {item.menuLabel ?? item.label}
+            <Icon
+              style={
+                item.iconColor
+                  ? { color: item.iconColor, fill: item.iconColor }
+                  : undefined
+              }
+            />{' '}
+            {item.menuLabel ?? item.label}
           </DropdownMenuRadioItem>
         ) : (
           <DropdownMenuItem
             className={documentMenuItemClassName}
-            onClick={() => {
+            onClick={(event) => {
+              if (item.id.startsWith('document-theme-'))
+                rememberThemeOrigin(event)
               if (item.focusAfterSelect === 'editor') onEditorAction()
               void item.onSelect()
             }}
             disabled={item.disabled}
           >
-            <Icon /> {item.menuLabel ?? item.label}
+            <Icon
+              style={
+                item.iconColor
+                  ? { color: item.iconColor, fill: item.iconColor }
+                  : undefined
+              }
+            />{' '}
+            {item.menuLabel ?? item.label}
             <ActionShortcut shortcut={item.shortcut} />
           </DropdownMenuItem>
         )}
