@@ -120,8 +120,8 @@ export function DocumentContextMenu({
             <AlertDialogTitle>Delete document?</AlertDialogTitle>
             <AlertDialogDescription>
               {backedUp
-                ? `\u201c${name}\u201d and any unsynced changes will be removed from this browser. The saved file remains in Google Drive.`
-                : `\u201c${name}\u201d will be removed from your documents. Are you sure you want to delete it?`}
+                ? `“${name}” and any unsynced changes will be removed from this browser. The saved file remains in Google Drive.`
+                : `“${name}” will be removed from your documents. Are you sure you want to delete it?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -134,7 +134,7 @@ export function DocumentContextMenu({
                 void confirmDelete()
               }}
             >
-              {deleting ? 'Deleting\u2026' : 'Delete document'}
+              {deleting ? 'Deleting…' : 'Delete document'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

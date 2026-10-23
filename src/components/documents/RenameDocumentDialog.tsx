@@ -87,7 +87,7 @@ export function RenameDocumentDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={pending || !value.trim()}>
-              {pending ? 'Saving\u2026' : 'Save'}
+              {pending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

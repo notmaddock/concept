@@ -197,7 +197,7 @@ export function DocumentStorageDialog({
               : mode === 'copy'
                 ? 'Name your copy and choose where to save it.'
                 : selected
-                  ? 'Review the document and choose where you\u2019ll work on it.'
+                  ? 'Review the document and choose where you’ll work on it.'
                   : 'Choose where to open your document from.'}
           </DialogDescription>
         </DialogHeader>
@@ -207,7 +207,7 @@ export function DocumentStorageDialog({
             accept={format.extensions.join(',')}
             description={`Import a ${format.label} file from your device.`}
             reading={reading}
-            status="Converting document\u2026"
+            status="Converting document…"
             onSelect={(file) => {
               void readDocument(async () => {
                 const { convertImport } = await import('#/lib/documents/import')
@@ -265,7 +265,7 @@ export function DocumentStorageDialog({
                     accept=".concept"
                     description="Open a .concept file from your device."
                     reading={reading}
-                    status="Reading document\u2026"
+                    status="Reading document…"
                     onSelect={(file) => {
                       void readDocument(async () => {
                         if (!file.name.toLowerCase().endsWith('.concept'))
@@ -308,7 +308,7 @@ export function DocumentStorageDialog({
                 )}
                 {reading && openSource.kind === 'library' && (
                   <p role="status" className="text-sm text-muted-foreground">
-                    Reading document\u2026
+                    Reading document…
                   </p>
                 )}
               </>
@@ -416,10 +416,10 @@ export function DocumentStorageDialog({
             >
               {pending
                 ? mode === 'copy'
-                  ? 'Saving\u2026'
+                  ? 'Saving…'
                   : mode === 'import'
-                    ? 'Importing\u2026'
-                    : 'Opening\u2026'
+                    ? 'Importing…'
+                    : 'Opening…'
                 : mode === 'copy'
                   ? 'Save copy'
                   : mode === 'import'
