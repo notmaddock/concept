@@ -455,3 +455,25 @@ it('saves concurrent edits after 1 second instead of a 30-second error backoff',
     stop()
   }
 })
+
+it("handles synchronous synced status or early rejection during background sync without TDZ crash (LIFECYCLE-01)", async () => {
+  await seed()
+  const originalOpen = workspaceDocumentStorage.open
+  const openSpy = vi
+    .spyOn(workspaceDocumentStorage, "open")
+    .mockImplementation((id, doc) => {
+      const real = originalOpen(id, doc)
+      return {
+        ...real,
+        subscribeStatus(listener) {
+          listener({ state: "synced", message: "Synced" })
+          return () => {}
+        },
+      }
+    })
+
+  await localDocumentStorage.rename(target.id, "Synchronous Background Sync")
+  await expect(workspaceDocumentStorage.list()).resolves.toBeDefined()
+
+  openSpy.mockRestore()
+})

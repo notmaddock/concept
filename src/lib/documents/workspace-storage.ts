@@ -190,19 +190,25 @@ function ensureBackgroundSync(id: string) {
   if (openSessions.has(id)) return
   const doc = new Doc()
   const session = workspaceDocumentStorage.open(id, doc)
-  let cleaned = false
+  const state = { cleaned: false }
+  const disposables: Array<() => void> = []
   const cleanup = () => {
-    if (cleaned) return
-    cleaned = true
-    stop?.()
-    unsubscribe()
+    if (state.cleaned) return
+    state.cleaned = true
+    disposables.forEach((dispose) => dispose())
     void session.destroy().finally(() => doc.destroy())
   }
   const stop = session.subscribeStatus?.((status) => {
     if (status.state === 'synced') cleanup()
   })
+  if (stop) {
+    if (state.cleaned) stop()
+    else disposables.push(stop)
+  }
   const unsubscribe = localDocumentStorage.subscribe((change) => {
     if (change.type === 'delete' && change.id === id) cleanup()
   })
+  if (state.cleaned) unsubscribe()
+  else disposables.push(unsubscribe)
   void session.whenSynced.catch(cleanup)
 }
