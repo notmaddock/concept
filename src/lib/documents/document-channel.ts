@@ -9,7 +9,12 @@ export type DocumentChannelMessage =
       clientId?: string
       targetId?: string
     }
-  | { type: 'update' | 'awareness'; update: Uint8Array; clientId?: string; synced?: boolean }
+  | {
+      type: 'update' | 'awareness'
+      update: Uint8Array
+      clientId?: string
+      synced?: boolean
+    }
 
 export function documentChannelName(id: string) {
   return `concept-document-sync:${id}`
