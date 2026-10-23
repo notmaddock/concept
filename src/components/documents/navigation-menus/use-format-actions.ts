@@ -192,12 +192,15 @@ export function useFormatActions(
   }>({ enabled: false, checked: [] })
   useEffect(() => {
     let frame = 0
+    let retries = 0
     let cleanup = () => {}
     setState({ enabled: false, checked: [] })
     function connect() {
       const editor = editorRef.current
       if (!editor) {
-        frame = requestAnimationFrame(connect)
+        if (retries++ < 60) {
+          frame = requestAnimationFrame(connect)
+        }
         return
       }
       const update = () => {
@@ -235,13 +238,12 @@ export function useFormatActions(
     }
   }, [editorRef, documentId, actions, active])
 
-  async function run(action: FormatAction) {
+  function run(action: FormatAction) {
     const editor = editorRef.current
     if (!editor || !state.enabled) return
     const selection = editor
       .getEditorState()
       .read(() => $getSelection()?.clone())
-    await Promise.resolve()
     // Focus before committing: restoring the DOM selection can synchronously fire focus events.
     editor.getRootElement()?.focus({ preventScroll: true })
     editor.update(

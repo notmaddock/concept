@@ -9,7 +9,7 @@ let docs: Array<Doc>
 
 beforeEach(() => {
   vi.stubGlobal('BroadcastChannel', TestBroadcastChannel)
-  TestBroadcastChannel.sent = 0
+  TestBroadcastChannel.reset()
   providers = []
   docs = []
 })
@@ -17,16 +17,22 @@ beforeEach(() => {
 afterEach(() => {
   providers.forEach((provider) => provider.destroy())
   docs.forEach((doc) => doc.destroy())
-  expect(TestBroadcastChannel.channels.size).toBe(0)
+  const remaining = TestBroadcastChannel.channels.size
+  TestBroadcastChannel.reset()
+  expect(remaining).toBe(0)
   vi.unstubAllGlobals()
 })
 
-function peer(id = 'same-document', initialize?: (doc: Doc) => void) {
+function peer(
+  id = 'same-document',
+  initialize?: (doc: Doc) => void,
+  whenSynced: Promise<unknown> = Promise.resolve(),
+) {
   const doc = new Doc()
   const provider = new LocalProvider(
     id,
     doc,
-    { whenSynced: Promise.resolve(), destroy: async () => {} },
+    { whenSynced, destroy: async () => {} },
     initialize,
   )
   docs.push(doc)
@@ -88,10 +94,16 @@ it('initializes exactly one shared paragraph when two tabs open an empty documen
 })
 
 it('does not leak channels when connecting again before persistence finishes loading', async () => {
-  const first = peer()
+  let resolveSynced!: () => void
+  const whenSynced = new Promise<void>((resolve) => {
+    resolveSynced = resolve
+  })
+  const first = peer('same-document', undefined, whenSynced)
   first.provider.connect()
   first.provider.disconnect()
   first.provider.connect()
+  expect(TestBroadcastChannel.channels.size).toBe(0)
+  resolveSynced()
   await flushBroadcasts()
   expect(TestBroadcastChannel.channels.size).toBe(1)
 })
@@ -111,4 +123,21 @@ it('restores awareness and catches up edits after reconnecting', async () => {
   expect(
     second.provider.awareness.getStates().get(first.doc.clientID)?.name,
   ).toBe('Returning tab')
+})
+
+it('does not amplify messages or trigger echo loops when 3 or more tabs are connected (SYNC-03)', async () => {
+  const first = peer()
+  const second = peer()
+  first.provider.connect()
+  second.provider.connect()
+  await flushBroadcasts()
+
+  const third = peer()
+  third.provider.connect()
+  await flushBroadcasts()
+
+  // Subsequent flush produces no further messages
+  const baselineSent = TestBroadcastChannel.sent
+  await flushBroadcasts()
+  expect(TestBroadcastChannel.sent).toBe(baselineSent)
 })

@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers'
-import { saveDriveFile } from './server'
+import { DriveError, saveDriveFile } from './server'
 import type { SaveDriveInput } from './functions'
 
 // Cloudflare routes every request for a backing file to one object globally.
@@ -15,16 +15,19 @@ export class DriveSaveCoordinator extends DurableObject {
           accountId: string
           data: SaveDriveInput
         }>()
-        const accessToken = request.headers.get('Authorization')?.slice(7)
-        if (!accessToken) throw new Error('Missing Drive authorization.')
+        const authHeader = request.headers.get('Authorization')
+        const accessToken = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim()
+        if (!accessToken)
+          throw new DriveError('Missing Drive authorization.', 401)
         return Response.json(await saveDriveFile(accessToken, accountId, data))
       } catch (error) {
+        const status = error instanceof DriveError ? error.status : 500
         return Response.json(
           {
             error:
               error instanceof Error ? error.message : 'Drive save failed.',
           },
-          { status: 500 },
+          { status },
         )
       }
     })

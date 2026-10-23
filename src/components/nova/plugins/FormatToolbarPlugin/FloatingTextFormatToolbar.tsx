@@ -150,8 +150,8 @@ export function FloatingTextFormatToolbar({
             icon={RemoveFormatting}
             onClick={() => void run({ kind: 'clear', value: 'text' })}
           />
-          <ColorSelect sectionId="text-color" editor={editor} />
-          <ColorSelect sectionId="highlight" editor={editor} />
+          <ColorSelect sectionId="text-color" editor={editor} active={isOpen} />
+          <ColorSelect sectionId="highlight" editor={editor} active={isOpen} />
           <FormatIcon
             label="More formatting"
             icon={Ellipsis}

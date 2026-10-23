@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Root } from 'react-dom/client'
-import { ThemeProvider, useTheme } from './theme-provider'
+import { ThemeProvider, getThemeScript, useTheme } from './theme-provider'
 
 vi.mock('@tanstack/react-router', () => ({ ScriptOnce: () => null }))
 
@@ -61,4 +61,71 @@ it('applies a theme even when saving the preference fails', async () => {
   await act(() => container.querySelector('button')!.click())
   expect(container.textContent).toBe('dark')
   expect(document.documentElement.classList.contains('dark')).toBe(true)
+})
+
+it('applies fallback theme during bootstrap script execution when storage access throws', () => {
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    throw new DOMException('Storage denied', 'SecurityError')
+  })
+  const script = getThemeScript('theme', 'dark')
+  new Function(script)()
+  expect(document.documentElement.classList.contains('dark')).toBe(true)
+  expect(document.documentElement.style.colorScheme).toBe('dark')
+})
+
+it('synchronizes theme changes across tabs via storage events', async () => {
+  await act(() =>
+    root.render(
+      <ThemeProvider defaultTheme="light" storageKey="theme">
+        <Harness />
+      </ThemeProvider>,
+    ),
+  )
+  expect(container.textContent).toBe('light')
+
+  // Receive storage event from another tab updating to 'dark'
+  await act(() => {
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'theme',
+        newValue: 'dark',
+      }),
+    )
+  })
+  expect(container.textContent).toBe('dark')
+  expect(document.documentElement.classList.contains('dark')).toBe(true)
+
+  // Unrelated storage event is ignored
+  await act(() => {
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'other-key',
+        newValue: 'light',
+      }),
+    )
+  })
+  expect(container.textContent).toBe('dark')
+
+  // Storage event with null resets to defaultTheme
+  await act(() => {
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'theme',
+        newValue: null,
+      }),
+    )
+  })
+  expect(container.textContent).toBe('light')
+  expect(document.documentElement.classList.contains('light')).toBe(true)
+
+  // Invalid storage value is ignored
+  await act(() => {
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'theme',
+        newValue: 'invalid-theme',
+      }),
+    )
+  })
+  expect(container.textContent).toBe('light')
 })

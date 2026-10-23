@@ -8,7 +8,13 @@ export function subscribeToLibrary(listener: (change: DocumentChange) => void) {
   if (!channel && typeof BroadcastChannel !== 'undefined') {
     channel = new BroadcastChannel('concept-library')
     channel.onmessage = (event: MessageEvent<DocumentChange>) => {
-      listeners.forEach((callback) => callback(event.data))
+      for (const callback of [...listeners]) {
+        try {
+          callback(event.data)
+        } catch (error) {
+          console.error('Library channel listener error:', error)
+        }
+      }
     }
   }
   return () => {
@@ -21,7 +27,13 @@ export function subscribeToLibrary(listener: (change: DocumentChange) => void) {
 }
 
 export function publishDocumentChange(change: DocumentChange) {
-  listeners.forEach((listener) => listener(change))
+  for (const listener of [...listeners]) {
+    try {
+      listener(change)
+    } catch (error) {
+      console.error('Library channel listener error:', error)
+    }
+  }
   if (typeof BroadcastChannel === 'undefined') return
   const publisher = channel ?? new BroadcastChannel('concept-library')
   publisher.postMessage(change)

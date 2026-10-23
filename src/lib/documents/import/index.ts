@@ -7,6 +7,7 @@ import {
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListItemNode, ListNode } from '@lexical/list'
 import { HorizontalRuleNode } from '@lexical/extension'
+import { CodeHighlightNode, CodeNode } from '@lexical/code'
 import { createYjsBinding, syncLexicalUpdateToYjs } from '@lexical/yjs'
 import { Doc } from 'yjs'
 import type { ImportFormat } from './formats'
@@ -26,7 +27,15 @@ export async function convertImport(file: File, format: ImportFormat) {
   const name = file.name.replace(/\.[^.]+$/, '').trim() || 'Untitled document'
   const editor = createEditor({
     namespace: 'document-import',
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, HorizontalRuleNode],
+    nodes: [
+      HeadingNode,
+      QuoteNode,
+      ListNode,
+      ListItemNode,
+      HorizontalRuleNode,
+      CodeNode,
+      CodeHighlightNode,
+    ],
     onError: (error) => {
       throw error
     },

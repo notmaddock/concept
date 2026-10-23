@@ -29,6 +29,7 @@ const documents = Array.from({ length: 1000 }, (_, index) => ({
 }))
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.stubGlobal(
     'ResizeObserver',
@@ -77,7 +78,7 @@ it('bounds mounted rows while preserving list positions and scroll extent', asyn
   await act(async () => {
     container.scrollTop = 17000
     container.dispatchEvent(new Event('scroll'))
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await vi.runOnlyPendingTimersAsync()
   })
   expect(list.textContent).toContain('Document 500')
   expect(list.textContent).not.toContain('Document 0')
@@ -102,25 +103,24 @@ it('supports keyboard traversal across virtual windows and keeps focused rows mo
         cancelable: true,
       }),
     )
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await vi.runOnlyPendingTimersAsync()
   })
   expect(document.activeElement?.textContent).toBe('Document 999')
   await act(async () => {
     document.activeElement?.dispatchEvent(
       new KeyboardEvent('keydown', {
-        key: 'Tab',
-        shiftKey: true,
+        key: 'ArrowUp',
         bubbles: true,
         cancelable: true,
       }),
     )
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await vi.runOnlyPendingTimersAsync()
   })
   expect(document.activeElement?.textContent).toBe('Document 998')
   await act(async () => {
     container.scrollTop = 0
     container.dispatchEvent(new Event('scroll'))
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    await vi.runOnlyPendingTimersAsync()
   })
   expect(document.activeElement?.textContent).toBe('Document 998')
   expect(list.querySelectorAll('li').length).toBeLessThan(30)
@@ -144,4 +144,37 @@ it('focuses newly mounted rows during commit without waiting for a frame', async
     )
   })
   expect(document.activeElement?.textContent).toBe('Document 999')
+})
+
+it('allows Tab to navigate out of the document list without intercepting it', async () => {
+  const list = await render()
+  const first = list.querySelector('a')!
+  await act(() => first.focus())
+  const event = new KeyboardEvent('keydown', {
+    key: 'Tab',
+    bubbles: true,
+    cancelable: true,
+  })
+  first.dispatchEvent(event)
+  expect(event.defaultPrevented).toBe(false)
+})
+
+it('reveals active document in non-virtualized lists (count <= 60)', async () => {
+  const shortDocs = Array.from({ length: 50 }, (_, index) => ({
+    id: `doc-${index}`,
+    name: `Document ${index}`,
+    updatedAt: index,
+  }))
+  await act(() =>
+    root.render(
+      <DocumentList
+        documents={shortDocs}
+        activeId="doc-45"
+        onDelete={vi.fn()}
+      />,
+    ),
+  )
+  const list = container.querySelector('ul')!
+  list.getBoundingClientRect = () => ({ top: -container.scrollTop }) as DOMRect
+  expect(container.scrollTop).toBeGreaterThan(0)
 })

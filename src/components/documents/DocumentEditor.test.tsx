@@ -19,6 +19,10 @@ import {
   serializeConcept,
 } from '#/lib/documents/concept-file'
 import { DocumentEditor } from './DocumentEditor'
+import { workspaceDocumentStorage } from '#/lib/documents/workspace-storage'
+
+let storageReady: Promise<unknown>
+const realOpen = workspaceDocumentStorage.open
 
 vi.mock('#/components/nova/Nova', () => ({
   Nova: ({ collaboration, editorRef }: ComponentProps<typeof Nova>) => (
@@ -44,6 +48,11 @@ const editorRef = createRef<LexicalEditor>()
 const documentRef = createRef<Doc>()
 
 beforeEach(() => {
+  vi.spyOn(workspaceDocumentStorage, 'open').mockImplementation((...args) => {
+    const persistence = realOpen(...args)
+    storageReady = persistence.whenSynced
+    return persistence
+  })
   vi.stubGlobal('indexedDB', new IDBFactory())
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   container = document.createElement('div')
@@ -70,8 +79,10 @@ async function open(id: string, expected = '') {
       />,
     ),
   )
-  await vi.waitFor(async () => {
-    await act(async () => {})
+  await act(async () => {
+    await storageReady.catch(() => {})
+  })
+  await vi.waitFor(() => {
     expect(documentRef.current).not.toBeNull()
     expect(
       editorRef.current
@@ -121,11 +132,34 @@ it('replaces the loading state with an error when stored content cannot be opene
       />,
     ),
   )
-  await vi.waitFor(async () => {
-    await act(async () => {})
+  await act(async () => {
+    await storageReady.catch(() => {})
+  })
+  await vi.waitFor(() => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       'Could not open this document',
     )
     expect(container.querySelector('[role="status"]')).toBeNull()
   })
+})
+
+it('resets the document theme to default when unmounted', async () => {
+  const doc = await localDocumentStorage.create()
+  const themeSpy = vi.fn()
+  document.documentElement.dataset.documentTheme = 'amber'
+  await act(() =>
+    root.render(
+      <DocumentEditor
+        id={doc.id}
+        documentRef={documentRef}
+        editorRef={editorRef}
+        pageSetupOpen={false}
+        onPageSetupOpenChange={() => {}}
+        onDocumentThemeChange={themeSpy}
+      />,
+    ),
+  )
+  await act(() => root.render(null))
+  expect(document.documentElement.dataset.documentTheme).toBe('default')
+  expect(themeSpy).toHaveBeenCalledWith('default')
 })

@@ -1,7 +1,7 @@
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
 import type { IndexeddbPersistence } from 'y-indexeddb'
 import type { DocumentPersistence } from '../storage'
-import { documentChannelName } from '../document-channel'
+import { documentChannelName, remoteDocumentOrigin } from '../document-channel'
 import type { DocumentChannelMessage } from '../document-channel'
 import { localMetadata } from './local-metadata'
 
@@ -61,23 +61,32 @@ export function openDocument(id: string, doc: Doc): DocumentPersistence {
     if (closed) throw new Error('Document closed')
   }
   const whenSynced = withDocumentLock(id, async () => {
-    ensureOpen()
-    const document = await localMetadata.get(id)
-    if (!document) throw new Error('Document not found')
-    ensureOpen()
-    const { IndexeddbPersistence } = await import('y-indexeddb')
-    ensureOpen()
-    persistence = new IndexeddbPersistence(documentDatabaseName(id), doc)
-    await persistence.whenSynced
-    if (persistence.db)
-      persistence.db.onversionchange = () => {
-        void session.destroy()
-      }
+    try {
+      ensureOpen()
+      const document = await localMetadata.get(id)
+      if (!document) throw new Error('Document not found')
+      ensureOpen()
+      const { IndexeddbPersistence } = await import('y-indexeddb')
+      ensureOpen()
+      persistence = new IndexeddbPersistence(documentDatabaseName(id), doc)
+      await persistence.whenSynced
+      ensureOpen()
+      if (persistence.db)
+        persistence.db.onversionchange = () => {
+          void session.destroy()
+        }
+    } catch (error) {
+      await persistence?.destroy()
+      throw error
+    }
   })
   const session: DocumentPersistence = {
     whenSynced,
     destroy() {
       closed = true
+      // A queued open may be behind deletion's lock: do not wait for it.
+      // Once persistence exists, let its initial read finish before closing;
+      // y-indexeddb never resolves whenSynced after an early destroy.
       closing ??= (
         persistence
           ? whenSynced.catch(() => {}).then(() => persistence?.destroy())
@@ -99,16 +108,31 @@ export function openDocument(id: string, doc: Doc): DocumentPersistence {
     activeDocuments.get(id) ?? new Map<DocumentPersistence, Doc>()
   activeDocuments.set(id, documents)
   documents.set(session, doc)
+  void whenSynced.catch(() => {
+    activeDocuments.get(id)?.delete(session)
+    if (!activeDocuments.get(id)?.size) activeDocuments.delete(id)
+    sessions.delete(session)
+    if (sessions.size === 0 && activeSessions.get(id) === sessions)
+      activeSessions.delete(id)
+  })
   return session
 }
 
 // y-indexeddb does not observe writes from another persistence instance.
-export function publishDocumentUpdate(id: string, update: Uint8Array) {
+export function publishDocumentUpdate(
+  id: string,
+  update: Uint8Array,
+  origin: unknown = remoteDocumentOrigin,
+) {
   for (const doc of new Set(activeDocuments.get(id)?.values()))
-    applyUpdate(doc, update)
+    applyUpdate(doc, update, origin)
   if (typeof BroadcastChannel !== 'undefined') {
     const channel = new BroadcastChannel(documentChannelName(id))
-    const message: DocumentChannelMessage = { type: 'update', update }
+    const message: DocumentChannelMessage = {
+      type: 'update',
+      update,
+      ...(origin === remoteDocumentOrigin ? { synced: true } : {}),
+    }
     channel.postMessage(message)
     channel.close()
   }
@@ -123,24 +147,45 @@ export function persistDocumentUpdate(id: string, update: Uint8Array) {
     const persistence = new IndexeddbPersistence(documentDatabaseName(id), doc)
     try {
       await persistence.whenSynced
-      applyUpdate(doc, update)
-      const merged = encodeStateAsUpdate(doc)
+      applyUpdate(doc, update, persistence)
+      let merged: Uint8Array
       const db = persistence.db
       if (!db) throw new Error('Local storage is unavailable.')
       await new Promise<void>((resolve, reject) => {
         const transaction = db.transaction('updates', 'readwrite')
-        transaction.objectStore('updates').add(merged)
+        const store = transaction.objectStore('updates')
+        // Other tabs do not share our lifecycle lock. Read their latest writes
+        // under the same transaction that replaces the log, so no append is lost.
+        const request = store.getAll()
+        let error: unknown
+        request.onsuccess = () => {
+          try {
+            for (const storedUpdate of request.result)
+              applyUpdate(doc, storedUpdate, persistence)
+            merged = encodeStateAsUpdate(doc)
+            store.clear()
+            store.add(merged)
+          } catch (cause) {
+            error = cause
+            transaction.abort()
+          }
+        }
         transaction.oncomplete = () => resolve()
         transaction.onabort = () =>
           reject(
-            transaction.error ?? new Error('Could not save document content.'),
+            error ??
+              transaction.error ??
+              new Error('Could not save document content.'),
           )
         transaction.onerror = () => reject(transaction.error)
       })
-      publishDocumentUpdate(id, merged)
+      publishDocumentUpdate(id, merged!)
     } finally {
-      await persistence.destroy()
-      doc.destroy()
+      try {
+        await persistence.destroy()
+      } finally {
+        doc.destroy()
+      }
     }
   })
 }

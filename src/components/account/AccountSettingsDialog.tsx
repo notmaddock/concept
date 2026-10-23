@@ -2,6 +2,7 @@ import { ChevronDownIcon, KeyRoundIcon, PlugIcon } from 'lucide-react'
 import { AccountIdentity } from './AccountIdentity'
 import { SignInSettings } from './SignInSettings'
 import { StorageConnections } from './StorageConnections'
+import { ReauthDialog } from './ReauthDialog'
 import type { useAccountSettings } from './use-account-settings'
 import { Button } from '#/components/ui/button'
 import {
@@ -95,6 +96,7 @@ export function AccountSettingsDialog({
             <div className="min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto p-6 sm:pt-8">
               {section === 'sign-in' ? (
                 <SignInSettings
+                  key={user.id}
                   accounts={settings.accounts}
                   loading={settings.loading}
                   busy={settings.busy}
@@ -116,6 +118,25 @@ export function AccountSettingsDialog({
           </div>
         </SidebarProvider>
       </DialogContent>
+      {settings.reauthOpen && (
+        <ReauthDialog
+          open={settings.reauthOpen}
+          onClose={() => {
+            settings.setReauthOpen(false)
+            settings.setReauthAction(null)
+          }}
+          onSuccess={async () => {
+            if (settings.reauthAction) {
+              const action = settings.reauthAction
+              settings.setReauthAction(null)
+              await action()
+            }
+          }}
+          userId={user.id}
+          hasGoogle={settings.accounts.some((a) => a.providerId === 'google')}
+          hasPasskey={true}
+        />
+      )}
     </Dialog>
   )
 }

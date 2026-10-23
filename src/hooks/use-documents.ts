@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { workspaceDocumentStorage } from '#/lib/documents/workspace-storage'
 import type {
@@ -20,25 +20,50 @@ export function useDocuments(
   const deletePending = useRef(new Set<string>())
   const document = documents.find((item) => item.id === id)
   const activeId = useRef(id)
-  useEffect(() => {
-    activeId.current = id
-  }, [id])
+  activeId.current = id
+
+  const documentsRef = useRef(documents)
+  documentsRef.current = documents
 
   useEffect(() => {
     let active = true
     let reading = false
+    let refreshQueued = false
     const changesDuringRead = new Map<string, DocumentChange>()
     const refresh = () => {
-      if (reading) return
+      if (reading) {
+        refreshQueued = true
+        return
+      }
       reading = true
       changesDuringRead.clear()
       const startedAt = performance.now()
       void storage
         .list()
-        .then((items) => {
+        .then(async (items) => {
           performance.measure('concept:library-read', { start: startedAt })
+          let initialItems = items
+          const directId = activeId.current
+          if (
+            active &&
+            directId &&
+            !items.some((item) => item.id === directId)
+          ) {
+            try {
+              const direct = await storage.get(directId)
+              if (direct) {
+                initialItems = [direct, ...items].sort(
+                  (a, b) => b.updatedAt - a.updatedAt,
+                )
+              }
+            } catch {
+              // ignore fallback error
+            }
+          }
           if (!active) return
-          const reconciled = new Map(items.map((item) => [item.id, item]))
+          const reconciled = new Map(
+            initialItems.map((item) => [item.id, item]),
+          )
           for (const change of changesDuringRead.values()) {
             if (change.type === 'upsert')
               reconciled.set(change.document.id, change.document)
@@ -49,7 +74,7 @@ export function useDocuments(
               ? [...reconciled.values()].sort(
                   (a, b) => b.updatedAt - a.updatedAt,
                 )
-              : items,
+              : initialItems,
           )
           setLoaded(true)
           setError('')
@@ -65,6 +90,10 @@ export function useDocuments(
         .finally(() => {
           reading = false
           changesDuringRead.clear()
+          if (active && refreshQueued) {
+            refreshQueued = false
+            refresh()
+          }
         })
     }
     const unsubscribe = storage.subscribe((change) => {
@@ -98,61 +127,78 @@ export function useDocuments(
     }
   }, [storage, navigate])
 
-  async function createDocument() {
-    if (createPending.current) return
-    createPending.current = true
-    setCreating(true)
-    try {
-      const created = await storage.create()
-      setDocuments((items) => [
-        created,
-        ...items.filter((item) => item.id !== created.id),
-      ])
-      setError('')
-      await navigate({ to: '/d/$id', params: { id: created.id } })
-    } catch {
-      setError('Could not create the document. Please try again.')
-    } finally {
-      createPending.current = false
-      setCreating(false)
-    }
-  }
+  const createDocument = useCallback(
+    async (options?: { replace?: boolean }) => {
+      if (createPending.current) return
+      createPending.current = true
+      setCreating(true)
+      try {
+        const created = await storage.create()
+        setDocuments((items) =>
+          [created, ...items.filter((item) => item.id !== created.id)].sort(
+            (a, b) => b.updatedAt - a.updatedAt,
+          ),
+        )
+        setError('')
+        await navigate({
+          to: '/d/$id',
+          params: { id: created.id },
+          ...(options?.replace ? { replace: true } : {}),
+        })
+      } catch {
+        setError('Could not create the document. Please try again.')
+      } finally {
+        createPending.current = false
+        setCreating(false)
+      }
+    },
+    [storage, navigate],
+  )
 
-  async function renameDocumentById(documentId: string, name: string) {
-    const target = documents.find((item) => item.id === documentId)
-    const trimmedName = name.trim()
-    if (!target || !trimmedName) return false
-    if (trimmedName === target.name) return true
-    try {
-      const updated = await storage.rename(documentId, trimmedName)
-      setDocuments((items) =>
-        items.map((item) => (item.id === updated.id ? updated : item)),
-      )
-      setError('')
-    } catch {
-      setError('Could not save the document name. Please try again.')
-      return false
-    }
-    return true
-  }
+  const renameDocumentById = useCallback(
+    async (documentId: string, name: string) => {
+      const target = documentsRef.current.find((item) => item.id === documentId)
+      const trimmedName = name.trim()
+      if (!target || !trimmedName) return false
+      if (trimmedName === target.name) return true
+      try {
+        const updated = await storage.rename(documentId, trimmedName)
+        setDocuments((items) =>
+          items.map((item) => (item.id === updated.id ? updated : item)),
+        )
+        setError('')
+      } catch {
+        setError('Could not save the document name. Please try again.')
+        return false
+      }
+      return true
+    },
+    [storage],
+  )
 
-  async function renameDocument(name: string) {
-    return document ? renameDocumentById(document.id, name) : false
-  }
+  const renameDocument = useCallback(
+    async (name: string) => {
+      return document ? renameDocumentById(document.id, name) : false
+    },
+    [document, renameDocumentById],
+  )
 
-  async function deleteDocument(documentId: string) {
-    deletePending.current.add(documentId)
-    try {
-      await storage.delete(documentId)
-      setDocuments((items) => items.filter((item) => item.id !== documentId))
-      setError('')
-      if (documentId === id) await navigate({ to: '/d' })
-    } catch {
-      setError('Could not delete the document. Please try again.')
-    } finally {
-      deletePending.current.delete(documentId)
-    }
-  }
+  const deleteDocument = useCallback(
+    async (documentId: string) => {
+      deletePending.current.add(documentId)
+      try {
+        await storage.delete(documentId)
+        setDocuments((items) => items.filter((item) => item.id !== documentId))
+        setError('')
+        if (documentId === activeId.current) await navigate({ to: '/d' })
+      } catch {
+        setError('Could not delete the document. Please try again.')
+      } finally {
+        deletePending.current.delete(documentId)
+      }
+    },
+    [storage, navigate],
+  )
 
   return {
     documents,

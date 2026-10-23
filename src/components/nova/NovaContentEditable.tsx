@@ -17,7 +17,7 @@ export function NovaContentEditable() {
       placeholder={
         <span
           className="absolute text-muted-foreground italic pointer-events-none"
-          style={{ top: `${marginY}`, left: `${marginX}` }}
+          style={{ top: `${marginY}`, insetInlineStart: `${marginX}` }}
         >
           {placeholderText}
         </span>

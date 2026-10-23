@@ -80,7 +80,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
           >
             <FileTextIcon className="size-5" /> Concept
           </Link>
-          <Button onClick={createDocument} disabled={creating}>
+          <Button onClick={() => void createDocument()} disabled={creating}>
             <PlusIcon /> New document
           </Button>
         </SidebarHeader>
@@ -103,7 +103,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
             <div className="flex items-center gap-3">
               <SidebarTrigger />
               <DocumentName
-                key={document ? `${document.id}:${document.name}` : 'library'}
+                key={document ? document.id : 'library'}
                 name={document?.name ?? 'Documents'}
                 onSave={document ? renameDocument : undefined}
               />
@@ -176,7 +176,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                     ? 'This document is not available in this browser.'
                     : 'Choose a document from the sidebar, or start something new.'}
               </p>
-              <Button onClick={createDocument} disabled={creating}>
+              <Button onClick={() => void createDocument()} disabled={creating}>
                 <PlusIcon /> New document
               </Button>
             </div>

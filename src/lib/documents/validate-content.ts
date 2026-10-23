@@ -2,6 +2,7 @@ import { $getRoot, createEditor } from 'lexical'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListItemNode, ListNode } from '@lexical/list'
 import { HorizontalRuleNode } from '@lexical/extension'
+import { CodeHighlightNode, CodeNode } from '@lexical/code'
 import { createYjsBinding, syncYjsChangesToLexical } from '@lexical/yjs'
 import { applyUpdate, Doc, Map as YMap, XmlText } from 'yjs'
 import { LocalProvider } from './local-provider'
@@ -24,7 +25,15 @@ export function validateDocumentContent(update: Uint8Array) {
   const root = doc.get('root', XmlText)
   const editor = createEditor({
     namespace: 'document-validation',
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, HorizontalRuleNode],
+    nodes: [
+      HeadingNode,
+      QuoteNode,
+      ListNode,
+      ListItemNode,
+      HorizontalRuleNode,
+      CodeNode,
+      CodeHighlightNode,
+    ],
     onError: (error) => {
       throw error
     },

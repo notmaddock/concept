@@ -8,9 +8,6 @@ import { workspaceDocumentStorage } from '#/lib/documents/workspace-storage'
 
 const navigate = vi.hoisted(() => vi.fn())
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }))
-vi.mock('#/lib/documents/workspace-storage', () => ({
-  workspaceDocumentStorage: { rename: vi.fn() },
-}))
 
 let root: Root
 let container: HTMLDivElement
@@ -43,6 +40,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(() => root.unmount())
   container.remove()
+  vi.restoreAllMocks()
 })
 
 async function mount(id = 'first') {
@@ -77,6 +75,51 @@ it('keeps the current editor open when deleting another document', async () => {
   await act(() => actions.deleteDocument('second'))
   expect(actions.document).toEqual(first)
   expect(navigate).not.toHaveBeenCalled()
+})
+
+it('does not navigate away when switching to another document while deleting the previous one', async () => {
+  let resolveDelete!: () => void
+  vi.mocked(storage.delete).mockReturnValue(
+    new Promise((resolve) => {
+      resolveDelete = resolve
+    }),
+  )
+  function Harness({ id }: { id: string }) {
+    actions = useDocuments(id, storage)
+    return null
+  }
+  await act(() => root.render(<Harness id="first" />))
+  const deletion = actions.deleteDocument('first')
+  await act(() => root.render(<Harness id="second" />))
+  await act(async () => {
+    resolveDelete()
+    await deletion
+  })
+  expect(actions.documents).toEqual([second])
+  expect(actions.document).toEqual(second)
+  expect(navigate).not.toHaveBeenCalled()
+})
+
+it('returns to the library when navigating into a document whose deletion is in flight', async () => {
+  let resolveDelete!: () => void
+  vi.mocked(storage.delete).mockReturnValue(
+    new Promise((resolve) => {
+      resolveDelete = resolve
+    }),
+  )
+  function Harness({ id }: { id: string }) {
+    actions = useDocuments(id, storage)
+    return null
+  }
+  await act(() => root.render(<Harness id="first" />))
+  const deletion = actions.deleteDocument('second')
+  await act(() => root.render(<Harness id="second" />))
+  await act(async () => {
+    resolveDelete()
+    await deletion
+  })
+  expect(actions.documents).toEqual([first])
+  expect(navigate).toHaveBeenCalledWith({ to: '/d' })
 })
 
 it('preserves documents and reports a storage deletion failure', async () => {
@@ -159,7 +202,6 @@ it('preserves changes received while a library reconciliation is in flight', asy
   await act(() => {
     listener({ type: 'upsert', document: renamed })
     listener({ type: 'delete', id: second.id })
-    window.dispatchEvent(new Event('focus'))
     resolveRead([first, second])
   })
   expect(actions.documents).toEqual([renamed])
@@ -193,8 +235,13 @@ it.each(['first', undefined])(
         accountId: 'account',
       },
     }
-    Object.assign(workspaceDocumentStorage, storage)
-    vi.mocked(workspaceDocumentStorage.rename).mockResolvedValue(renamed)
+    vi.spyOn(workspaceDocumentStorage, 'subscribe').mockImplementation(
+      storage.subscribe,
+    )
+    vi.spyOn(workspaceDocumentStorage, 'list').mockImplementation(storage.list)
+    const rename = vi
+      .spyOn(workspaceDocumentStorage, 'rename')
+      .mockResolvedValue(renamed)
     function Harness() {
       actions = useDocuments(active)
       return null
@@ -205,13 +252,59 @@ it.each(['first', undefined])(
         true,
       )
     })
-    expect(workspaceDocumentStorage.rename).toHaveBeenCalledWith(
-      'second',
-      renamed.name,
-    )
+    expect(rename).toHaveBeenCalledWith('second', renamed.name)
     expect(actions.documents.find((item) => item.id === 'second')?.name).toBe(
       renamed.name,
     )
     expect(navigate).not.toHaveBeenCalled()
   },
 )
+
+it('sorts newly created document by updatedAt order', async () => {
+  vi.mocked(storage.create).mockResolvedValueOnce({
+    id: 'older-created',
+    name: 'Older',
+    updatedAt: 0,
+  })
+  await mount()
+  await act(async () => {
+    await actions.createDocument()
+  })
+  expect(actions.documents.map((d) => d.id)).toEqual([
+    'second',
+    'first',
+    'older-created',
+  ])
+})
+
+it('fetches direct document via storage.get when missing from initial list', async () => {
+  const directDoc = { id: 'unlisted', name: 'Direct Doc', updatedAt: 50 }
+  vi.mocked(storage.get).mockResolvedValueOnce(directDoc)
+  function Harness() {
+    actions = useDocuments('unlisted', storage)
+    return null
+  }
+  await act(() => root.render(<Harness />))
+  expect(storage.get).toHaveBeenCalledWith('unlisted')
+  expect(actions.document).toEqual(directDoc)
+  expect(actions.documents).toContainEqual(directDoc)
+})
+
+it('replays focus invalidation received during an in-flight library read', async () => {
+  let resolveRead!: (items: (typeof first)[]) => void
+  vi.mocked(storage.list)
+    .mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRead = resolve
+      }),
+    )
+    .mockResolvedValueOnce([second])
+  await mount('second')
+  await act(() => {
+    window.dispatchEvent(new Event('focus'))
+    window.dispatchEvent(new Event('focus'))
+    resolveRead([first, second])
+  })
+  expect(storage.list).toHaveBeenCalledTimes(2)
+  expect(actions.documents).toEqual([second])
+})

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { authClient } from '#/lib/auth/client'
+import { cancelOneTapPrompt } from '#/lib/auth/google-identity'
 import { env } from '#/env'
 
 export function OneTapPrompt() {
@@ -8,29 +9,52 @@ export function OneTapPrompt() {
   const attempted = useRef(false)
 
   useEffect(() => {
-    if (
-      !env.VITE_GOOGLE_CLIENT_ID ||
-      isPending ||
-      session ||
-      error ||
-      attempted.current
-    )
+    if (session) {
+      cancelOneTapPrompt()
       return
+    }
+
+    if (!env.VITE_GOOGLE_CLIENT_ID || isPending || error || attempted.current) {
+      return
+    }
+
     attempted.current = true
+    let active = true
+
     void authClient
       .oneTap({
         fetchOptions: {
           onSuccess: () => {
+            if (!active) {
+              cancelOneTapPrompt()
+              return
+            }
             void refetch()
           },
           onError: ({ error: signInError }) => {
+            if (!active) {
+              cancelOneTapPrompt()
+              return
+            }
             toast.error(signInError.message || 'Could not sign in with Google.')
           },
         },
       })
-      .catch(() => {
-        // Script blocking or an unavailable prompt leaves the account menu as the fallback.
+      .then(() => {
+        if (!active) {
+          cancelOneTapPrompt()
+        }
       })
+      .catch(() => {
+        if (!active) {
+          cancelOneTapPrompt()
+        }
+      })
+
+    return () => {
+      active = false
+      cancelOneTapPrompt()
+    }
   }, [isPending, session, error, refetch])
 
   return null

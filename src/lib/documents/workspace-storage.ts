@@ -1,4 +1,5 @@
 import { applyUpdate, Doc } from 'yjs'
+import { remoteDocumentOrigin } from './document-channel'
 import {
   localDocumentStorage,
   publishDocumentUpdate,
@@ -6,6 +7,7 @@ import {
 } from './storages/local'
 import type { DocumentStorage, DocumentSyncStatus } from './storage'
 import { serializeConcept } from './serialization'
+import { decodeUpdate } from './concept-file'
 
 const openSessions = new Map<string, number>()
 
@@ -44,7 +46,6 @@ export const workspaceDocumentStorage: DocumentStorage = {
     const isClosed = () => closed
     const hasChanges = () => dirty
     let unsubscribe: (() => void) | undefined
-    const remoteOrigin = {}
     function report(next: DocumentSyncStatus) {
       status = next
       listeners.forEach((listener) => listener(status))
@@ -52,9 +53,10 @@ export const workspaceDocumentStorage: DocumentStorage = {
     function schedule() {
       if (isClosed()) return
       dirty = true
+      const isOnline = typeof navigator === 'undefined' || navigator.onLine
       report({
-        state: navigator.onLine ? 'pending' : 'offline',
-        message: navigator.onLine
+        state: isOnline ? 'pending' : 'offline',
+        message: isOnline
           ? 'Changes are stored in this browser and waiting to save to Google Drive.'
           : 'You’re offline. Changes stay in this browser and will save to Google Drive when you reconnect.',
       })
@@ -62,12 +64,13 @@ export const workspaceDocumentStorage: DocumentStorage = {
       timer = setTimeout(() => void sync(), 1000)
     }
     function changed(_update: Uint8Array, origin: unknown) {
-      if (origin !== remoteOrigin) schedule()
+      if (origin !== remoteDocumentOrigin) schedule()
     }
     async function sync() {
       if (isClosed() || running || !hasChanges()) return
       running = true
       dirty = false
+      let retryDelay = 1000
       try {
         const document = await localDocumentStorage.get(id)
         if (document?.backing?.provider !== 'google-drive' || isClosed()) return
@@ -84,11 +87,9 @@ export const workspaceDocumentStorage: DocumentStorage = {
           },
         })
         if (isClosed()) return
-        const update = Uint8Array.from(atob(remote.file.update), (character) =>
-          character.charCodeAt(0),
-        )
-        applyUpdate(doc, update, remoteOrigin)
-        publishDocumentUpdate(id, update)
+        const update = decodeUpdate(remote.file.update)
+        applyUpdate(doc, update, remoteDocumentOrigin)
+        publishDocumentUpdate(id, update, remoteDocumentOrigin)
         await updateDocumentInfo(id, (current) =>
           current && !isClosed()
             ? {
@@ -108,16 +109,18 @@ export const workspaceDocumentStorage: DocumentStorage = {
           })
       } catch (cause) {
         dirty = true
+        retryDelay = 30_000
+        const isOnline = typeof navigator === 'undefined' || navigator.onLine
         if (!isClosed())
           report({
-            state: navigator.onLine ? 'error' : 'offline',
+            state: isOnline ? 'error' : 'offline',
             message: `Changes are stored in this browser. ${cause instanceof Error ? cause.message : 'Could not save to Google Drive.'}`,
           })
       } finally {
         running = false
         if (hasChanges() && !isClosed()) {
           clearTimeout(timer)
-          timer = setTimeout(() => void sync(), 30_000)
+          timer = setTimeout(() => void sync(), retryDelay)
         }
       }
     }
@@ -143,8 +146,10 @@ export const workspaceDocumentStorage: DocumentStorage = {
             if (name !== change.document.backing?.syncedName) schedule()
           }
         })
-        window.addEventListener('online', retry)
-        window.addEventListener('focus', retry)
+        if (typeof window !== 'undefined') {
+          window.addEventListener('online', retry)
+          window.addEventListener('focus', retry)
+        }
         // Merge remote Yjs state before replacing the existing Drive file.
         schedule()
       })
@@ -168,8 +173,10 @@ export const workspaceDocumentStorage: DocumentStorage = {
         clearTimeout(timer)
         doc.off('update', changed)
         unsubscribe?.()
-        window.removeEventListener('online', retry)
-        window.removeEventListener('focus', retry)
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('online', retry)
+          window.removeEventListener('focus', retry)
+        }
         listeners.clear()
         await local.destroy()
       },
@@ -183,19 +190,25 @@ function ensureBackgroundSync(id: string) {
   if (openSessions.has(id)) return
   const doc = new Doc()
   const session = workspaceDocumentStorage.open(id, doc)
-  let cleaned = false
+  const state = { cleaned: false }
+  const disposables: Array<() => void> = []
   const cleanup = () => {
-    if (cleaned) return
-    cleaned = true
-    stop?.()
-    unsubscribe()
+    if (state.cleaned) return
+    state.cleaned = true
+    disposables.forEach((dispose) => dispose())
     void session.destroy().finally(() => doc.destroy())
   }
   const stop = session.subscribeStatus?.((status) => {
     if (status.state === 'synced') cleanup()
   })
+  if (stop) {
+    if (state.cleaned) stop()
+    else disposables.push(stop)
+  }
   const unsubscribe = localDocumentStorage.subscribe((change) => {
     if (change.type === 'delete' && change.id === id) cleanup()
   })
+  if (state.cleaned) unsubscribe()
+  else disposables.push(unsubscribe)
   void session.whenSynced.catch(cleanup)
 }

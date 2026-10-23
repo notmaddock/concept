@@ -60,8 +60,15 @@ it('allows removing a passkey when Google remains available', () => {
 })
 
 it('allows cascading user deletion without the sign-in guard blocking cleanup', () => {
-  addPasskey('key-1')
   database.exec("DELETE FROM user WHERE id = 'user-1'")
+  expect(
+    database.prepare('SELECT COUNT(*) AS count FROM account').get()?.count,
+  ).toBe(0)
+
+  database.exec(`INSERT INTO user (id, name, email, createdAt, updatedAt) VALUES ('user-2', 'Example 2', 'example2@example.com', 0, 0);
+    INSERT INTO account (id, accountId, providerId, userId, createdAt, updatedAt) VALUES ('google-2', 'subject-2', 'google', 'user-2', 0, 0);
+    INSERT INTO passkey (id, publicKey, userId, credentialID, counter, deviceType, backedUp) VALUES ('key-2', 'public-key', 'user-2', 'key-2', 0, 'singleDevice', 0);`)
+  database.exec("DELETE FROM user WHERE id = 'user-2'")
   expect(
     database.prepare('SELECT COUNT(*) AS count FROM account').get()?.count,
   ).toBe(0)
@@ -89,4 +96,33 @@ it('defaults relinked accounts to disconnected even when Google returns prior Dr
       .prepare('SELECT driveConnected FROM account WHERE id = ?')
       .get('relinked')?.driveConnected,
   ).toBe(0)
+})
+
+it('adds expiry indexes to an existing populated schema without changing credentials', () => {
+  database.exec(`INSERT INTO session (id, expiresAt, token, createdAt, updatedAt, userId) VALUES ('session-1', 10, 'token', 0, 0, 'user-1');
+    INSERT INTO verification (id, identifier, value, expiresAt, createdAt, updatedAt) VALUES ('verification-1', 'email', 'proof', 10, 0, 0);
+    UPDATE account SET accessToken = 'encrypted-access', refreshToken = 'encrypted-refresh';`)
+  const migration = readFileSync(
+    new URL('../../../migrations/0005_expiry_indexes.sql', import.meta.url),
+    'utf8',
+  )
+  database.exec(migration)
+  database.exec(migration)
+  for (const table of ['session', 'verification']) {
+    const plan = database
+      .prepare(`EXPLAIN QUERY PLAN DELETE FROM ${table} WHERE expiresAt < ?`)
+      .all(20)
+    expect(
+      plan.some((row) => String(row.detail).includes(`${table}_expiresAt_idx`)),
+    ).toBe(true)
+    expect(
+      database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()?.count,
+    ).toBe(1)
+  }
+  expect(
+    database.prepare('SELECT accessToken, refreshToken FROM account').get(),
+  ).toEqual({
+    accessToken: 'encrypted-access',
+    refreshToken: 'encrypted-refresh',
+  })
 })

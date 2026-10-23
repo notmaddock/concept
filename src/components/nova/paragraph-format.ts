@@ -13,6 +13,24 @@ const paragraphStyleState = createState('paragraphStyle', {
   parse: (value) => (typeof value === 'string' ? value : ''),
 })
 
+let sharedStyle: CSSStyleDeclaration | null = null
+
+function getSharedStyle(ownerDocument?: Document): CSSStyleDeclaration | null {
+  if (sharedStyle) return sharedStyle
+  if (ownerDocument && typeof ownerDocument.createElement === 'function') {
+    sharedStyle = ownerDocument.createElement('span').style
+    return sharedStyle
+  }
+  if (
+    typeof document !== 'undefined' &&
+    typeof document.createElement === 'function'
+  ) {
+    sharedStyle = document.createElement('span').style
+    return sharedStyle
+  }
+  return null
+}
+
 export function $getParagraphStyle(node: LexicalNode) {
   return $getState(node, paragraphStyleState)
 }
@@ -23,7 +41,8 @@ export function $setParagraphStyle(node: ElementNode, value: string) {
 
 function $decorateParagraph(node: LexicalNode, dom: HTMLElement) {
   if (!$isElementNode(node)) return
-  const style = document.createElement('span').style
+  const style = getSharedStyle(dom.ownerDocument)
+  if (!style) return
   style.cssText = $getParagraphStyle(node)
   for (const property of properties) {
     const value = style.getPropertyValue(property)

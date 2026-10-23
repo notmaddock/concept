@@ -1,4 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 
 const ROW_HEIGHT = 34
 const OVERSCAN = 6
@@ -22,11 +28,15 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
     if (!list || !scroller || !virtual) return
     scrollerRef.current = scroller
     let frame = 0
+    let listOffset = 0
+    const updateOffset = () => {
+      listOffset =
+        list.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top +
+        scroller.scrollTop
+    }
     const measure = () => {
-      const top = Math.max(
-        0,
-        scroller.getBoundingClientRect().top - list.getBoundingClientRect().top,
-      )
+      const top = Math.max(0, scroller.scrollTop - listOffset)
       const height = scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT
       setViewport((previous) =>
         previous.top === top && previous.height === height
@@ -38,10 +48,15 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(measure)
     }
-    const observer = new ResizeObserver(measure)
+    const observer = new ResizeObserver(() => {
+      updateOffset()
+      measure()
+    })
     observer.observe(scroller)
-    scroller.addEventListener('scroll', onScroll, { passive: true })
+    observer.observe(list)
+    updateOffset()
     measure()
+    scroller.addEventListener('scroll', onScroll, { passive: true })
     return () => {
       cancelAnimationFrame(frame)
       observer.disconnect()
@@ -50,32 +65,39 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
     }
   }, [virtual])
 
-  function reveal(index: number) {
-    const list = listRef.current
-    const scroller = scrollerRef.current
-    if (!list || !scroller) return
-    const offset =
-      list.getBoundingClientRect().top -
-      scroller.getBoundingClientRect().top +
-      scroller.scrollTop
-    const top = offset + index * ROW_HEIGHT
-    const bottom = top + ROW_HEIGHT
-    if (top < scroller.scrollTop) scroller.scrollTop = top
-    else if (bottom > scroller.scrollTop + scroller.clientHeight)
-      scroller.scrollTop = Math.max(
-        0,
-        bottom - (scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT),
-      )
-    const relativeTop = Math.max(0, scroller.scrollTop - offset)
-    setViewport({
-      top: relativeTop,
-      height: scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT,
-    })
-  }
+  const reveal = useCallback(
+    (index: number) => {
+      const list = listRef.current
+      const scroller =
+        scrollerRef.current ??
+        list?.closest<HTMLElement>('[data-sidebar="content"]')
+      if (!list || !scroller) return
+      const offset =
+        list.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top +
+        scroller.scrollTop
+      const top = offset + index * ROW_HEIGHT
+      const bottom = top + ROW_HEIGHT
+      if (top < scroller.scrollTop) scroller.scrollTop = top
+      else if (bottom > scroller.scrollTop + scroller.clientHeight)
+        scroller.scrollTop = Math.max(
+          0,
+          bottom - (scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT),
+        )
+      if (virtual) {
+        const relativeTop = Math.max(0, scroller.scrollTop - offset)
+        setViewport({
+          top: relativeTop,
+          height: scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT,
+        })
+      }
+    },
+    [virtual],
+  )
 
   useEffect(() => {
-    if (virtual && activeIndex >= 0) reveal(activeIndex)
-  }, [activeIndex, virtual])
+    if (activeIndex >= 0) reveal(activeIndex)
+  }, [activeIndex, reveal])
 
   const start = virtual
     ? Math.max(
@@ -114,8 +136,15 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
   }, [pendingFocus])
 
   function focus(index: number) {
-    setPendingFocus(index)
     reveal(index)
+    const target = listRef.current?.querySelector<HTMLElement>(
+      `[data-document-index="${index}"] a`,
+    )
+    if (target) {
+      target.focus({ preventScroll: true })
+      return
+    }
+    setPendingFocus(index)
   }
 
   return {

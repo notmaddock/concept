@@ -1,11 +1,16 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { Doc } from 'yjs'
+import { applyUpdate as applyYjsUpdate, Doc } from 'yjs'
 import { localDocumentStorage } from './storages/local'
 import type { DocumentInfo, DocumentPersistence } from './storage'
 import { workspaceDocumentStorage } from './workspace-storage'
-import { importConcept, parseConcept, serializeConcept } from './concept-file'
+import {
+  decodeUpdate,
+  importConcept,
+  parseConcept,
+  serializeConcept,
+} from './concept-file'
 import { initializeDocument } from './initial-document'
 
 const save = vi.hoisted(() => vi.fn())
@@ -54,8 +59,9 @@ async function open(id: string) {
 it('never requests remote credentials for local documents', async () => {
   const document = await localDocumentStorage.create()
   const { doc } = await open(document.id)
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   doc.getMap('metadata').set('test', true)
-  await new Promise((resolve) => setTimeout(resolve, 10))
+  await vi.advanceTimersByTimeAsync(1500)
   expect(save).not.toHaveBeenCalled()
 })
 it('keeps a stable Concept ID and merges cached content when reopening from Drive', async () => {
@@ -334,4 +340,165 @@ it('preserves a concurrent rename even if its upload finishes during import', as
   } finally {
     persist.mockRestore()
   }
+})
+
+it.each([false, true])(
+  'settles peer saves without a loop when originating tab closes: %s',
+  async (closeOrigin) => {
+    const { TestBroadcastChannel, flushBroadcasts } =
+      await import('#/test/broadcast-channel')
+    const { LocalProvider } = await import('./local-provider')
+    vi.stubGlobal('BroadcastChannel', TestBroadcastChannel)
+    await seed()
+    save.mockImplementation(({ data }: { data: { text: string } }) =>
+      Promise.resolve({
+        document: target,
+        file: parseConcept(data.text),
+      }),
+    )
+    const first = await open(target.id)
+    const second = await open(target.id)
+    let firstState = ''
+    let secondState = ''
+    first.session.subscribeStatus?.((next) => {
+      firstState = next.state
+    })
+    second.session.subscribeStatus?.((next) => {
+      secondState = next.state
+    })
+    const firstProvider = new LocalProvider(target.id, first.doc, first.session)
+    const secondProvider = new LocalProvider(
+      target.id,
+      second.doc,
+      second.session,
+    )
+    firstProvider.connect()
+    secondProvider.connect()
+    try {
+      await flushBroadcasts()
+      await vi.waitFor(
+        () => {
+          expect(firstState).toBe('synced')
+          expect(secondState).toBe('synced')
+        },
+        { timeout: 2000 },
+      )
+      await flushBroadcasts()
+      save.mockClear()
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      first.doc.getMap('metadata').set('edit', 'from first tab')
+      await flushBroadcasts()
+      expect(second.doc.getMap('metadata').get('edit')).toBe('from first tab')
+      expect(firstState).toBe('pending')
+      expect(secondState).toBe('pending')
+      if (closeOrigin) {
+        firstProvider.destroy()
+        await first.session.destroy()
+      }
+      await vi.advanceTimersByTimeAsync(1000)
+      await vi.waitFor(() => expect(secondState).toBe('synced'))
+      await flushBroadcasts()
+      expect(save).toHaveBeenCalledTimes(closeOrigin ? 1 : 2)
+      expect(secondState).toBe('synced')
+      await vi.advanceTimersByTimeAsync(5000)
+      await flushBroadcasts()
+      expect(save).toHaveBeenCalledTimes(closeOrigin ? 1 : 2)
+    } finally {
+      firstProvider.destroy()
+      secondProvider.destroy()
+    }
+  },
+)
+
+it('saves concurrent edits after 1 second instead of a 30-second error backoff', async () => {
+  const file = await seed()
+  let resolveFirst!: (result: {
+    document: DocumentInfo
+    file: typeof file
+  }) => void
+  save.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolveFirst = resolve
+      }),
+  )
+  const { doc, session } = await open(target.id)
+  let state = ''
+  session.subscribeStatus?.((next) => {
+    state = next.state
+  })
+  await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1), {
+    timeout: 2000,
+  })
+  expect(state).toBe('syncing')
+  let updated = false
+  const stop = localDocumentStorage.subscribe((change) => {
+    if (change.type === 'upsert' && change.document.id === target.id)
+      updated = true
+  })
+  try {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+
+    // User edits while the first save is in flight
+    doc.getMap('metadata').set('concurrent', 'edited during save')
+    expect(state).toBe('pending')
+
+    save.mockImplementationOnce(({ data }: { data: { text: string } }) =>
+      Promise.resolve({
+        document: target,
+        file: parseConcept(data.text),
+      }),
+    )
+    resolveFirst({ document: target, file })
+    await vi.waitFor(() => expect(updated).toBe(true))
+
+    // Should flush after 1 second (normal debounce), not 30 seconds
+    await vi.advanceTimersByTimeAsync(1000)
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(state).toBe('synced'))
+  } finally {
+    stop()
+  }
+})
+
+it('handles synchronous synced status or early rejection during background sync without TDZ crash (LIFECYCLE-01)', async () => {
+  await seed()
+  const originalOpen = workspaceDocumentStorage.open
+  const openSpy = vi
+    .spyOn(workspaceDocumentStorage, 'open')
+    .mockImplementation((id, doc) => {
+      const real = originalOpen(id, doc)
+      return {
+        ...real,
+        subscribeStatus(listener) {
+          listener({ state: 'synced', message: 'Synced' })
+          return () => {}
+        },
+      }
+    })
+
+  await localDocumentStorage.rename(target.id, 'Synchronous Background Sync')
+  await expect(workspaceDocumentStorage.list()).resolves.toBeDefined()
+
+  openSpy.mockRestore()
+})
+
+it('uploads cached unsynced content after reopening even when names match', async () => {
+  const file = await seed()
+  const first = await open(target.id)
+  first.doc.getMap('metadata').set('offline-unsaved', 'kept')
+  await first.session.destroy()
+  save.mockResolvedValue({ document: target, file })
+  const reopened = await open(target.id)
+  expect(reopened.doc.getMap('metadata').get('offline-unsaved')).toBe('kept')
+  await vi.waitFor(() => expect(save).toHaveBeenCalled(), { timeout: 3000 })
+  const uploaded = new Doc()
+  docs.push(uploaded)
+  const snapshot = parseConcept(save.mock.calls[0][0].data.text)
+  applyYjsUpdate(uploaded, decodeUpdate(snapshot))
+  expect(uploaded.getMap('metadata').get('offline-unsaved')).toBe('kept')
+  expect(save.mock.calls[0][0].data).toMatchObject({
+    name: target.name,
+    previousName: target.name,
+  })
 })

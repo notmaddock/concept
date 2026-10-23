@@ -141,6 +141,7 @@ export function DocumentStorageDialog({
     pendingRef.current = true
     setPending(true)
     setError('')
+    let closed = false
     try {
       let id = selected?.open
         ? (await selected.open()).id
@@ -157,6 +158,7 @@ export function DocumentStorageDialog({
         id = (await provider.save(file, name.trim())).id
       }
       await navigate({ to: '/d/$id', params: { id } })
+      closed = true
       onClose()
     } catch (cause) {
       setError(
@@ -166,7 +168,7 @@ export function DocumentStorageDialog({
       )
     } finally {
       pendingRef.current = false
-      setPending(false)
+      if (!closed) setPending(false)
     }
   }
 

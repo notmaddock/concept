@@ -1,21 +1,20 @@
 import { OneTapPrompt } from '#/components/account/OneTapPrompt'
 import { AppToaster } from '#/components/app-toaster'
-import {
-  ErrorComponent,
-  HeadContent,
-  Scripts,
-  createRootRoute,
-} from '@tanstack/react-router'
+import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
 import { ThemeProvider } from '#/components/theme-provider'
 import { NotFound } from '#/components/not-found'
+import { RouteError } from '#/components/route-error'
 import { TooltipProvider } from '#/components/ui/tooltip'
 
 import PostHogProvider from '../integrations/posthog/provider'
 
 import appCss from '../styles.css?url'
+
+const description =
+  'Concept is a local-first rich-text document editor with optional Google Drive sync.'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -33,8 +32,16 @@ export const Route = createRootRoute({
       {
         title: 'Concept',
       },
+      { name: 'description', content: description },
       { name: 'application-name', content: 'Concept' },
       { name: 'creator', content: 'Concept' },
+      { property: 'og:title', content: 'Concept' },
+      { property: 'og:description', content: description },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:site_name', content: 'Concept' },
+      { name: 'twitter:card', content: 'summary' },
+      { name: 'twitter:title', content: 'Concept' },
+      { name: 'twitter:description', content: description },
     ],
     links: [
       {
@@ -53,7 +60,7 @@ export const Route = createRootRoute({
       },
     ],
   }),
-  errorComponent: ErrorComponent,
+  errorComponent: RouteError,
   notFoundComponent: NotFound,
   shellComponent: RootDocument,
 })

@@ -4,45 +4,51 @@ import {
   persistDocumentUpdate,
   updateDocumentInfo,
 } from './storages/local'
+import { validateDocumentContent } from './validate-content'
 import type { DocumentInfo } from './storage'
 import { serializeConcept } from './serialization'
-import { validateDocumentContent } from './validate-content'
 
-export { serializeConcept } from './serialization'
+export { serializeConcept, conceptFileSize } from './serialization'
 
 export interface ConceptFile {
   format: 'concept'
   version: 1
   name: string
-  origin: 'Concept'
+  origin: string
   update: string
 }
 
 function parseFile(value: unknown): ConceptFile {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error()
+  const candidate = value as Partial<ConceptFile>
   if (
-    !value ||
-    typeof value !== 'object' ||
-    !('format' in value) ||
-    value.format !== 'concept' ||
-    !('version' in value) ||
-    value.version !== 1 ||
-    !('origin' in value) ||
-    value.origin !== 'Concept' ||
-    !('name' in value) ||
-    typeof value.name !== 'string' ||
-    !value.name.trim() ||
-    !('update' in value) ||
-    typeof value.update !== 'string' ||
-    !value.update
+    candidate.format !== 'concept' ||
+    candidate.version !== 1 ||
+    typeof candidate.name !== 'string' ||
+    !candidate.name.trim() ||
+    typeof candidate.origin !== 'string' ||
+    candidate.origin !== 'Concept' ||
+    typeof candidate.update !== 'string'
   )
-    throw new Error('Invalid Concept file')
+    throw new Error()
   return {
-    format: 'concept',
-    version: 1,
-    name: value.name.trim(),
-    origin: 'Concept',
-    update: value.update,
+    format: candidate.format,
+    version: candidate.version,
+    name: candidate.name.trim(),
+    origin: candidate.origin,
+    update: candidate.update,
   }
+}
+
+export function decodeUpdate(update: string | ConceptFile): Uint8Array {
+  const base64 = typeof update === 'string' ? update : update.update
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes
 }
 
 export function parseConcept(text: string): ConceptFile {
@@ -57,18 +63,13 @@ export function parseConcept(text: string): ConceptFile {
   }
 }
 
-function decodeUpdate(file: ConceptFile) {
-  return Uint8Array.from(atob(file.update), (character) =>
-    character.charCodeAt(0),
-  )
-}
-
 export async function importConcept(
   file: ConceptFile,
   name = file.name,
   target?: DocumentInfo,
 ) {
-  validateDocumentContent(decodeUpdate(file))
+  const updateBytes = decodeUpdate(file)
+  validateDocumentContent(updateBytes)
   const initial = { existed: false, pendingRename: false }
   const created = target
     ? await updateDocumentInfo(target.id, (current) => {
@@ -89,7 +90,7 @@ export async function importConcept(
     : await localDocumentStorage.create()
   if (!created) throw new Error('Document not found')
   try {
-    await persistDocumentUpdate(created.id, decodeUpdate(file))
+    await persistDocumentUpdate(created.id, updateBytes)
     const result = target
       ? await updateDocumentInfo(target.id, (current) =>
           current
@@ -102,6 +103,11 @@ export async function importConcept(
                     current.name !== current.backing.syncedName)
                     ? current.name
                     : name,
+                updatedAt: Math.max(
+                  current.updatedAt,
+                  target.updatedAt,
+                  Date.now(),
+                ),
               }
             : undefined,
         )
@@ -122,6 +128,8 @@ export function downloadConcept(name: string, doc: Doc) {
   const link = document.createElement('a')
   link.href = url
   link.download = `${Array.from(name, (character) => (character.charCodeAt(0) < 32 || /[<>:"/\\|?*]/.test(character) ? '_' : character)).join('') || 'Untitled document'}.concept`
+  document.body.appendChild(link)
   link.click()
+  document.body.removeChild(link)
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

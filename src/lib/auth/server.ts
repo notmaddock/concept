@@ -5,6 +5,7 @@ import { oneTap } from 'better-auth/plugins'
 import {
   addOAuthServerContext,
   createAuthMiddleware,
+  freshSessionMiddleware,
   getOAuthState,
   getSessionFromCtx,
 } from 'better-auth/api'
@@ -48,9 +49,14 @@ export function getAuth() {
   })
   return betterAuth({
     appName: 'Concept',
+    // Shared D1 counters; Better Auth 1.7 uses atomic conditional updates.
+    rateLimit: { enabled: true, storage: 'database' },
     advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path === '/passkey/delete-passkey') {
+          await freshSessionMiddleware(ctx)
+        }
         if (
           ctx.path !== '/link-social' ||
           ctx.body?.provider !== 'google' ||
@@ -73,6 +79,14 @@ export function getAuth() {
           before: async (account) => ({ data: { ...account, idToken: null } }),
           after: recordStorageConsent,
         },
+        delete: {
+          // Let `ON DELETE CASCADE` on `user` remove accounts during user deletion so `0003_sign_in_guards.sql` only guards unlinking.
+          before: async (_account, ctx) =>
+            ctx?.path === '/delete-user' ||
+            ctx?.path === '/delete-user/callback'
+              ? false
+              : undefined,
+        },
       },
     },
     // Only server-side storage adapters may retrieve provider credentials.
@@ -81,7 +95,14 @@ export function getAuth() {
     baseURL: env.BETTER_AUTH_URL,
     secret: env.BETTER_AUTH_SECRET,
     plugins: [
-      passkey({ rpName: 'Concept', origin: env.BETTER_AUTH_URL }),
+      passkey({
+        rpName: 'Concept',
+        origin: env.BETTER_AUTH_URL,
+        authenticatorSelection: {
+          residentKey: 'required',
+          userVerification: 'preferred',
+        },
+      }),
       oneTap({ clientId: env.GOOGLE_CLIENT_ID }),
     ],
     socialProviders: {

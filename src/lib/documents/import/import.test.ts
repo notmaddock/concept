@@ -4,10 +4,13 @@ import { createEditor, $getRoot } from 'lexical'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { HorizontalRuleNode } from '@lexical/extension'
+import { CodeHighlightNode, CodeNode } from '@lexical/code'
 import { createYjsBinding, syncYjsChangesToLexical } from '@lexical/yjs'
 import { convertImport } from './index'
 import type { ImportFormat } from './formats'
 import { LocalProvider } from '../local-provider'
+import { validateDocumentContent } from '../validate-content'
+import { decodeUpdate } from '../concept-file'
 
 async function converted(
   content: string,
@@ -21,7 +24,15 @@ async function converted(
   const doc = new Doc()
   const root = doc.get('root', XmlText)
   const editor = createEditor({
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, HorizontalRuleNode],
+    nodes: [
+      HeadingNode,
+      QuoteNode,
+      ListNode,
+      ListItemNode,
+      HorizontalRuleNode,
+      CodeNode,
+      CodeHighlightNode,
+    ],
     onError: (error) => {
       throw error
     },
@@ -75,6 +86,16 @@ it('converts Markdown formatting into content that survives the collaboration fo
   expect(JSON.stringify(state)).toContain('"format":1')
 })
 
+it('converts Markdown code blocks into CodeNodes', async () => {
+  const { state, text } = await converted(
+    '```ts\nconst greeting = "hello"\n```',
+    'Code.md',
+    'markdown',
+  )
+  expect(state.root.children.map((node) => node.type)).toEqual(['code'])
+  expect(text).toContain('const greeting = "hello"')
+})
+
 it('converts HTML headings, lists and emphasis while discarding executable content', async () => {
   const { state, text } = await converted(
     '<h2>Heading</h2><p><strong>Bold</strong></p><ul><li>Item</li></ul><script>bad()</script><style>bad</style>',
@@ -107,4 +128,14 @@ it('creates an editable paragraph for empty files and rejects the wrong extensio
   await expect(
     convertImport({ name: 'document.concept' } as File, 'markdown'),
   ).rejects.toThrow('Choose a Markdown file.')
+})
+
+it('validates and round-trips markdown task lists with checkboxes (VAL-01 triage)', async () => {
+  const { file, state } = await converted(
+    '- [ ] Task pending\n- [x] Task complete',
+    'Tasks.md',
+    'markdown',
+  )
+  expect(state.root.children[0].type).toBe('list')
+  expect(() => validateDocumentContent(decodeUpdate(file.update))).not.toThrow()
 })

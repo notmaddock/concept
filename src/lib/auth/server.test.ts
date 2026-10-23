@@ -1,3 +1,4 @@
+// @vitest-environment node
 import type * as BetterAuthApi from 'better-auth/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,7 +8,7 @@ import {
   disconnectStorageCredentials,
 } from './server'
 
-const { api, options, database, oauth } = vi.hoisted(() => {
+const { api, options, database, oauth, freshSession } = vi.hoisted(() => {
   const capturedOptions: { current: Record<string, unknown> } = { current: {} }
   return {
     oauth: { getState: vi.fn(), addContext: vi.fn(), getSession: vi.fn() },
@@ -18,6 +19,7 @@ const { api, options, database, oauth } = vi.hoisted(() => {
     },
     options: capturedOptions,
     database: { prepare: vi.fn(), bind: vi.fn(), run: vi.fn() },
+    freshSession: vi.fn(),
   }
 })
 vi.mock('cloudflare:workers', () => ({
@@ -35,6 +37,7 @@ vi.mock('better-auth/api', async (importOriginal) => ({
   getOAuthState: oauth.getState,
   addOAuthServerContext: oauth.addContext,
   getSessionFromCtx: oauth.getSession,
+  freshSessionMiddleware: freshSession,
 }))
 vi.mock('better-auth', () => ({
   betterAuth: vi.fn((config) => {
@@ -179,6 +182,32 @@ describe('persisted credentials', () => {
       })
     },
   )
+
+  it('defers account deletion during user deletion to ON DELETE CASCADE while preserving unlink checks', async () => {
+    getAuth()
+    const config = options.current as unknown as {
+      databaseHooks: {
+        account: {
+          delete: {
+            before: (
+              account: { id: string },
+              ctx?: { path?: string } | null,
+            ) => Promise<boolean | undefined>
+          }
+        }
+      }
+    }
+    const beforeDelete = config.databaseHooks.account.delete.before
+    await expect(
+      beforeDelete({ id: 'owned-account' }, { path: '/delete-user' }),
+    ).resolves.toBe(false)
+    await expect(
+      beforeDelete({ id: 'owned-account' }, { path: '/delete-user/callback' }),
+    ).resolves.toBe(false)
+    await expect(
+      beforeDelete({ id: 'owned-account' }, { path: '/unlink-account' }),
+    ).resolves.toBeUndefined()
+  })
 })
 
 describe('explicit storage consent', () => {
@@ -323,6 +352,38 @@ describe('explicit storage consent', () => {
     getAuth()
     expect(options.current.advanced).toEqual({
       ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
+    })
+  })
+})
+
+describe('passkey configuration', () => {
+  it('requires discoverable credentials (residentKey: required) for username-less sign-in', () => {
+    getAuth()
+    const plugins = options.current.plugins as Array<{
+      id: string
+      options?: {
+        authenticatorSelection?: {
+          residentKey?: string
+          userVerification?: string
+        }
+      }
+    }>
+    const passkeyPlugin = plugins.find((plugin) => plugin.id === 'passkey')
+    expect(passkeyPlugin).toBeDefined()
+    expect(passkeyPlugin?.options?.authenticatorSelection).toEqual({
+      residentKey: 'required',
+      userVerification: 'preferred',
+    })
+  })
+
+  it('enforces freshSessionMiddleware before deleting a passkey', async () => {
+    getAuth()
+    const config = options.current as {
+      hooks: { before: (ctx: { path: string }) => Promise<void> }
+    }
+    await config.hooks.before({ path: '/passkey/delete-passkey' })
+    expect(freshSession).toHaveBeenCalledWith({
+      path: '/passkey/delete-passkey',
     })
   })
 })

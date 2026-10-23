@@ -1,3 +1,4 @@
+import { $getSelectionStyleValueForProperty } from '@lexical/selection'
 import { stepFontSize } from './font-size'
 import { getDocumentActionShortcut } from '#/components/documents/navigation-menus/document-navigation-options'
 import { ActionShortcut } from '#/components/documents/navigation-menus/ActionShortcut'
@@ -90,33 +91,56 @@ function useTypography(editor: LexicalEditor, active: boolean) {
     const update = () =>
       editor.getEditorState().read(() => {
         const selection = $getSelection()
-        if (!$isRangeSelection(selection)) return
+        if (!$isRangeSelection(selection) || selection.isCollapsed()) {
+          setValue({ family: '', size: '' })
+          return
+        }
         const nodes = selection
           .getNodes()
           .filter(
             (node) => $isTextNode(node) && node.getTextContent().length > 0,
           )
-        const styles = nodes
-          .map((node) => editor.getElementByKey(node.getKey()))
-          .filter((element): element is HTMLElement => element !== null)
-          .map((element) => getComputedStyle(element))
-        if (!styles.length) return
-        const families = new Set(styles.map((style) => style.fontFamily))
-        const sizes = new Set(
-          styles.map((style) =>
-            String(Math.round(parseFloat(style.fontSize) * 0.75 * 100) / 100),
-          ),
-        )
-        const nextValue = {
-          family:
-            families.size === 1
-              ? styles[0].fontFamily
-                  .split(',')[0]
-                  .replace(/["']/g, '')
-                  .replace(' Variable', '')
-              : 'Mixed fonts',
-          size: sizes.size === 1 ? [...sizes][0] : '',
+        if (!nodes.length) {
+          setValue({ family: '', size: '' })
+          return
         }
+        const inlineFamily = $getSelectionStyleValueForProperty(
+          selection,
+          'font-family',
+          '',
+        )
+        const inlineSize = $getSelectionStyleValueForProperty(
+          selection,
+          'font-size',
+          '',
+        )
+        let family = inlineFamily
+          ? inlineFamily
+              .split(',')[0]
+              .replace(/["']/g, '')
+              .replace(' Variable', '')
+          : ''
+        let size = inlineSize
+          ? String(Math.round(parseFloat(inlineSize) * 100) / 100)
+          : ''
+        if (!family || !size) {
+          const firstElement = editor.getElementByKey(nodes[0].getKey())
+          if (firstElement) {
+            const computed = getComputedStyle(firstElement)
+            if (!family) {
+              family = computed.fontFamily
+                .split(',')[0]
+                .replace(/["']/g, '')
+                .replace(' Variable', '')
+            }
+            if (!size) {
+              size = String(
+                Math.round(parseFloat(computed.fontSize) * 0.75 * 100) / 100,
+              )
+            }
+          }
+        }
+        const nextValue = { family, size }
         setValue((current) =>
           current.family === nextValue.family && current.size === nextValue.size
             ? current

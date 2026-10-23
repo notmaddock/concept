@@ -1,4 +1,4 @@
-import { act } from 'react'
+import { act, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Doc } from 'yjs'
 import { initializeDocument } from '#/lib/documents/initial-document'
@@ -87,15 +87,21 @@ it('requires device selection and confirmation showing file size and origin befo
 })
 
 it('uses the same provider selection to save an independently named copy', async () => {
-  await act(() =>
-    root.render(
+  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+  function Harness() {
+    const [open, setOpen] = useState(true)
+    return open ? (
       <DocumentStorageDialog
         mode="copy"
         source={{ name: 'Original', doc }}
-        onClose={onClose}
-      />,
-    ),
-  )
+        onClose={() => {
+          onClose()
+          setOpen(false)
+        }}
+      />
+    ) : null
+  }
+  await act(() => root.render(<Harness />))
   expect(document.querySelector('input')?.value).toBe('Copy of Original')
   await click('Save copy')
   expect(mocks.importConcept).toHaveBeenCalledWith(
@@ -103,6 +109,8 @@ it('uses the same provider selection to save an independently named copy', async
     'Copy of Original',
   )
   expect(onClose).toHaveBeenCalledOnce()
+  expect(consoleError).not.toHaveBeenCalled()
+  consoleError.mockRestore()
 })
 
 it('keeps invalid files out of storage and displays the error', async () => {

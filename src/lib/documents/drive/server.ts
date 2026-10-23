@@ -1,8 +1,8 @@
 import { env } from 'cloudflare:workers'
-import { applyUpdate, Doc } from 'yjs'
+import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
 import { getAuth, getProviderAccessToken } from '#/lib/auth/server'
 import { googlePermissions } from '#/lib/auth/connections'
-import { parseConcept, serializeConcept } from '../concept-file'
+import { decodeUpdate, parseConcept, serializeConcept } from '../concept-file'
 import type { DocumentInfo } from '../storage'
 import type { SaveDriveInput } from './functions'
 
@@ -10,6 +10,7 @@ const api = 'https://www.googleapis.com/drive/v3/files'
 const upload = 'https://www.googleapis.com/upload/drive/v3/files'
 const mimeType = 'application/vnd.concept+json'
 const fields = 'id,name,modifiedTime,appProperties,trashed,version'
+const maxListPages = 10
 interface DriveFile {
   id: string
   name: string
@@ -17,6 +18,15 @@ interface DriveFile {
   appProperties?: { conceptId?: string }
   trashed?: boolean
   version?: string
+}
+
+export class DriveError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+  }
 }
 
 async function connection(headers: Headers, accountId?: string) {
@@ -48,18 +58,24 @@ async function request(token: string, url: string, init?: RequestInit) {
     headers: { ...init?.headers, Authorization: `Bearer ${token}` },
   })
   if (response.status === 412)
-    throw new Error(
+    throw new DriveError(
       'The Drive document changed during saving. Retry to merge the latest changes.',
+      412,
     )
   if (response.status === 401 || response.status === 403)
-    throw new Error(
+    throw new DriveError(
       'Google Drive access was denied. Reconnect in account settings.',
+      response.status,
     )
   if (response.status === 404)
-    throw new Error('The Google Drive file is missing or no longer accessible.')
+    throw new DriveError(
+      'The Google Drive file is missing or no longer accessible.',
+      404,
+    )
   if (!response.ok)
-    throw new Error(
+    throw new DriveError(
       'Google Drive is unavailable. Your browser copy is safe; try again.',
+      response.status >= 400 && response.status < 600 ? response.status : 502,
     )
   return response
 }
@@ -90,6 +106,7 @@ export async function listDriveDocuments(headers: Headers) {
   const { accountId, accessToken } = await connection(headers)
   const documents: Array<DocumentInfo> = []
   let pageToken: string | undefined
+  let pages = 0
   do {
     const params = new URLSearchParams({
       q: `trashed = false and mimeType = '${mimeType}'`,
@@ -108,7 +125,13 @@ export async function listDriveDocuments(headers: Headers) {
         .map((file) => info(file, accountId)),
     )
     pageToken = page.nextPageToken
-  } while (pageToken)
+    pages++
+  } while (pageToken && pages < maxListPages)
+  if (pageToken)
+    throw new DriveError(
+      'The Drive library is too large to load in one request. No partial library was returned. Your browser documents remain available.',
+      503,
+    )
   return documents.sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
@@ -126,8 +149,9 @@ async function read(token: string, accountId: string, fileId: string) {
   if (!etag && file.version) {
     const latest = await request(token, `${url}?fields=version`)
     if ((await latest.json<DriveFile>()).version !== file.version)
-      throw new Error(
+      throw new DriveError(
         'The Drive document changed during saving. Retry to merge the latest changes.',
+        412,
       )
   }
   return {
@@ -165,7 +189,7 @@ export async function saveDriveDocument(
     )
     if (!response.ok) {
       const failure = await response.json<{ error: string }>()
-      throw new Error(failure.error)
+      throw new DriveError(failure.error, response.status)
     }
     return response.json<{
       document: DocumentInfo
@@ -195,11 +219,18 @@ export async function saveDriveFile(
     if (data.previousName === data.name) data.name = remote.document.name
     const doc = new Doc()
     try {
-      for (const update of [remote.file.update, file.update])
-        applyUpdate(
-          doc,
-          Uint8Array.from(atob(update), (character) => character.charCodeAt(0)),
-        )
+      applyUpdate(doc, decodeUpdate(remote.file.update))
+      // Compare canonical snapshots, including the delete set. State vectors alone
+      // miss deletions, and raw file bytes may use a different update encoding.
+      const before = encodeStateAsUpdate(doc)
+      applyUpdate(doc, decodeUpdate(file.update))
+      const after = encodeStateAsUpdate(doc)
+      if (
+        data.name === remote.document.name &&
+        before.length === after.length &&
+        before.every((byte, index) => byte === after[index])
+      )
+        return { document: remote.document, file: remote.file }
       text = serializeConcept(data.name, doc)
     } finally {
       doc.destroy()

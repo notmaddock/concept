@@ -268,3 +268,24 @@ it('returns focus from a menu before committing formatting and preserves the sel
     menu.remove()
   }
 })
+
+it('applies rapid successive formatting actions synchronously without stale selection race', async () => {
+  const bold = choices.find(
+    (action) => action.kind === 'text' && action.value === 'bold',
+  )!
+  const italic = choices.find(
+    (action) => action.kind === 'text' && action.value === 'italic',
+  )!
+
+  await act(() => {
+    actions.run(bold)
+    actions.run(italic)
+  })
+
+  editor.getEditorState().read(() => {
+    const nodes = $getRoot().getAllTextNodes()
+    expect(nodes[0].getTextContent()).toBe('hello')
+    expect(nodes[0].hasFormat('bold')).toBe(true)
+    expect(nodes[0].hasFormat('italic')).toBe(true)
+  })
+})

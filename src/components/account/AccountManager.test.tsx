@@ -51,6 +51,7 @@ const {
       signOut: vi.fn(),
       linkSocial: vi.fn(),
       unlinkAccount: vi.fn(),
+      getSession: vi.fn(),
     },
     theme: { theme: 'system', setTheme: vi.fn() },
   }
@@ -101,6 +102,13 @@ beforeEach(async () => {
   })
   client.signOut.mockResolvedValue({ error: null })
   client.linkSocial.mockResolvedValue({ error: null })
+  client.getSession.mockImplementation(async () => ({
+    data: sessionState.current,
+    error: null,
+  }))
+  client.passkey.addPasskey.mockResolvedValue({ error: null })
+  client.passkey.deletePasskey.mockResolvedValue({ error: null })
+  client.unlinkAccount.mockResolvedValue({ error: null })
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -433,4 +441,230 @@ it('does not offer to retry loaded connections after a connection action fails',
   expect(
     document.querySelector('[aria-label="Storage connections"]')?.textContent,
   ).not.toContain('Retry connections')
+})
+
+it('opens reauthentication dialog on stale session during passkey registration and allows recovery', async () => {
+  client.passkey.addPasskey
+    .mockResolvedValueOnce({
+      error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+    })
+    .mockResolvedValueOnce({ error: null })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Add')
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 10))
+  })
+  expect(document.body.textContent).toContain('Confirm your identity')
+
+  await click('button', 'Confirm with passkey')
+  expect(client.signIn.passkey).toHaveBeenCalled()
+  expect(client.passkey.addPasskey).toHaveBeenCalledTimes(2)
+})
+
+it('cancels reauthentication on stale session when user dismisses reauth prompt', async () => {
+  client.passkey.addPasskey.mockResolvedValueOnce({
+    error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+  })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Add')
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 10))
+  })
+  expect(document.body.textContent).toContain('Confirm your identity')
+
+  await click('button', 'Cancel')
+  expect(toastError).toHaveBeenCalledWith('Authentication cancelled')
+  expect(client.passkey.addPasskey).toHaveBeenCalledTimes(1)
+})
+
+it('rejects retrying sensitive action if reauthenticated under a different user', async () => {
+  client.passkey.addPasskey.mockResolvedValueOnce({
+    error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+  })
+  client.getSession.mockResolvedValueOnce({
+    data: { user: { id: 'different-user-id' } },
+    error: null,
+  })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Add')
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 10))
+  })
+  expect(document.body.textContent).toContain('Confirm your identity')
+
+  await click('button', 'Confirm with passkey')
+  expect(toastError).toHaveBeenCalledWith(
+    'Reauthenticated with a different account.',
+  )
+  expect(client.passkey.addPasskey).toHaveBeenCalledTimes(1)
+})
+
+it('opens reauthentication dialog on stale session during Google unlinking and allows recovery', async () => {
+  passkeyState.data = [
+    {
+      id: 'key-1',
+      name: 'Key',
+      aaguid: 'ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4',
+    },
+  ]
+  client.unlinkAccount
+    .mockResolvedValueOnce({
+      error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+    })
+    .mockResolvedValueOnce({ error: null })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Unlink')
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 10))
+  })
+  expect(document.body.textContent).toContain('Confirm your identity')
+
+  await click('button', 'Confirm with passkey')
+  expect(client.signIn.passkey).toHaveBeenCalled()
+  expect(client.unlinkAccount).toHaveBeenCalledTimes(2)
+})
+
+it('does not retry a sensitive action when session verification returns no session', async () => {
+  client.passkey.addPasskey.mockResolvedValueOnce({
+    error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+  })
+  client.getSession.mockResolvedValueOnce({ data: null, error: null })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Add')
+  await click('button', 'Confirm with passkey')
+  expect(toastError).toHaveBeenCalledWith(
+    'Could not verify your session. Please try again.',
+  )
+  expect(client.passkey.addPasskey).toHaveBeenCalledTimes(1)
+})
+
+it('does not retry a sensitive action before the Google reauthentication redirect finishes', async () => {
+  client.passkey.addPasskey.mockResolvedValueOnce({
+    error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+  })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Add')
+  await click('button', 'Confirm with Google')
+  expect(client.signIn.social).toHaveBeenCalledWith({
+    provider: 'google',
+    callbackURL: window.location.href,
+  })
+  expect(client.getSession).not.toHaveBeenCalled()
+  expect(client.passkey.addPasskey).toHaveBeenCalledTimes(1)
+})
+
+it('resets dialog open state on session loss so it does not auto-open on next login', async () => {
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+
+  // Session expires / is lost
+  sessionState.current = null
+  await act(() => root.render(<AccountManager />))
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+
+  // Next login
+  sessionState.current = defaultSession
+  await act(() => root.render(<AccountManager />))
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+})
+
+it('clears previous user accounts when user changes and handles failed loads cleanly', async () => {
+  client.listAccounts.mockResolvedValueOnce({
+    data: [
+      {
+        id: 'user1-google',
+        accountId: 'subject-1',
+        providerId: 'google',
+        driveConnected: true,
+        scopes: [
+          'https://www.googleapis.com/auth/drive.file',
+          'https://www.googleapis.com/auth/drive.install',
+        ],
+      },
+    ],
+  })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Connections')
+  expect(
+    document.querySelector('[aria-label="Storage connections"]')?.textContent,
+  ).toContain('Connected')
+
+  // Switch to user 2
+  sessionState.current = {
+    user: {
+      id: 'user-2',
+      name: 'Bob User',
+      email: 'bob@example.com',
+      image: null,
+    },
+  }
+  // User 2 fails to load accounts
+  client.listAccounts.mockResolvedValueOnce({
+    error: { message: 'Could not load connections.' },
+  })
+
+  await act(() => root.render(<AccountManager />))
+  // Open dialog for user 2
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Connections')
+
+  // Should NOT display user 1's connection or action
+  expect(
+    document.querySelector('[aria-label="Storage connections"]')?.textContent,
+  ).not.toContain('Connected')
+  expect(
+    document.querySelector('[aria-label="Storage connections"]')?.textContent,
+  ).toContain('Retry connections')
+})
+
+it('ignores stale action completion when session changes before action finishes', async () => {
+  let resolveAction: (val: {
+    error?: { message?: string } | null
+  }) => void = () => {}
+  const actionPromise = new Promise<{
+    error?: { message?: string } | null
+  }>((resolve) => {
+    resolveAction = resolve
+  })
+  client.linkSocial.mockReturnValueOnce(actionPromise)
+
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Connections')
+  await click('button', 'Connect')
+
+  // While action is pending, session is lost
+  sessionState.current = null
+  await act(() => root.render(<AccountManager />))
+
+  // Action now resolves with error
+  await act(() => resolveAction({ error: { message: 'Stale error' } }))
+
+  // Error toast should NOT have been shown for stale user action
+  expect(toastError).not.toHaveBeenCalledWith('Stale error')
+})
+
+it('clears pending passkey reauthentication when the signed-in user changes', async () => {
+  client.passkey.addPasskey.mockResolvedValueOnce({
+    error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+  })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Add')
+  expect(document.body.textContent).toContain('Confirm your identity')
+  sessionState.current = {
+    user: { ...defaultSession.user, id: 'user-2', name: 'Second user' },
+  }
+  await act(() => root.render(<AccountManager />))
+  expect(document.body.textContent).not.toContain('Confirm your identity')
+  expect(client.passkey.addPasskey).toHaveBeenCalledTimes(1)
 })

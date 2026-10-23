@@ -14,16 +14,19 @@ export function rememberThemeOrigin(event: {
   const bounds = (
     event.currentTarget as Element | null
   )?.getBoundingClientRect()
+  const now =
+    typeof performance !== 'undefined' ? performance.now() : Date.now()
   pendingOrigin = {
     point:
       event.detail === 0 && bounds
         ? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
         : { x: event.clientX, y: event.clientY },
-    expires: performance.now() + 5000,
+    expires: now + 5000,
   }
 }
 
 export function resetDocumentTheme() {
+  if (typeof document === 'undefined') return
   revision++
   active?.skipTransition()
   active = undefined
@@ -33,11 +36,18 @@ export function resetDocumentTheme() {
 }
 
 export function applyDocumentTheme(theme: DocumentTheme) {
+  if (typeof document === 'undefined') return
   const root = document.documentElement
+  const now =
+    typeof performance !== 'undefined' ? performance.now() : Date.now()
+  const defaultCenter =
+    typeof window !== 'undefined'
+      ? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+      : { x: 0, y: 0 }
   const origin =
-    pendingOrigin && pendingOrigin.expires > performance.now()
+    pendingOrigin && pendingOrigin.expires > now
       ? pendingOrigin.point
-      : { x: innerWidth / 2, y: innerHeight / 2 }
+      : defaultCenter
   pendingOrigin = undefined
   const currentRevision = ++revision
   active?.skipTransition()
@@ -48,25 +58,30 @@ export function applyDocumentTheme(theme: DocumentTheme) {
   const update = () => {
     if (currentRevision === revision) root.dataset.documentTheme = theme
   }
+
   if (
     typeof document.startViewTransition !== 'function' ||
-    (typeof window.matchMedia === 'function' &&
+    (typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   ) {
     update()
     return
   }
 
-  root.dataset.themeTransition = ''
   const transition = document.startViewTransition(update)
   active = transition
+  root.dataset.themeTransition = 'active'
+  const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 0
+  const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 0
+  const radius = Math.hypot(
+    Math.max(origin.x, windowWidth - origin.x),
+    Math.max(origin.y, windowHeight - origin.y),
+  )
+
   void transition.ready
     .then(() => {
-      if (currentRevision !== revision) return
-      const radius = Math.hypot(
-        Math.max(origin.x, innerWidth - origin.x),
-        Math.max(origin.y, innerHeight - origin.y),
-      )
+      if (active !== transition) return
       root.animate(
         {
           clipPath: [
@@ -75,21 +90,18 @@ export function applyDocumentTheme(theme: DocumentTheme) {
           ],
         },
         {
-          duration: 520,
-          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+          duration: 350,
+          easing: 'ease-in-out',
           pseudoElement: '::view-transition-new(root)',
-          fill: 'both',
         },
       )
     })
-    .catch(() => {
-      // Skipped/interrupted transitions still apply the newest document palette.
-    })
-  void transition.finished
     .catch(() => {})
     .finally(() => {
-      if (active !== transition) return
-      active = undefined
-      delete root.dataset.themeTransition
+      // Skipped/interrupted transitions still apply the newest document palette.
+      if (active === transition) {
+        delete root.dataset.themeTransition
+        active = undefined
+      }
     })
 }
