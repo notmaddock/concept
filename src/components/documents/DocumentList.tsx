@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { rememberThemeOrigin } from '#/lib/documents/theme-transition'
 import { Link } from '@tanstack/react-router'
 import { FileTextIcon } from 'lucide-react'
@@ -31,9 +32,13 @@ export function DocumentList({
   onRename?: (id: string, name: string) => Promise<boolean>
   onDelete: (id: string) => void | Promise<void>
 }) {
+  const activeIndex = useMemo(
+    () => (activeId ? documents.findIndex((item) => item.id === activeId) : -1),
+    [documents, activeId],
+  )
   const listWindow = useDocumentListWindow(
     loading ? 0 : documents.length,
-    documents.findIndex((item) => item.id === activeId),
+    activeIndex,
   )
 
   return (
