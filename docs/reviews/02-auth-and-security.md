@@ -38,7 +38,7 @@ Fix: configure an atomic shared limiter, such as a Durable Object-backed custom 
 
 Locations: src/lib/auth/server.ts:83-86; src/components/account/PasskeySettings.tsx:165.
 
-The installed plugin's delete endpoint uses sessionMiddleware plus ownership checking, not freshSessionMiddleware (@better-auth/passkey/dist/index.mjs:581-591). No application hook strengthens it. In contrast, Google unlinking and passkey registration require fresh sessions. A stolen session that is too old to add credentials or unlink Google can still delete a victim's passkeys while another sign-in method remains. The SQL trigger protects only the last method; it does not prevent removing all passkeys when Google exists.
+Status: FIXED. Triage confirmed that @better-auth/passkey's /passkey/delete-passkey endpoint applied only sessionMiddleware and resource ownership checks rather than freshSessionMiddleware, allowing stale sessions to delete passkeys when another login method was present. Fixed in src/lib/auth/server.ts by enforcing freshSessionMiddleware in hooks.before when ctx.path === '/passkey/delete-passkey', returning HTTP 403 SESSION_NOT_FRESH for stale sessions. Validated with HTTP-level regression test in src/lib/auth/passkey-deletion.test.ts proving a stale session (>5m) is rejected with 403 SESSION_NOT_FRESH while a fresh session succeeds, plus hook delegation coverage in src/lib/auth/server.test.ts.
 
 Fix: enforce server-side fresh-session or stronger step-up authentication before passkey deletion. Keep the ownership checks and database last-method guard. Add an HTTP-level regression test proving an authenticated but stale session cannot delete a credential. A confirmation dialog alone does not address this threat.
 

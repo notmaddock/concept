@@ -5,6 +5,7 @@ import { oneTap } from 'better-auth/plugins'
 import {
   addOAuthServerContext,
   createAuthMiddleware,
+  freshSessionMiddleware,
   getOAuthState,
   getSessionFromCtx,
 } from 'better-auth/api'
@@ -51,6 +52,9 @@ export function getAuth() {
     advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path === '/passkey/delete-passkey') {
+          await freshSessionMiddleware(ctx)
+        }
         if (
           ctx.path !== '/link-social' ||
           ctx.body?.provider !== 'google' ||

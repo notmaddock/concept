@@ -8,7 +8,7 @@ import {
   disconnectStorageCredentials,
 } from './server'
 
-const { api, options, database, oauth } = vi.hoisted(() => {
+const { api, options, database, oauth, freshSession } = vi.hoisted(() => {
   const capturedOptions: { current: Record<string, unknown> } = { current: {} }
   return {
     oauth: { getState: vi.fn(), addContext: vi.fn(), getSession: vi.fn() },
@@ -19,6 +19,7 @@ const { api, options, database, oauth } = vi.hoisted(() => {
     },
     options: capturedOptions,
     database: { prepare: vi.fn(), bind: vi.fn(), run: vi.fn() },
+    freshSession: vi.fn(),
   }
 })
 vi.mock('cloudflare:workers', () => ({
@@ -36,6 +37,7 @@ vi.mock('better-auth/api', async (importOriginal) => ({
   getOAuthState: oauth.getState,
   addOAuthServerContext: oauth.addContext,
   getSessionFromCtx: oauth.getSession,
+  freshSessionMiddleware: freshSession,
 }))
 vi.mock('better-auth', () => ({
   betterAuth: vi.fn((config) => {
@@ -368,6 +370,17 @@ describe('passkey configuration', () => {
     expect(passkeyPlugin?.options?.authenticatorSelection).toEqual({
       residentKey: 'required',
       userVerification: 'preferred',
+    })
+  })
+
+  it('enforces freshSessionMiddleware before deleting a passkey', async () => {
+    getAuth()
+    const config = options.current as {
+      hooks: { before: (ctx: { path: string }) => Promise<void> }
+    }
+    await config.hooks.before({ path: '/passkey/delete-passkey' })
+    expect(freshSession).toHaveBeenCalledWith({
+      path: '/passkey/delete-passkey',
     })
   })
 })
