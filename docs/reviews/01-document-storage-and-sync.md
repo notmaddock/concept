@@ -109,8 +109,8 @@ This review covers the document storage, synchronization, lifecycle, and formatt
 
 ### `STOR-01`: Quadratic / Unbounded IndexedDB Growth in `persistDocumentUpdate`
 
-- **Status**: FIXED (`b01cac2`)
-- **Validation**: Confirmed that `applyUpdate(doc, update)` without specifying origin caused `y-indexeddb` to append redundant updates while manual snapshot writes duplicated the entire document history on top of uncleared store records. Fixed by passing `persistence` origin to `applyUpdate` and clearing `updates` store before adding the consolidated merged snapshot. Added validation test `compacts the updates store during persistDocumentUpdate to prevent unbounded growth (STOR-01)` in `src/lib/documents/storage.test.ts`.
+- **Status**: FIXED AND REGRESSION VALIDATED (integration follow-up in this commit)
+- **Validation**: Confirmed and fixed integration follow-up: compaction now reads every current update, merges, clears, and writes one canonical snapshot within the same readwrite transaction. This preserves writes from tabs without the lifecycle lock. A deterministic regression queues a separate connection append after initial load; the original implementation loses that peer edit, while the fix preserves imported and peer edits after reopen and leaves one record. Transaction aborts reject and temporary persistence is closed.
 - **Location**: [`storages/local-content.ts` (L99–L121)](file:///home/maddock/concept/src/lib/documents/storages/local-content.ts#L99-L121)
 - **Impact**: Document databases in IndexedDB continuously grow in size, duplicating full state snapshots on every single save or import, degrading loading performance and storage consumption.
 - **Root Cause**:
@@ -135,8 +135,8 @@ This review covers the document storage, synchronization, lifecycle, and formatt
 
 ### `STOR-02`: Leaked IndexedDB Connections & Blocked Deletion on Early Close
 
-- **Status**: FIXED (`eab8eb1`)
-- **Validation**: Confirmed that early destruction of a document session while synchronization is pending leaked the database connection handle when instantiated later. Fixed by checking `closed` immediately after sync inside `whenSynced` to destroy `persistence` and throw without locking up lifecycle serialization. Added validation test `destroys persistence and frees connection on early destroy during open (STOR-02)` in `src/lib/documents/storage.test.ts`.
+- **Status**: FIXED AND REGRESSION VALIDATED (integration follow-up in this commit)
+- **Validation**: Confirmed and fixed integration follow-up: destroying an initialized but unsynced y-indexeddb instance leaves its whenSynced unresolved. Close now waits for its initial read before destroying it, while a queued open without persistence closes immediately to avoid waiting behind deletion's lifecycle lock. Regression coverage closes after persistence construction and before sync, verifies deletion and reopen, and retains the existing stale-open/deletion regression.
 - **Location**: [`storages/local-content.ts` (L61–L83)](file:///home/maddock/concept/src/lib/documents/storages/local-content.ts#L61-L83)
 - **Impact**: Fast tab switching, React StrictMode double-mounting, or immediate deletions leave orphaned IndexedDB database handles open. When `delete()` is called later, `indexedDB.deleteDatabase` is blocked, throwing `"Close other tabs using this document and try deleting again."`.
 - **Root Cause**:
@@ -260,8 +260,8 @@ This review covers the document storage, synchronization, lifecycle, and formatt
 
 ### `LEAK-01`: Memory Leak of Sessions and `Doc` on Failed Open
 
-- **Status**: FIXED (`eab8eb1`)
-- **Validation**: Confirmed that when `whenSynced` rejected in `openDocument` (e.g. document not found or storage error), the session and `Doc` remained permanently registered in `activeSessions` and `activeDocuments`. Fixed by attaching `.catch()` cleanup to `whenSynced` that destroys persistence and cleans up active session/document maps. Added validation test `cleans up active sessions and documents if whenSynced rejects (LEAK-01)` in `src/lib/documents/storage.test.ts`.
+- **Status**: FIXED AND REGRESSION VALIDATED (integration follow-up in this commit)
+- **Validation**: Confirmed and fixed integration follow-up: failed initialization now awaits persistence destruction before propagating rejection, and removes active session/document entries. A forced whenSynced rejection after a real database opens verifies deletion succeeds and later broadcasts do not mutate the failed document. Import rejection also verifies temporary Doc destruction and connection cleanup; nested finally guarantees Doc cleanup even if persistence destruction rejects.
 - **Location**: [`storages/local-content.ts` (L51–L54, L80–L86)](file:///home/maddock/concept/src/lib/documents/storages/local-content.ts#L51-L86)
 - **Impact**: If `whenSynced` rejects (e.g. document not found or storage error), the session and `Doc` remain permanently registered in `activeSessions` and `activeDocuments`.
 - **Root Cause**: `sessions.add(session)` and `documents.set(session, doc)` occur synchronously before `whenSynced` resolves, and there is no `.catch()` handler removing them upon failure.
@@ -361,4 +361,4 @@ This review covers the document storage, synchronization, lifecycle, and formatt
 
 ## Storage integration follow-ups
 
-All assigned storage commits except 7137ab4 were integrated. DRIVE-01 skip-on-open was rejected because matching names do not prove cached content is saved. Follow-up 205096d now avoids redundant server PATCH while retaining reopening synchronization; canonical Yjs comparison includes delete sets. STOR-01 compaction also has a focused follow-up to preserve another tab's writes atomically in the compaction transaction. These sections remain under integration until regression validation completes.
+All assigned storage commits except 7137ab4 were integrated. DRIVE-01 skip-on-open was rejected because matching names do not prove cached content is saved. Follow-up 205096d now avoids redundant server PATCH while retaining reopening synchronization; canonical Yjs comparison includes delete sets. STOR-01 follow-up 5dcaa16 merges current persisted updates within the same readwrite transaction before replacing the update log. Early-destroy and failed-open cleanup are also verified. Both storage integration follow-ups are resolved.

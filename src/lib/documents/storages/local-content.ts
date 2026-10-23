@@ -61,30 +61,35 @@ export function openDocument(id: string, doc: Doc): DocumentPersistence {
     if (closed) throw new Error('Document closed')
   }
   const whenSynced = withDocumentLock(id, async () => {
-    ensureOpen()
-    const document = await localMetadata.get(id)
-    if (!document) throw new Error('Document not found')
-    ensureOpen()
-    const { IndexeddbPersistence } = await import('y-indexeddb')
-    ensureOpen()
-    persistence = new IndexeddbPersistence(documentDatabaseName(id), doc)
-    await persistence.whenSynced
-    if (closed) {
-      await persistence.destroy()
-      throw new Error('Document closed')
+    try {
+      ensureOpen()
+      const document = await localMetadata.get(id)
+      if (!document) throw new Error('Document not found')
+      ensureOpen()
+      const { IndexeddbPersistence } = await import('y-indexeddb')
+      ensureOpen()
+      persistence = new IndexeddbPersistence(documentDatabaseName(id), doc)
+      await persistence.whenSynced
+      ensureOpen()
+      if (persistence.db)
+        persistence.db.onversionchange = () => {
+          void session.destroy()
+        }
+    } catch (error) {
+      await persistence?.destroy()
+      throw error
     }
-    if (persistence.db)
-      persistence.db.onversionchange = () => {
-        void session.destroy()
-      }
   })
   const session: DocumentPersistence = {
     whenSynced,
     destroy() {
       closed = true
+      // A queued open may be behind deletion's lock: do not wait for it.
+      // Once persistence exists, let its initial read finish before closing;
+      // y-indexeddb never resolves whenSynced after an early destroy.
       closing ??= (
         persistence
-          ? persistence.destroy()
+          ? whenSynced.catch(() => {}).then(() => persistence?.destroy())
           : Promise.resolve()
       )
         .then(() => {})
@@ -104,7 +109,6 @@ export function openDocument(id: string, doc: Doc): DocumentPersistence {
   activeDocuments.set(id, documents)
   documents.set(session, doc)
   void whenSynced.catch(() => {
-    void persistence?.destroy()
     activeDocuments.get(id)?.delete(session)
     if (!activeDocuments.get(id)?.size) activeDocuments.delete(id)
     sessions.delete(session)
@@ -144,25 +148,44 @@ export function persistDocumentUpdate(id: string, update: Uint8Array) {
     try {
       await persistence.whenSynced
       applyUpdate(doc, update, persistence)
-      const merged = encodeStateAsUpdate(doc)
+      let merged: Uint8Array
       const db = persistence.db
       if (!db) throw new Error('Local storage is unavailable.')
       await new Promise<void>((resolve, reject) => {
         const transaction = db.transaction('updates', 'readwrite')
         const store = transaction.objectStore('updates')
-        store.clear()
-        store.add(merged)
+        // Other tabs do not share our lifecycle lock. Read their latest writes
+        // under the same transaction that replaces the log, so no append is lost.
+        const request = store.getAll()
+        let error: unknown
+        request.onsuccess = () => {
+          try {
+            for (const storedUpdate of request.result)
+              applyUpdate(doc, storedUpdate, persistence)
+            merged = encodeStateAsUpdate(doc)
+            store.clear()
+            store.add(merged)
+          } catch (cause) {
+            error = cause
+            transaction.abort()
+          }
+        }
         transaction.oncomplete = () => resolve()
         transaction.onabort = () =>
           reject(
-            transaction.error ?? new Error('Could not save document content.'),
+            error ??
+              transaction.error ??
+              new Error('Could not save document content.'),
           )
         transaction.onerror = () => reject(transaction.error)
       })
-      publishDocumentUpdate(id, merged)
+      publishDocumentUpdate(id, merged!)
     } finally {
-      await persistence.destroy()
-      doc.destroy()
+      try {
+        await persistence.destroy()
+      } finally {
+        doc.destroy()
+      }
     }
   })
 }
