@@ -73,3 +73,7 @@ node node_modules/vitest/vitest.mjs run src/lib/auth/schema.test.ts src/lib/auth
 server.test.ts mocks betterAuth and API/session calls. schema.test.ts uses Node SQLite rather than D1. These tests do not establish real cookie propagation, callback/state/PKCE enforcement, replay resistance, Workers cryptography, or hardware WebAuthn compatibility. Add focused Workers HTTP integration tests with real Better Auth and browser/authenticator tests for these boundaries.
 
 No live deployment, secret values, Google console configuration, production D1 contents, or deployed edge/WAF rules were inspected. In particular, required secret declarations do not prove the secrets are deployed; no claim of missing deployed secrets is made.
+
+## Integration corrections
+
+OAuth query redaction is fixed by d38bfea. Reauthentication now fails closed on missing/error sessions and verifies the expected identity before passkey action retry. Google starts a redirect and never retries the stale action before callback; the dialog instructs users to retry their action after returning. M3 is assigned to a focused shared-rate-limit continuation.

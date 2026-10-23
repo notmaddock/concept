@@ -527,3 +527,34 @@ it('opens reauthentication dialog on stale session during Google unlinking and a
   expect(client.signIn.passkey).toHaveBeenCalled()
   expect(client.unlinkAccount).toHaveBeenCalledTimes(2)
 })
+
+it('does not retry a sensitive action when session verification returns no session', async () => {
+  client.passkey.addPasskey.mockResolvedValueOnce({
+    error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+  })
+  client.getSession.mockResolvedValueOnce({ data: null, error: null })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Add')
+  await click('button', 'Confirm with passkey')
+  expect(toastError).toHaveBeenCalledWith(
+    'Could not verify your session. Please try again.',
+  )
+  expect(client.passkey.addPasskey).toHaveBeenCalledTimes(1)
+})
+
+it('does not retry a sensitive action before the Google reauthentication redirect finishes', async () => {
+  client.passkey.addPasskey.mockResolvedValueOnce({
+    error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+  })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Add')
+  await click('button', 'Confirm with Google')
+  expect(client.signIn.social).toHaveBeenCalledWith({
+    provider: 'google',
+    callbackURL: window.location.href,
+  })
+  expect(client.getSession).not.toHaveBeenCalled()
+  expect(client.passkey.addPasskey).toHaveBeenCalledTimes(1)
+})

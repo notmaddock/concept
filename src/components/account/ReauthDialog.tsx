@@ -51,7 +51,11 @@ export function ReauthDialog({
         return
       }
       const session = await authClient.getSession()
-      if (userId && session.data && session.data.user.id !== userId) {
+      if (session.error || !session.data || !userId) {
+        toast.error('Could not verify your session. Please try again.')
+        return
+      }
+      if (session.data.user.id !== userId) {
         toast.error('Reauthenticated with a different account.')
         return
       }
@@ -75,13 +79,8 @@ export function ReauthDialog({
         toast.error(res.error.message ?? 'Authentication cancelled')
         return
       }
-      const session = await authClient.getSession()
-      if (userId && session.data && session.data.user.id !== userId) {
-        toast.error('Reauthenticated with a different account.')
-        return
-      }
-      onClose('dismissed')
-      await onSuccess()
+      // Social sign-in starts a full-page redirect. The current session is still
+      // stale here; retrying the captured mutation must wait for a new page.
     } catch {
       toast.error('Authentication cancelled')
     } finally {
@@ -104,7 +103,8 @@ export function ReauthDialog({
           <DialogTitle>Confirm your identity</DialogTitle>
           <DialogDescription>
             Your session is too old for this sensitive action. Please confirm
-            your identity to continue.
+            your identity to continue. After signing in with Google, retry the
+            action.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2 py-2">
