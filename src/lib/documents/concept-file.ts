@@ -41,6 +41,16 @@ function parseFile(value: unknown): ConceptFile {
   }
 }
 
+export function decodeUpdate(update: string | ConceptFile): Uint8Array {
+  const base64 = typeof update === 'string' ? update : update.update
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes
+}
+
 export function parseConcept(text: string): ConceptFile {
   try {
     const file = parseFile(JSON.parse(text))
@@ -53,18 +63,13 @@ export function parseConcept(text: string): ConceptFile {
   }
 }
 
-function decodeUpdate(file: ConceptFile) {
-  return Uint8Array.from(atob(file.update), (character) =>
-    character.charCodeAt(0),
-  )
-}
-
 export async function importConcept(
   file: ConceptFile,
   name = file.name,
   target?: DocumentInfo,
 ) {
-  validateDocumentContent(decodeUpdate(file))
+  const updateBytes = decodeUpdate(file)
+  validateDocumentContent(updateBytes)
   const initial = { existed: false, pendingRename: false }
   const created = target
     ? await updateDocumentInfo(target.id, (current) => {
@@ -85,7 +90,7 @@ export async function importConcept(
     : await localDocumentStorage.create()
   if (!created) throw new Error('Document not found')
   try {
-    await persistDocumentUpdate(created.id, decodeUpdate(file))
+    await persistDocumentUpdate(created.id, updateBytes)
     const result = target
       ? await updateDocumentInfo(target.id, (current) =>
           current

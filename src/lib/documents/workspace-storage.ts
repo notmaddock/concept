@@ -7,6 +7,7 @@ import {
 } from './storages/local'
 import type { DocumentStorage, DocumentSyncStatus } from './storage'
 import { serializeConcept } from './serialization'
+import { decodeUpdate } from './concept-file'
 
 const openSessions = new Map<string, number>()
 
@@ -85,9 +86,7 @@ export const workspaceDocumentStorage: DocumentStorage = {
           },
         })
         if (isClosed()) return
-        const update = Uint8Array.from(atob(remote.file.update), (character) =>
-          character.charCodeAt(0),
-        )
+        const update = decodeUpdate(remote.file.update)
         applyUpdate(doc, update, remoteDocumentOrigin)
         publishDocumentUpdate(id, update, remoteDocumentOrigin)
         await updateDocumentInfo(id, (current) =>

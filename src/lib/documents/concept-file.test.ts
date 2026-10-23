@@ -3,6 +3,7 @@ import { IDBFactory } from 'fake-indexeddb'
 import { applyUpdate, Doc, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
+  decodeUpdate,
   downloadConcept,
   importConcept,
   parseConcept,
@@ -234,4 +235,11 @@ it("preserves the latest updatedAt timestamp when importing an existing target d
   expect(updated.updatedAt).toBeGreaterThan(1000)
 
   source.destroy()
+})
+
+it("decodes Base64 updates efficiently into Uint8Array", () => {
+  const binary = new Uint8Array([0, 1, 2, 255, 128, 64])
+  const base64 = btoa(String.fromCharCode(...binary))
+  const decoded = decodeUpdate(base64)
+  expect(decoded).toEqual(binary)
 })

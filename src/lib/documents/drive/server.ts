@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers'
 import { applyUpdate, Doc } from 'yjs'
 import { getAuth, getProviderAccessToken } from '#/lib/auth/server'
 import { googlePermissions } from '#/lib/auth/connections'
-import { parseConcept, serializeConcept } from '../concept-file'
+import { decodeUpdate, parseConcept, serializeConcept } from '../concept-file'
 import type { DocumentInfo } from '../storage'
 import type { SaveDriveInput } from './functions'
 
@@ -222,7 +222,7 @@ export async function saveDriveFile(
       for (const update of [remote.file.update, file.update])
         applyUpdate(
           doc,
-          Uint8Array.from(atob(update), (character) => character.charCodeAt(0)),
+          decodeUpdate(update),
         )
       text = serializeConcept(data.name, doc)
     } finally {
