@@ -32,6 +32,7 @@ export type DocumentSource = SourceInfo &
   )
 
 export interface DocumentSaveProvider extends SourceInfo {
+  supportsSharing?: boolean
   save: (file: ConceptFile, name: string) => Promise<DocumentInfo>
 }
 
