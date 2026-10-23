@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { applyUpdate, Doc } from 'yjs'
 import { DriveSaveCoordinator } from './coordinator'
 import { initializeDocument } from '../initial-document'
@@ -69,6 +69,9 @@ beforeEach(() => {
     { id: 'account', providerId: 'google', driveConnected: true },
   ])
   mocks.token.mockResolvedValue({ accessToken: 'secret-token' })
+})
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 it('requires a session before listing and never contacts Drive on failed authorization', async () => {
   mocks.session.mockResolvedValue(null)
@@ -369,7 +372,7 @@ it('serializes overlapping no-ETag saves from separate accounts by backing file 
     text: serializeConcept('Remote', docs[1]),
   })
   // Let the second authorized request reach the object while the first PATCH waits.
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  await vi.waitFor(() => expect(mocks.token).toHaveBeenCalledTimes(2))
   expect(metadataReads).toBe(1)
   releaseFirstUpload()
   await Promise.all([first, second])
