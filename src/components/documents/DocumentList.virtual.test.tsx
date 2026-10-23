@@ -109,8 +109,7 @@ it('supports keyboard traversal across virtual windows and keeps focused rows mo
   await act(async () => {
     document.activeElement?.dispatchEvent(
       new KeyboardEvent('keydown', {
-        key: 'Tab',
-        shiftKey: true,
+        key: 'ArrowUp',
         bubbles: true,
         cancelable: true,
       }),
@@ -145,4 +144,17 @@ it('focuses newly mounted rows during commit without waiting for a frame', async
     )
   })
   expect(document.activeElement?.textContent).toBe('Document 999')
+})
+
+it('allows Tab to navigate out of the document list without intercepting it', async () => {
+  const list = await render()
+  const first = list.querySelector('a')!
+  await act(() => first.focus())
+  const event = new KeyboardEvent('keydown', {
+    key: 'Tab',
+    bubbles: true,
+    cancelable: true,
+  })
+  first.dispatchEvent(event)
+  expect(event.defaultPrevented).toBe(false)
 })
