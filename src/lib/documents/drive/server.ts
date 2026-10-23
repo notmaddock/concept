@@ -127,6 +127,11 @@ export async function listDriveDocuments(headers: Headers) {
     pageToken = page.nextPageToken
     pages++
   } while (pageToken && pages < maxListPages)
+  if (pageToken)
+    throw new DriveError(
+      'The Drive library is too large to load in one request. No partial library was returned. Your browser documents remain available.',
+      503,
+    )
   return documents.sort((a, b) => b.updatedAt - a.updatedAt)
 }
 

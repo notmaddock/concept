@@ -107,9 +107,11 @@ it('bounds Drive listing pagination to prevent Worker subrequest exhaustion', as
   mocks.fetch.mockImplementation(async () =>
     json({ files: [metadata], nextPageToken: 'more' }),
   )
-  const documents = await listDriveDocuments(headers)
+  await expect(listDriveDocuments(headers)).rejects.toMatchObject({
+    status: 503,
+    message: expect.stringContaining('No partial library'),
+  })
   expect(mocks.fetch).toHaveBeenCalledTimes(10)
-  expect(documents).toHaveLength(10)
 })
 it('creates a versioned Concept file with independent app identity', async () => {
   mocks.fetch.mockResolvedValue(json(metadata))
