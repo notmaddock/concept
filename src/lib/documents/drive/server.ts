@@ -64,19 +64,24 @@ async function request(token: string, url: string, init?: RequestInit) {
   return response
 }
 
-function info(file: DriveFile, accountId: string): DocumentInfo {
+function info(
+  file: DriveFile,
+  accountId: string,
+  fallbackName = 'Untitled',
+): DocumentInfo {
   const id = file.appProperties?.conceptId
   if (!id || file.trashed)
     throw new Error('This is not an available Concept document.')
+  const name = file.name.replace(/\.concept$/i, '').trim() || fallbackName
   return {
     id,
-    name: file.name.replace(/\.concept$/i, ''),
+    name,
     updatedAt: Date.parse(file.modifiedTime),
     backing: {
       provider: 'google-drive',
       fileId: file.id,
       accountId,
-      syncedName: file.name.replace(/\.concept$/i, ''),
+      syncedName: name,
     },
   }
 }
@@ -111,7 +116,6 @@ async function read(token: string, accountId: string, fileId: string) {
   const url = `${api}/${encodeURIComponent(fileId)}`
   const metadata = await request(token, `${url}?fields=${fields}`)
   const file = await metadata.json<DriveFile>()
-  const document = info(file, accountId)
   const etag = metadata.headers.get('etag')
   // Drive v3 responses need not include an ETag. Use it when supplied, and
   // otherwise check the documented version after downloading the content.
@@ -126,7 +130,11 @@ async function read(token: string, accountId: string, fileId: string) {
         'The Drive document changed during saving. Retry to merge the latest changes.',
       )
   }
-  return { document, file: parsed, etag: etag ?? undefined }
+  return {
+    document: info(file, accountId, parsed.name),
+    file: parsed,
+    etag: etag ?? undefined,
+  }
 }
 
 export async function readDriveDocument(
@@ -197,6 +205,8 @@ export async function saveDriveFile(
       doc.destroy()
     }
   }
+  // Validate before mutating Drive, including the final name and merged content.
+  const resultFile = parseConcept(text)
   const boundary = `concept_${crypto.randomUUID()}`
   const metadata = {
     name: `${data.name}.concept`,
@@ -217,6 +227,6 @@ export async function saveDriveFile(
   )
   return {
     document: info(await response.json<DriveFile>(), accountId),
-    file: parseConcept(text),
+    file: resultFile,
   }
 }

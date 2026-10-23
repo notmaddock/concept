@@ -79,7 +79,6 @@ it('requires a session before listing and never contacts Drive on failed authori
   ).rejects.toThrow('Connection not found')
   expect(mocks.fetch).not.toHaveBeenCalled()
 })
-
 it('lists all pages with separate Concept and backing identities and no tokens', async () => {
   mocks.fetch
     .mockResolvedValueOnce(json({ files: [metadata], nextPageToken: 'next' }))
@@ -103,7 +102,6 @@ it('lists all pages with separate Concept and backing identities and no tokens',
   expect(mocks.fetch.mock.calls[1][0]).toContain('pageToken=next')
   expect(JSON.stringify(documents)).not.toContain('secret-token')
 })
-
 it('creates a versioned Concept file with independent app identity', async () => {
   mocks.fetch.mockResolvedValue(json(metadata))
   const result = await saveDriveDocument(headers, {
@@ -119,7 +117,6 @@ it('creates a versioned Concept file with independent app identity', async () =>
   expect(init.body).toContain(`"conceptId":"${id}"`)
   expect(init.body).toContain('"version":1')
 })
-
 it('merges remote and local Yjs changes and conditionally updates the same Drive file', async () => {
   const local = new Doc()
   initializeDocument(local)
@@ -166,7 +163,6 @@ it('merges remote and local Yjs changes and conditionally updates the same Drive
   remote.destroy()
   merged.destroy()
 })
-
 it('refuses to overwrite a mismatched identity', async () => {
   mocks.fetch
     .mockResolvedValueOnce(
@@ -184,7 +180,6 @@ it('refuses to overwrite a mismatched identity', async () => {
   ).rejects.toThrow('different Concept document')
   expect(mocks.fetch).toHaveBeenCalledTimes(2)
 })
-
 it('surfaces expired access, invalid files, and revision conflicts', async () => {
   mocks.fetch.mockResolvedValueOnce(new Response('', { status: 403 }))
   await expect(readDriveDocument(headers, 'account', 'file')).rejects.toThrow(
@@ -205,7 +200,6 @@ it('surfaces expired access, invalid files, and revision conflicts', async () =>
 })
 
 // Actual Drive v3 metadata may omit ETag even after a successful file creation.
-
 it('opens and updates an existing Drive file without an ETag header', async () => {
   const file = content()
   const noEtag = (value: unknown) => new Response(JSON.stringify(value))
@@ -234,7 +228,6 @@ it('opens and updates an existing Drive file without an ETag header', async () =
   expect(mocks.fetch.mock.calls[3][1].method).toBe('PATCH')
   expect(mocks.fetch.mock.calls[3][1].headers).not.toHaveProperty('If-Match')
 })
-
 it('retries instead of uploading if the Drive version changes while downloading', async () => {
   mocks.fetch
     .mockResolvedValueOnce(
@@ -267,6 +260,39 @@ it('authorizes uploads before decoding and hydrating the supplied document', asy
       text: 'not a Concept file',
     }),
   ).rejects.toThrow('Sign in')
+  expect(mocks.fetch).not.toHaveBeenCalled()
+})
+
+it.each(['.concept', '   .CONCEPT'])(
+  'preserves a valid content name when Drive basename is empty: %s',
+  async (name) => {
+    mocks.fetch
+      .mockResolvedValueOnce(json({ ...metadata, name }))
+      .mockResolvedValueOnce(new Response(content('Valid prior name')))
+      .mockResolvedValueOnce(
+        json({ ...metadata, name: 'Valid prior name.concept' }),
+      )
+    const result = await saveDriveDocument(headers, {
+      id,
+      accountId: 'account',
+      fileId: 'drive-file',
+      name: 'Remote',
+      previousName: 'Remote',
+      text: content(),
+    })
+    expect(result.file.name).toBe('Valid prior name')
+    const uploaded = mocks.fetch.mock.calls[2][1].body as string
+    const payload = uploaded
+      .split(`Content-Type: application/vnd.concept+json\r\n\r\n`)[1]
+      .split('\r\n--')[0]
+    expect(parseConcept(payload).name).toBe('Valid prior name')
+  },
+)
+
+it('validates the final upload before issuing any mutating request', async () => {
+  await expect(
+    saveDriveDocument(headers, { id, name: '   ', text: content() }),
+  ).rejects.toThrow('supported .concept')
   expect(mocks.fetch).not.toHaveBeenCalled()
 })
 
