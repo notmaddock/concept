@@ -1,3 +1,5 @@
+import { documentChannelName } from './document-channel'
+import type { DocumentChannelMessage } from './document-channel'
 import { ObservableV2 } from 'lib0/observable'
 import {
   Awareness,
@@ -8,11 +10,6 @@ import { applyUpdate, encodeStateAsUpdate, encodeStateVector } from 'yjs'
 import type { Doc } from 'yjs'
 import type { Provider } from '@lexical/yjs'
 import type { DocumentPersistence } from './storage'
-
-type Message =
-  | { type: 'request'; vector: Uint8Array }
-  | { type: 'response'; vector: Uint8Array; update: Uint8Array }
-  | { type: 'update' | 'awareness'; update: Uint8Array }
 
 export class LocalProvider
   extends ObservableV2<{
@@ -58,7 +55,7 @@ export class LocalProvider
     }
   }
 
-  private send(message: Message) {
+  private send(message: DocumentChannelMessage) {
     this.channel?.postMessage(message)
   }
 
@@ -85,7 +82,7 @@ export class LocalProvider
       })
   }
 
-  private onMessage = ({ data }: MessageEvent<Message>) => {
+  private onMessage = ({ data }: MessageEvent<DocumentChannelMessage>) => {
     if (!this.connected) return
     if (data.type === 'request') {
       this.send({
@@ -125,9 +122,7 @@ export class LocalProvider
         if (this.savedAwareness && !this.localAwareness.getLocalState())
           this.localAwareness.setLocalState(this.savedAwareness)
         if (typeof BroadcastChannel !== 'undefined') {
-          this.channel = new BroadcastChannel(
-            `concept-document-sync:${this.id}`,
-          )
+          this.channel = new BroadcastChannel(documentChannelName(this.id))
           this.channel.onmessage = this.onMessage
         }
         this.doc.on('update', this.onDocumentUpdate)

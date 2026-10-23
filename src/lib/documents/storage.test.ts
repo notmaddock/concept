@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { Doc } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { localDocumentStorage } from './storage'
+import { localDocumentStorage } from './storages/local'
 import type { DocumentPersistence } from './storage'
 
 let sessions: Array<DocumentPersistence>

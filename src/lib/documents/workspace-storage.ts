@@ -1,7 +1,10 @@
 import { applyUpdate, Doc } from 'yjs'
-import { localDocumentStorage } from './storage'
+import {
+  localDocumentStorage,
+  publishDocumentUpdate,
+  updateDocumentInfo,
+} from './storages/local'
 import type { DocumentStorage, DocumentSyncStatus } from './storage'
-import { publishDocumentUpdate, updateDocumentInfo } from './storages/local'
 import { serializeConcept } from './serialization'
 
 const openSessions = new Map<string, number>()

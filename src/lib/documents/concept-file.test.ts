@@ -3,7 +3,7 @@ import { IDBFactory } from 'fake-indexeddb'
 import { applyUpdate, Doc, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { importConcept, parseConcept, serializeConcept } from './concept-file'
-import { localDocumentStorage } from './storage'
+import { localDocumentStorage } from './storages/local'
 import { conceptFileSize } from './serialization'
 import { convertImport } from './import'
 

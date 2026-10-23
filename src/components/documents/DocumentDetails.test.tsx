@@ -13,7 +13,7 @@ import {
   DocumentDetailsDialog,
   DocumentDetailsPopover,
 } from './DocumentDetails'
-import { localDocumentStorage } from '#/lib/documents/storage'
+import { localDocumentStorage } from '#/lib/documents/storages/local'
 import { serializeConcept } from '#/lib/documents/concept-file'
 import * as serialization from '#/lib/documents/serialization'
 

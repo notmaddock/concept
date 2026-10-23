@@ -38,5 +38,3 @@ export interface DocumentStorage {
   delete: (id: string) => Promise<void>
   open: (id: string, doc: Doc) => DocumentPersistence
 }
-
-export { localDocumentStorage } from './storages/local'

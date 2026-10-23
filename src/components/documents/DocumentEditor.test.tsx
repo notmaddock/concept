@@ -12,7 +12,7 @@ import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { EditorRefPlugin } from '@lexical/react/LexicalEditorRefPlugin'
 import type { ComponentProps } from 'react'
 import type { Nova } from '#/components/nova/Nova'
-import { localDocumentStorage } from '#/lib/documents/storage'
+import { localDocumentStorage } from '#/lib/documents/storages/local'
 import {
   importConcept,
   parseConcept,

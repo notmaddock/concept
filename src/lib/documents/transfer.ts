@@ -4,7 +4,7 @@ import { storageLocations } from './storage-locations'
 import type { ConceptFile } from './concept-file'
 import type { DocumentInfo } from './storage'
 import { importConcept, parseConcept, serializeConcept } from './concept-file'
-import { localDocumentStorage } from './storage'
+import { localDocumentStorage } from './storages/local'
 
 export interface SelectedDocument {
   file: ConceptFile

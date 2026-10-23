@@ -4,7 +4,7 @@ import { StrictMode, act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Doc } from 'yjs'
-import { localDocumentStorage } from '#/lib/documents/storage'
+import { localDocumentStorage } from '#/lib/documents/storages/local'
 import { workspaceDocumentStorage } from '#/lib/documents/workspace-storage'
 import { NewDocument } from './NewDocument'
 

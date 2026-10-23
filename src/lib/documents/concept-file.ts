@@ -1,7 +1,10 @@
 import type { Doc } from 'yjs'
-import { localDocumentStorage } from './storage'
+import {
+  localDocumentStorage,
+  persistDocumentUpdate,
+  updateDocumentInfo,
+} from './storages/local'
 import type { DocumentInfo } from './storage'
-import { persistDocumentUpdate, updateDocumentInfo } from './storages/local'
 import { serializeConcept } from './serialization'
 import { validateDocumentContent } from './validate-content'
 
