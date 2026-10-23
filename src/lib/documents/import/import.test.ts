@@ -8,6 +8,8 @@ import { createYjsBinding, syncYjsChangesToLexical } from '@lexical/yjs'
 import { convertImport } from './index'
 import type { ImportFormat } from './formats'
 import { LocalProvider } from '../local-provider'
+import { validateDocumentContent } from '../validate-content'
+import { decodeUpdate } from '../concept-file'
 
 async function converted(
   content: string,
@@ -107,4 +109,14 @@ it('creates an editable paragraph for empty files and rejects the wrong extensio
   await expect(
     convertImport({ name: 'document.concept' } as File, 'markdown'),
   ).rejects.toThrow('Choose a Markdown file.')
+})
+
+it("validates and round-trips markdown task lists with checkboxes (VAL-01 triage)", async () => {
+  const { file, state } = await converted(
+    "- [ ] Task pending\n- [x] Task complete",
+    "Tasks.md",
+    "markdown",
+  )
+  expect(state.root.children[0].type).toBe("list")
+  expect(() => validateDocumentContent(decodeUpdate(file.update))).not.toThrow()
 })
