@@ -8,9 +8,6 @@ import { workspaceDocumentStorage } from '#/lib/documents/workspace-storage'
 
 const navigate = vi.hoisted(() => vi.fn())
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }))
-vi.mock('#/lib/documents/workspace-storage', () => ({
-  workspaceDocumentStorage: { rename: vi.fn() },
-}))
 
 let root: Root
 let container: HTMLDivElement
@@ -43,6 +40,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(() => root.unmount())
   container.remove()
+  vi.restoreAllMocks()
 })
 
 async function mount(id = 'first') {
@@ -238,8 +236,13 @@ it.each(['first', undefined])(
         accountId: 'account',
       },
     }
-    Object.assign(workspaceDocumentStorage, storage)
-    vi.mocked(workspaceDocumentStorage.rename).mockResolvedValue(renamed)
+    vi.spyOn(workspaceDocumentStorage, 'subscribe').mockImplementation(
+      storage.subscribe,
+    )
+    vi.spyOn(workspaceDocumentStorage, 'list').mockImplementation(storage.list)
+    const rename = vi
+      .spyOn(workspaceDocumentStorage, 'rename')
+      .mockResolvedValue(renamed)
     function Harness() {
       actions = useDocuments(active)
       return null
@@ -250,10 +253,7 @@ it.each(['first', undefined])(
         true,
       )
     })
-    expect(workspaceDocumentStorage.rename).toHaveBeenCalledWith(
-      'second',
-      renamed.name,
-    )
+    expect(rename).toHaveBeenCalledWith('second', renamed.name)
     expect(actions.documents.find((item) => item.id === 'second')?.name).toBe(
       renamed.name,
     )
