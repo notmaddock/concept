@@ -16,6 +16,7 @@ export function useAccountSettings() {
     null,
   )
   const [error, setError] = useState('')
+  const [accountsError, setAccountsError] = useState('')
   const [revision, setRevision] = useState(0)
 
   function reportError(message: string) {
@@ -52,19 +53,26 @@ export function useAccountSettings() {
     if (!open || !session) return
     let active = true
     setLoading(true)
+    setAccountsError('')
+    function reportAccountsError(message: string) {
+      setAccountsError(message)
+      toast.error(message)
+    }
     void authClient
       .listAccounts()
       .then((result) => {
         if (!active) return
         setLoading(false)
         if (result.error)
-          reportError(result.error.message ?? 'Could not load connections.')
+          reportAccountsError(
+            result.error.message ?? 'Could not load connections.',
+          )
         else setAccounts(result.data)
       })
       .catch(() => {
         if (active) {
           setLoading(false)
-          reportError('Could not load connections. Try again.')
+          reportAccountsError('Could not load connections. Try again.')
         }
       })
     return () => {
@@ -144,6 +152,7 @@ export function useAccountSettings() {
     open,
     setOpen,
     accounts,
+    accountsError,
     loading,
     busy,
     error,

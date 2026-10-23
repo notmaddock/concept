@@ -106,7 +106,7 @@ export function AccountSettingsDialog({
                   accounts={settings.accounts}
                   loading={settings.loading}
                   busy={settings.busy}
-                  error={settings.error}
+                  error={settings.accountsError}
                   onRetry={settings.reload}
                   onConnect={(scopes) => void settings.connect(scopes)}
                   onDisconnect={() => void settings.disconnectDrive()}

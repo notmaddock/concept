@@ -341,3 +341,51 @@ it.each(['google', 'passkey'] as const)(
     expect(active.getAttribute('aria-busy')).toBe('false')
   },
 )
+
+it.each(['rejected', 'returned'] as const)(
+  'clears a %s account-load error after retrying successfully',
+  async (failure) => {
+    if (failure === 'rejected')
+      client.listAccounts.mockRejectedValueOnce(new Error('Offline'))
+    else
+      client.listAccounts.mockResolvedValueOnce({
+        error: { message: 'Could not load connections.' },
+      })
+    await menu()
+    await click('[role="menuitem"]', 'Account settings')
+    await click('button', 'Connections')
+    expect(
+      document.querySelector('[aria-label="Storage connections"]')?.textContent,
+    ).toContain('Retry connections')
+    client.listAccounts.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'google-account',
+          accountId: 'subject',
+          providerId: 'google',
+          driveConnected: true,
+          scopes: ['https://www.googleapis.com/auth/drive.file'],
+        },
+      ],
+    })
+    await click('button', 'Retry connections')
+    expect(client.listAccounts).toHaveBeenCalledTimes(2)
+    expect(
+      document.querySelector('[aria-label="Storage connections"]')?.textContent,
+    ).toBe('ConnectionsGoogle DriveConnected')
+  },
+)
+
+it('does not offer to retry loaded connections after a connection action fails', async () => {
+  client.linkSocial.mockResolvedValueOnce({
+    error: { message: 'Connection cancelled' },
+  })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Connections')
+  await click('button', 'Connect')
+  expect(toastError).toHaveBeenCalledWith('Connection cancelled')
+  expect(
+    document.querySelector('[aria-label="Storage connections"]')?.textContent,
+  ).not.toContain('Retry connections')
+})
