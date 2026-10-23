@@ -129,6 +129,31 @@ it('refreshes already-mounted documents when the same Drive file is explicitly r
   expect(doc.getMap('metadata').get('remote')).toBe('downloaded change')
 })
 
+it('preserves a local rename committed while an existing Drive file imports', async () => {
+  const file = await seed()
+  let rename: Promise<DocumentInfo> | undefined
+  let started = false
+  const stop = localDocumentStorage.subscribe((change) => {
+    if (
+      !started &&
+      change.type === 'upsert' &&
+      change.document.id === target.id
+    ) {
+      started = true
+      rename = localDocumentStorage.rename(target.id, 'Concurrent rename')
+    }
+  })
+  try {
+    await importConcept(file, target.name, target)
+    await rename
+    expect((await localDocumentStorage.get(target.id))?.name).toBe(
+      'Concurrent rename',
+    )
+  } finally {
+    stop()
+  }
+})
+
 it('does not recreate content or metadata when deletion wins a concurrent import', async () => {
   const file = await seed()
   let deletion: Promise<void> | undefined
@@ -187,5 +212,32 @@ it('broadcasts imported changes to a document provider in another tab', async ()
     )
   } finally {
     provider.destroy()
+  }
+})
+
+it('preserves a concurrent rename even if its upload finishes during import', async () => {
+  const file = await seed()
+  const persistence = await import('./storages/local')
+  const originalPersist = persistence.persistDocumentUpdate
+  const persist = vi
+    .spyOn(persistence, 'persistDocumentUpdate')
+    .mockImplementationOnce(async (id, update) => {
+      await localDocumentStorage.rename(
+        id,
+        'Already uploaded concurrent rename',
+      )
+      await persistence.updateDocumentInfo(id, (current) => ({
+        ...current!,
+        backing: { ...current!.backing!, syncedName: current!.name },
+      }))
+      return originalPersist(id, update)
+    })
+  try {
+    await importConcept(file, target.name, target)
+    expect((await localDocumentStorage.get(target.id))?.name).toBe(
+      'Already uploaded concurrent rename',
+    )
+  } finally {
+    persist.mockRestore()
   }
 })

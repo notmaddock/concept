@@ -222,10 +222,39 @@ export const localDocumentStorage: DocumentStorage = {
   open: openDocument,
 }
 
-// Recovery metadata uses Concept identity; provider file IDs never key IndexedDB.
-export async function storeDocumentInfo(document: DocumentInfo) {
-  await query('readwrite', (store) => store.put(document))
-  publishDocumentChange({ type: 'upsert', document })
+// Read and replace metadata in one transaction, preserving concurrent mutations.
+export async function updateDocumentInfo(
+  id: string,
+  update: (current: DocumentInfo | undefined) => DocumentInfo | undefined,
+) {
+  const db = await database()
+  const document = await new Promise<DocumentInfo | undefined>(
+    (resolve, reject) => {
+      const transaction = db.transaction('documents', 'readwrite')
+      const store = transaction.objectStore('documents')
+      const request: IDBRequest<DocumentInfo | undefined> = store.get(id)
+      let result: DocumentInfo | undefined
+      let error: unknown
+      request.onsuccess = () => {
+        try {
+          result = update(request.result)
+          if (result) store.put(result)
+        } catch (cause) {
+          error = cause
+          transaction.abort()
+        }
+      }
+      transaction.oncomplete = () => resolve(result)
+      transaction.onabort = () =>
+        reject(
+          error ??
+            transaction.error ??
+            new Error('Could not update document metadata.'),
+        )
+      transaction.onerror = () => reject(transaction.error)
+    },
+  )
+  if (document) publishDocumentChange({ type: 'upsert', document })
   return document
 }
 
@@ -270,4 +299,11 @@ export function persistDocumentUpdate(id: string, update: Uint8Array) {
       doc.destroy()
     }
   })
+}
+
+// Recovery metadata uses Concept identity; provider file IDs never key IndexedDB.
+export async function storeDocumentInfo(document: DocumentInfo) {
+  await query('readwrite', (store) => store.put(document))
+  publishDocumentChange({ type: 'upsert', document })
+  return document
 }

@@ -1,7 +1,7 @@
 import type { Doc } from 'yjs'
 import { localDocumentStorage } from './storage'
 import type { DocumentInfo } from './storage'
-import { persistDocumentUpdate, storeDocumentInfo } from './storages/local'
+import { persistDocumentUpdate, updateDocumentInfo } from './storages/local'
 import { serializeConcept } from './serialization'
 import { validateDocumentContent } from './validate-content'
 
@@ -66,34 +66,47 @@ export async function importConcept(
   target?: DocumentInfo,
 ) {
   validateDocumentContent(decodeUpdate(file))
-  const existing = target
-    ? await localDocumentStorage.get(target.id)
-    : undefined
-  if (
-    existing &&
-    (existing.backing?.provider !== target?.backing?.provider ||
-      existing.backing?.fileId !== target?.backing?.fileId ||
-      existing.backing?.accountId !== target?.backing?.accountId)
-  )
-    throw new Error(
-      'A different document already uses this Concept ID in this browser.',
-    )
+  const initial = { existed: false, pendingRename: false }
   const created = target
-    ? await storeDocumentInfo(existing ?? target)
+    ? await updateDocumentInfo(target.id, (current) => {
+        initial.existed = !!current
+        initial.pendingRename =
+          !!current?.backing && current.name !== current.backing.syncedName
+        if (
+          current &&
+          (current.backing?.provider !== target.backing?.provider ||
+            current.backing?.fileId !== target.backing?.fileId ||
+            current.backing?.accountId !== target.backing?.accountId)
+        )
+          throw new Error(
+            'A different document already uses this Concept ID in this browser.',
+          )
+        return current ?? target
+      })
     : await localDocumentStorage.create()
+  if (!created) throw new Error('Document not found')
   try {
     await persistDocumentUpdate(created.id, decodeUpdate(file))
-    return target
-      ? await storeDocumentInfo({
-          ...target,
-          name:
-            existing && existing.name !== existing.backing?.syncedName
-              ? existing.name
-              : name,
-        })
+    const result = target
+      ? await updateDocumentInfo(target.id, (current) =>
+          current
+            ? {
+                ...target,
+                name:
+                  initial.pendingRename ||
+                  current.name !== created.name ||
+                  (current.backing &&
+                    current.name !== current.backing.syncedName)
+                    ? current.name
+                    : name,
+              }
+            : undefined,
+        )
       : await localDocumentStorage.rename(created.id, name)
+    if (!result) throw new Error('Document not found')
+    return result
   } catch (error) {
-    if (!existing) await localDocumentStorage.delete(created.id)
+    if (!initial.existed) await localDocumentStorage.delete(created.id)
     throw error
   }
 }
