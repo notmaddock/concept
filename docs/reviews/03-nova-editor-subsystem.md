@@ -339,6 +339,8 @@ This review covers the core Nova editor components (`Nova.tsx`, `NovaContentEdit
 
 ### 4.1 Repeated DOM Allocation in `$decorateParagraph`
 
+- **Status**: FIXED
+- **Evidence & Validation**: Confirmed repeated `document.createElement('span')` was called during every decoration run. Implemented cached style resolution via `getSharedStyle(dom.ownerDocument)`. Verified via unit test in `src/components/nova/paragraph-format.test.ts` that elements are reused and not allocated repeatedly on paragraph decorations.
 - **File & Line**: [`src/components/nova/paragraph-format.ts#L20-L28`](file:///home/maddock/concept/src/components/nova/paragraph-format.ts#L20-L28)
 - **Root Cause**:
   ```ts
