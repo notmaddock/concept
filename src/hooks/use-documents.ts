@@ -102,10 +102,12 @@ export function useDocuments(
     setCreating(true)
     try {
       const created = await storage.create()
-      setDocuments((items) => [
-        created,
-        ...items.filter((item) => item.id !== created.id),
-      ])
+      setDocuments((items) =>
+        [
+          created,
+          ...items.filter((item) => item.id !== created.id),
+        ].sort((a, b) => b.updatedAt - a.updatedAt),
+      )
       setError('')
       await navigate({
         to: '/d/$id',

@@ -260,3 +260,20 @@ it.each(['first', undefined])(
     expect(navigate).not.toHaveBeenCalled()
   },
 )
+
+it('sorts newly created document by updatedAt order', async () => {
+  vi.mocked(storage.create).mockResolvedValueOnce({
+    id: 'older-created',
+    name: 'Older',
+    updatedAt: 0,
+  })
+  await mount()
+  await act(async () => {
+    await actions.createDocument()
+  })
+  expect(actions.documents.map((d) => d.id)).toEqual([
+    'second',
+    'first',
+    'older-created',
+  ])
+})
