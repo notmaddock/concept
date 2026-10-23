@@ -17,6 +17,9 @@ import PostHogProvider from '../integrations/posthog/provider'
 
 import appCss from '../styles.css?url'
 
+const description =
+  'Concept is a local-first rich-text document editor with optional Google Drive sync.'
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -33,8 +36,16 @@ export const Route = createRootRoute({
       {
         title: 'Concept',
       },
+      { name: 'description', content: description },
       { name: 'application-name', content: 'Concept' },
       { name: 'creator', content: 'Concept' },
+      { property: 'og:title', content: 'Concept' },
+      { property: 'og:description', content: description },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:site_name', content: 'Concept' },
+      { name: 'twitter:card', content: 'summary' },
+      { name: 'twitter:title', content: 'Concept' },
+      { name: 'twitter:description', content: description },
     ],
     links: [
       {
