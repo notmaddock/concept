@@ -4,6 +4,7 @@ import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  $isTextNode,
   createEditor,
 } from 'lexical'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -96,5 +97,54 @@ describe('TypographyControls layout thrashing prevention', () => {
       'input[aria-label="Font size (pt)"]',
     )
     expect(sizeInput?.value).toBe('')
+  })
+})
+
+describe('TypographyControls font-size units', () => {
+  it.each([
+    ['24px', '18'],
+    ['18pt', '18'],
+  ])('displays %s in points', async (fontSize, expected) => {
+    editor.update(
+      () => {
+        const text = $getRoot().getFirstDescendant()!
+        if ($isTextNode(text)) text.setStyle(`font-size: ${fontSize}`)
+      },
+      { discrete: true },
+    )
+    await act(() =>
+      root.render(
+        <TypographyControls editor={editor} run={vi.fn()} checked={vi.fn()} />,
+      ),
+    )
+    expect(
+      container.querySelector<HTMLInputElement>(
+        'input[aria-label="Font size (pt)"]',
+      )?.value,
+    ).toBe(expected)
+  })
+
+  it('resolves relative font sizes through computed pixels', async () => {
+    editor.update(
+      () => {
+        const text = $getRoot().getFirstDescendant()!
+        if ($isTextNode(text)) text.setStyle('font-size: 1.5em')
+      },
+      { discrete: true },
+    )
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+      fontFamily: 'Arial',
+      fontSize: '24px',
+    } as CSSStyleDeclaration)
+    await act(() =>
+      root.render(
+        <TypographyControls editor={editor} run={vi.fn()} checked={vi.fn()} />,
+      ),
+    )
+    expect(
+      container.querySelector<HTMLInputElement>(
+        'input[aria-label="Font size (pt)"]',
+      )?.value,
+    ).toBe('18')
   })
 })

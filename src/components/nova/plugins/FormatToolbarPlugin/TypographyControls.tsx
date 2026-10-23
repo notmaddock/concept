@@ -120,9 +120,15 @@ function useTypography(editor: LexicalEditor, active: boolean) {
               .replace(/["']/g, '')
               .replace(' Variable', '')
           : ''
-        let size = inlineSize
-          ? String(Math.round(parseFloat(inlineSize) * 100) / 100)
-          : ''
+        const inlinePoints = inlineSize.endsWith('pt')
+          ? parseFloat(inlineSize)
+          : inlineSize.endsWith('px')
+            ? parseFloat(inlineSize) * 0.75
+            : null
+        let size =
+          inlinePoints === null
+            ? ''
+            : String(Math.round(inlinePoints * 100) / 100)
         if (!family || !size) {
           const firstElement = editor.getElementByKey(nodes[0].getKey())
           if (firstElement) {
