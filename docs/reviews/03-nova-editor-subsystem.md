@@ -238,6 +238,8 @@ This review covers the core Nova editor components (`Nova.tsx`, `NovaContentEdit
 
 ### 3.1 Missing `CodeNode` Registration in `editorExtension` and Markdown Import
 
+- **Status**: FIXED
+- **Evidence & Validation**: Confirmed `CodeExtension` was omitted from `editorExtension` dependencies and `CodeNode`/`CodeHighlightNode` were missing from document import and validation editor configurations, which caused code blocks in markdown to be dropped. Added `CodeExtension` to `editorExtension`, registered `CodeNode` and `CodeHighlightNode` in `convertImport` and `validateDocumentContent`, and added test in `src/lib/documents/import/import.test.ts` verifying code blocks deserialize into `CodeNode` instances.
 - **Files & Lines**:
   - [`src/components/nova/editor.ts#L17-L29`](file:///home/maddock/concept/src/components/nova/editor.ts#L17-L29)
   - [`src/lib/documents/import/index.ts#L29`](file:///home/maddock/concept/src/lib/documents/import/index.ts#L29)

@@ -4,6 +4,7 @@ import { createEditor, $getRoot } from 'lexical'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { HorizontalRuleNode } from '@lexical/extension'
+import { CodeHighlightNode, CodeNode } from '@lexical/code'
 import { createYjsBinding, syncYjsChangesToLexical } from '@lexical/yjs'
 import { convertImport } from './index'
 import type { ImportFormat } from './formats'
@@ -23,7 +24,15 @@ async function converted(
   const doc = new Doc()
   const root = doc.get('root', XmlText)
   const editor = createEditor({
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, HorizontalRuleNode],
+    nodes: [
+      HeadingNode,
+      QuoteNode,
+      ListNode,
+      ListItemNode,
+      HorizontalRuleNode,
+      CodeNode,
+      CodeHighlightNode,
+    ],
     onError: (error) => {
       throw error
     },
@@ -75,6 +84,16 @@ it('converts Markdown formatting into content that survives the collaboration fo
   expect(text).toContain('Café 日本語')
   expect(text).toContain('Done')
   expect(JSON.stringify(state)).toContain('"format":1')
+})
+
+it('converts Markdown code blocks into CodeNodes', async () => {
+  const { state, text } = await converted(
+    '```ts\nconst greeting = "hello"\n```',
+    'Code.md',
+    'markdown',
+  )
+  expect(state.root.children.map((node) => node.type)).toEqual(['code'])
+  expect(text).toContain('const greeting = "hello"')
 })
 
 it('converts HTML headings, lists and emphasis while discarding executable content', async () => {

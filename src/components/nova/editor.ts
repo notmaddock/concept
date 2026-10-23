@@ -5,6 +5,7 @@ import {
   SelectBlockExtension,
   TabIndentationExtension,
 } from '@lexical/extension'
+import { CodeExtension } from '@lexical/code'
 import { HistoryExtension } from '@lexical/history'
 import { CheckListExtension, ListExtension } from '@lexical/list'
 import { RichTextExtension } from '@lexical/rich-text'
@@ -28,6 +29,7 @@ export const editorExtension = defineExtension({
     ClickAfterLastBlockExtension,
     SelectBlockExtension,
     AutoFocusExtension,
+    CodeExtension,
   ],
 
   $initialEditorState: getInitialState,

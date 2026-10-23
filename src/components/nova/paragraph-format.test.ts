@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { $createParagraphNode, createEditor } from 'lexical'
-import {
-  $getParagraphStyle,
-  $setParagraphStyle,
-  paragraphDOM,
-} from './paragraph-format'
+import { $setParagraphStyle, paragraphDOM } from './paragraph-format'
 
 describe('paragraph-format DOM decoration', () => {
   it('decorates element with cached styles without allocating new DOM elements repeatedly', () => {

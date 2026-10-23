@@ -352,7 +352,7 @@ export type NavigationActions = Pick<NavigationContext, 'edit' | 'format'>
 
 const disabledActions: NavigationActions = {
   edit: { run: async () => {}, disabled: () => true },
-  format: { run: async () => {}, disabled: true, checked: () => undefined },
+  format: { run: () => {}, disabled: true, checked: () => undefined },
 }
 
 export function useDocumentNavigationOptions({
