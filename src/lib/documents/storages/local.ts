@@ -16,11 +16,14 @@ export const localDocumentStorage: DocumentStorage = {
   get: localMetadata.get,
   create: localMetadata.create,
   async rename(id, name) {
+    const trimmedName = name.trim()
+    if (trimmedName.length > 1000)
+      throw new Error('Document names must be 1,000 characters or fewer.')
     const document = await localMetadata.update(id, (current) => {
       if (!current) throw new Error('Document not found')
       return {
         ...current,
-        name: name.trim() || 'Untitled document',
+        name: trimmedName || 'Untitled document',
         updatedAt: Date.now(),
       }
     })

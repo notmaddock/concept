@@ -19,6 +19,7 @@ export function DocumentName({
       aria-label={onSave ? 'Document name' : 'Workspace name'}
       readOnly={!onSave}
       tabIndex={onSave ? 0 : -1}
+      maxLength={1000}
       value={value}
       onChange={(event) => setValue(event.target.value)}
       onBlur={() => {

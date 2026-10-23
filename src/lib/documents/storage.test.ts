@@ -109,6 +109,19 @@ it('does not recreate metadata when a rename arrives after a deletion', async ()
   expect(await storedRecord(document.id)).toBeUndefined()
 })
 
+it('rejects overlong renames without replacing the saved metadata', async () => {
+  const document = await localDocumentStorage.create()
+  await expect(
+    localDocumentStorage.rename(document.id, 'x'.repeat(1001)),
+  ).rejects.toThrow('Document names must be 1,000 characters or fewer.')
+  expect(await localDocumentStorage.get(document.id)).toEqual(document)
+
+  const maximumName = 'x'.repeat(1000)
+  await expect(
+    localDocumentStorage.rename(document.id, `  ${maximumName}  `),
+  ).resolves.toMatchObject({ name: maximumName })
+})
+
 it('drops a database held by a separate tab storage instance', async () => {
   const document = await localDocumentStorage.create()
   vi.resetModules()

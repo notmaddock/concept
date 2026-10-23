@@ -72,6 +72,13 @@ it('updates local value when name prop changes', async () => {
   expect(input.value).toBe('Version 2')
 })
 
+it('limits header renames to the supported document name length', async () => {
+  await act(() =>
+    root.render(<DocumentName name="Original" onSave={vi.fn()} />),
+  )
+  expect(container.querySelector('input')!.maxLength).toBe(1000)
+})
+
 it('reverts value and handles onSave rejection cleanly', async () => {
   const onSave = vi.fn().mockRejectedValue(new Error('Save failed'))
   await act(() => root.render(<DocumentName name="Initial" onSave={onSave} />))
