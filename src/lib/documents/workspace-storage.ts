@@ -1,6 +1,5 @@
 import { applyUpdate, Doc } from 'yjs'
 import { remoteDocumentOrigin } from './document-channel'
-import { LocalProvider } from './local-provider'
 import {
   localDocumentStorage,
   publishDocumentUpdate,
@@ -63,8 +62,7 @@ export const workspaceDocumentStorage: DocumentStorage = {
       timer = setTimeout(() => void sync(), 1000)
     }
     function changed(_update: Uint8Array, origin: unknown) {
-      if (origin !== remoteDocumentOrigin && !(origin instanceof LocalProvider))
-        schedule()
+      if (origin !== remoteDocumentOrigin) schedule()
     }
     async function sync() {
       if (isClosed() || running || !hasChanges()) return

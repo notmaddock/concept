@@ -336,66 +336,73 @@ it('preserves a concurrent rename even if its upload finishes during import', as
   }
 })
 
-it('does not trigger a ping-pong save storm across multiple open tabs', async () => {
-  const { TestBroadcastChannel, flushBroadcasts } =
-    await import('#/test/broadcast-channel')
-  const { LocalProvider } = await import('./local-provider')
-  vi.stubGlobal('BroadcastChannel', TestBroadcastChannel)
-  await seed()
-  save.mockImplementation(({ data }: { data: { text: string } }) =>
-    Promise.resolve({
-      document: target,
-      file: parseConcept(data.text),
-    }),
-  )
-  const first = await open(target.id)
-  const second = await open(target.id)
-  let firstState = ''
-  let secondState = ''
-  first.session.subscribeStatus?.((next) => {
-    firstState = next.state
-  })
-  second.session.subscribeStatus?.((next) => {
-    secondState = next.state
-  })
-  const firstProvider = new LocalProvider(target.id, first.doc, first.session)
-  const secondProvider = new LocalProvider(
-    target.id,
-    second.doc,
-    second.session,
-  )
-  firstProvider.connect()
-  secondProvider.connect()
-  try {
-    await flushBroadcasts()
-    await vi.waitFor(
-      () => {
-        expect(firstState).toBe('synced')
-        expect(secondState).toBe('synced')
-      },
-      { timeout: 2000 },
+it.each([false, true])(
+  'settles peer saves without a loop when originating tab closes: %s',
+  async (closeOrigin) => {
+    const { TestBroadcastChannel, flushBroadcasts } =
+      await import('#/test/broadcast-channel')
+    const { LocalProvider } = await import('./local-provider')
+    vi.stubGlobal('BroadcastChannel', TestBroadcastChannel)
+    await seed()
+    save.mockImplementation(({ data }: { data: { text: string } }) =>
+      Promise.resolve({
+        document: target,
+        file: parseConcept(data.text),
+      }),
     )
-    await flushBroadcasts()
-    save.mockClear()
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    first.doc.getMap('metadata').set('edit', 'from first tab')
-    await flushBroadcasts()
-    expect(second.doc.getMap('metadata').get('edit')).toBe('from first tab')
-    expect(firstState).toBe('pending')
-    expect(secondState).toBe('synced')
-    await vi.advanceTimersByTimeAsync(1000)
-    await vi.waitFor(() => expect(firstState).toBe('synced'))
-    await flushBroadcasts()
-    expect(save).toHaveBeenCalledTimes(1)
-    expect(secondState).toBe('synced')
-    await vi.advanceTimersByTimeAsync(5000)
-    await flushBroadcasts()
-    expect(save).toHaveBeenCalledTimes(1)
-  } finally {
-    firstProvider.destroy()
-    secondProvider.destroy()
-  }
-})
+    const first = await open(target.id)
+    const second = await open(target.id)
+    let firstState = ''
+    let secondState = ''
+    first.session.subscribeStatus?.((next) => {
+      firstState = next.state
+    })
+    second.session.subscribeStatus?.((next) => {
+      secondState = next.state
+    })
+    const firstProvider = new LocalProvider(target.id, first.doc, first.session)
+    const secondProvider = new LocalProvider(
+      target.id,
+      second.doc,
+      second.session,
+    )
+    firstProvider.connect()
+    secondProvider.connect()
+    try {
+      await flushBroadcasts()
+      await vi.waitFor(
+        () => {
+          expect(firstState).toBe('synced')
+          expect(secondState).toBe('synced')
+        },
+        { timeout: 2000 },
+      )
+      await flushBroadcasts()
+      save.mockClear()
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      first.doc.getMap('metadata').set('edit', 'from first tab')
+      await flushBroadcasts()
+      expect(second.doc.getMap('metadata').get('edit')).toBe('from first tab')
+      expect(firstState).toBe('pending')
+      expect(secondState).toBe('pending')
+      if (closeOrigin) {
+        firstProvider.destroy()
+        await first.session.destroy()
+      }
+      await vi.advanceTimersByTimeAsync(1000)
+      await vi.waitFor(() => expect(secondState).toBe('synced'))
+      await flushBroadcasts()
+      expect(save).toHaveBeenCalledTimes(closeOrigin ? 1 : 2)
+      expect(secondState).toBe('synced')
+      await vi.advanceTimersByTimeAsync(5000)
+      await flushBroadcasts()
+      expect(save).toHaveBeenCalledTimes(closeOrigin ? 1 : 2)
+    } finally {
+      firstProvider.destroy()
+      secondProvider.destroy()
+    }
+  },
+)
 
 it('saves concurrent edits after 1 second instead of a 30-second error backoff', async () => {
   const file = await seed()
