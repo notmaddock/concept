@@ -218,9 +218,9 @@ it('attaches download link to DOM, clicks it, and cleans it up', () => {
   doc.destroy()
 })
 
-it("preserves the latest updatedAt timestamp when importing an existing target document", async () => {
-  const source = await contentDocument("Content")
-  const file = parseConcept(serializeConcept("Timestamp Test", source))
+it('preserves the latest updatedAt timestamp when importing an existing target document', async () => {
+  const source = await contentDocument('Content')
+  const file = parseConcept(serializeConcept('Timestamp Test', source))
   const initial = await importConcept(file)
   const initialUpdatedAt = initial.updatedAt
 
@@ -230,14 +230,14 @@ it("preserves the latest updatedAt timestamp when importing an existing target d
     updatedAt: 1000,
   }
 
-  const updated = await importConcept(file, "Timestamp Test", staleTarget)
+  const updated = await importConcept(file, 'Timestamp Test', staleTarget)
   expect(updated.updatedAt).toBeGreaterThanOrEqual(initialUpdatedAt)
   expect(updated.updatedAt).toBeGreaterThan(1000)
 
   source.destroy()
 })
 
-it("decodes Base64 updates efficiently into Uint8Array", () => {
+it('decodes Base64 updates efficiently into Uint8Array', () => {
   const binary = new Uint8Array([0, 1, 2, 255, 128, 64])
   const base64 = btoa(String.fromCharCode(...binary))
   const decoded = decodeUpdate(base64)

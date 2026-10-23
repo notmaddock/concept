@@ -9,14 +9,22 @@ function notify() {
 }
 
 function getSnapshot() {
-  if (!mediaQuery && typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+  if (
+    !mediaQuery &&
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function'
+  ) {
     mediaQuery = window.matchMedia(MOBILE_QUERY)
   }
   return mediaQuery?.matches ?? false
 }
 
 function subscribe(listener: () => void) {
-  if (!mediaQuery && typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+  if (
+    !mediaQuery &&
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function'
+  ) {
     mediaQuery = window.matchMedia(MOBILE_QUERY)
   }
   if (listeners.size === 0) {

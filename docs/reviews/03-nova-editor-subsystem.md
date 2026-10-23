@@ -19,6 +19,8 @@ This review covers the core Nova editor components (`Nova.tsx`, `NovaContentEdit
 
 ### 1.1 Unescaped Regex in Slash Menu Triggers Uncaught `SyntaxError` Crash
 
+- **Status**: FIXED (`cc3b108`)
+- **Evidence & Validation**: Confirmed `SlashMenuPlugin.tsx` compiled raw `queryString` via `new RegExp(queryString, 'i')` where literal case-insensitive substring matching was intended (note: during live typing, `@lexical/react`'s default `PUNCTUATION` set in `useBasicTypeaheadTriggerMatch` rejects regex metacharacters before `queryString` is set, but `new RegExp(queryString, 'i')` still throws `SyntaxError` on any unescaped metacharacter query). Extracted `filterBlockOptions` using `.toLowerCase().includes(query)` in `options.tsx` and added regression tests in `src/components/nova/plugins/SlashMenuPlugin/options.test.ts` covering `/[`, `/*`, `/(`, `[`, `*`, `(`, `+`, `?`, `\`, and case-insensitive title/keyword queries.
 - **File & Line**: [`src/components/nova/plugins/SlashMenuPlugin/SlashMenuPlugin.tsx#L27`](file:///home/maddock/concept/src/components/nova/plugins/SlashMenuPlugin/SlashMenuPlugin.tsx#L27)
 - **Root Cause**:
   `new RegExp(queryString, 'i')` directly compiles raw user input from the slash typeahead query. If the user types any regular expression special character (such as `/[`, `/*`, `/(`, `/+`, `/?`, or `/\`), JavaScript throws an uncaught `SyntaxError: Invalid regular expression`. Because this occurs inside the React render phase (`useMemo`), it immediately crashes the React component tree and breaks user input.
@@ -44,6 +46,8 @@ This review covers the core Nova editor components (`Nova.tsx`, `NovaContentEdit
 
 ### 1.2 Triple-Nested `editor.update` and Re-entrant `dispatchCommand` in Slash Menu
 
+- **Status**: FIXED (`6463ca1`)
+- **Evidence & Validation**: Confirmed in `@lexical/react` (`shared/LexicalMenu.tsx#L353`) and `lexical` (`LexicalUpdates.ts#L1456`) that `selectOptionAndCleanUp` already runs inside `editor.update()`, and nested `editor.update()` calls in `SlashMenuPlugin.tsx` and `options.tsx` deferred `$setBlocksType` onto `editor._updates` until after `closeMenu()` had already executed. (Sub-claim 5 regarding `$setBlocksType` failing on an empty paragraph's element-anchored selection after `queryNode.remove()` does not occur in `@lexical/selection@0.52.0`.) Removed the redundant `editor.update()` wrappers in `SlashMenuPlugin.tsx` and `options.tsx` via `$selectBlockOption`, and added a regression test in `src/components/nova/plugins/SlashMenuPlugin/options.test.ts` verifying synchronous query removal and block conversion before `closeMenu()` runs.
 - **Files & Lines**:
   - [`src/components/nova/plugins/SlashMenuPlugin/SlashMenuPlugin.tsx#L32-L44`](file:///home/maddock/concept/src/components/nova/plugins/SlashMenuPlugin/SlashMenuPlugin.tsx#L32-L44)
   - [`src/components/nova/plugins/SlashMenuPlugin/options.tsx#L55-L135`](file:///home/maddock/concept/src/components/nova/plugins/SlashMenuPlugin/options.tsx#L55-L135)
@@ -295,6 +299,8 @@ This review covers the core Nova editor components (`Nova.tsx`, `NovaContentEdit
 
 ### 3.3 IME (Input Method Editor) Composition Collisions in Slash Menu
 
+- **Status (Slash Menu)**: FIXED (`c8b84fd`)
+- **Evidence & Validation (Slash Menu)**: Confirmed `SlashMenuPlugin.tsx` did not check `editor.isComposing()` in `triggerFn` or `onSelectOption`. Wrapped the slash trigger in `useSlashTriggerMatch()` and guarded `onSelectOption` to return early while `editor.isComposing()` is `true`, while intentionally preserving `{ allowWhitespace: true, minLength: 0 }` so bare `/` opens the slash menu and multi-word block titles (`"Heading 1"`, `"Bulleted list"`, etc.) continue to match. Added IME composition regression test in `src/components/nova/plugins/SlashMenuPlugin/options.test.ts`.
 - **Files & Lines**:
   - [`src/components/nova/plugins/SlashMenuPlugin/SlashMenuPlugin.tsx#L17-L21`](file:///home/maddock/concept/src/components/nova/plugins/SlashMenuPlugin/SlashMenuPlugin.tsx#L17-L21)
   - [`src/components/nova/plugins/FormatToolbarPlugin/FloatingTextFormatToolbarPlugin.tsx#L53-L57`](file:///home/maddock/concept/src/components/nova/plugins/FormatToolbarPlugin/FloatingTextFormatToolbarPlugin.tsx#L53-L57)

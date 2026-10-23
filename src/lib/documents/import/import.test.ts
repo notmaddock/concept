@@ -130,12 +130,12 @@ it('creates an editable paragraph for empty files and rejects the wrong extensio
   ).rejects.toThrow('Choose a Markdown file.')
 })
 
-it("validates and round-trips markdown task lists with checkboxes (VAL-01 triage)", async () => {
+it('validates and round-trips markdown task lists with checkboxes (VAL-01 triage)', async () => {
   const { file, state } = await converted(
-    "- [ ] Task pending\n- [x] Task complete",
-    "Tasks.md",
-    "markdown",
+    '- [ ] Task pending\n- [x] Task complete',
+    'Tasks.md',
+    'markdown',
   )
-  expect(state.root.children[0].type).toBe("list")
+  expect(state.root.children[0].type).toBe('list')
   expect(() => validateDocumentContent(decodeUpdate(file.update))).not.toThrow()
 })

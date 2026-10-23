@@ -125,7 +125,7 @@ it('restores awareness and catches up edits after reconnecting', async () => {
   ).toBe('Returning tab')
 })
 
-it("does not amplify messages or trigger echo loops when 3 or more tabs are connected (SYNC-03)", async () => {
+it('does not amplify messages or trigger echo loops when 3 or more tabs are connected (SYNC-03)', async () => {
   const first = peer()
   const second = peer()
   first.provider.connect()

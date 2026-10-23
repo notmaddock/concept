@@ -117,12 +117,12 @@ it('prevents a superseded transition from applying a stale palette', async () =>
   delete (document as Partial<Document>).startViewTransition
 })
 
-it("does not throw in SSR environments when document is undefined (SSR-01)", () => {
+it('does not throw in SSR environments when document is undefined (SSR-01)', () => {
   const originalDoc = globalThis.document
   try {
     // @ts-expect-error test SSR environment without document
     delete globalThis.document
-    expect(() => applyDocumentTheme("red")).not.toThrow()
+    expect(() => applyDocumentTheme('red')).not.toThrow()
     expect(() => resetDocumentTheme()).not.toThrow()
     expect(() =>
       rememberThemeOrigin({

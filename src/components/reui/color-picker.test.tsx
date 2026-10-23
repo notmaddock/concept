@@ -42,7 +42,9 @@ describe('ColorPickerArea and ColorPickerSlider pointer callbacks', () => {
       ),
     )
 
-    const area = container.querySelector<HTMLElement>('[data-slot="color-picker-area"]')!
+    const area = container.querySelector<HTMLElement>(
+      '[data-slot="color-picker-area"]',
+    )!
     expect(area).not.toBeNull()
 
     vi.spyOn(area, 'getBoundingClientRect').mockReturnValue({
@@ -102,7 +104,9 @@ describe('ColorPickerArea and ColorPickerSlider pointer callbacks', () => {
       ),
     )
 
-    const area = container.querySelector<HTMLElement>('[data-slot="color-picker-area"]')!
+    const area = container.querySelector<HTMLElement>(
+      '[data-slot="color-picker-area"]',
+    )!
     area.setPointerCapture = vi.fn()
 
     const pointerDownEvent = new PointerEvent('pointerdown', {
@@ -138,7 +142,9 @@ describe('ColorPickerArea and ColorPickerSlider pointer callbacks', () => {
       ),
     )
 
-    const slider = container.querySelector<HTMLElement>('[data-slot="color-picker-slider"]')!
+    const slider = container.querySelector<HTMLElement>(
+      '[data-slot="color-picker-slider"]',
+    )!
     expect(slider).not.toBeNull()
 
     vi.spyOn(slider, 'getBoundingClientRect').mockReturnValue({
@@ -198,7 +204,9 @@ describe('ColorPickerArea and ColorPickerSlider pointer callbacks', () => {
       ),
     )
 
-    const slider = container.querySelector<HTMLElement>('[data-slot="color-picker-slider"]')!
+    const slider = container.querySelector<HTMLElement>(
+      '[data-slot="color-picker-slider"]',
+    )!
     slider.setPointerCapture = vi.fn()
 
     const pointerDownEvent = new PointerEvent('pointerdown', {
@@ -324,7 +332,11 @@ describe('ColorPickerEyeDropper editable state and abortion guards', () => {
     const onValueChange = vi.fn()
     await act(() =>
       root.render(
-        <ColorPicker value="#ff0000" onValueChange={onValueChange} disabled={false}>
+        <ColorPicker
+          value="#ff0000"
+          onValueChange={onValueChange}
+          disabled={false}
+        >
           <ColorPickerEyeDropper />
         </ColorPicker>,
       ),
@@ -343,7 +355,11 @@ describe('ColorPickerEyeDropper editable state and abortion guards', () => {
     // Change disabled state to true
     await act(() =>
       root.render(
-        <ColorPicker value="#ff0000" onValueChange={onValueChange} disabled={true}>
+        <ColorPicker
+          value="#ff0000"
+          onValueChange={onValueChange}
+          disabled={true}
+        >
           <ColorPickerEyeDropper />
         </ColorPicker>,
       ),

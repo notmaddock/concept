@@ -110,7 +110,9 @@ function useWorkspaceState(id?: string) {
     async (format: ExportFormat) => {
       const editor = editorRef.current
       if (!document || !editor) {
-        setFileError('Open a document and wait for it to load before exporting.')
+        setFileError(
+          'Open a document and wait for it to load before exporting.',
+        )
         return
       }
       try {
