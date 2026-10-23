@@ -154,6 +154,48 @@ it('preserves a local rename committed while an existing Drive file imports', as
   }
 })
 
+it('atomically preserves a rename queued during upload-completion metadata access', async () => {
+  const file = await seed()
+  let resolve!: (result: { document: DocumentInfo; file: typeof file }) => void
+  save.mockImplementation(
+    () =>
+      new Promise((done) => {
+        resolve = done
+      }),
+  )
+  const { session } = await open(target.id)
+  await vi.waitFor(() => expect(save).toHaveBeenCalledOnce(), { timeout: 2000 })
+  let rename: Promise<DocumentInfo> | undefined
+  const originalGet = IDBObjectStore.prototype.get
+  const read = vi
+    .spyOn(IDBObjectStore.prototype, 'get')
+    .mockImplementation(function (this: IDBObjectStore, key) {
+      const request = originalGet.call(this, key)
+      if (this.name === 'documents' && key === target.id && !rename) {
+        // Queue a real rename after this transaction has started. In the old
+        // read-then-write sequence it committed before the stale replacement.
+        rename = localDocumentStorage.rename(
+          target.id,
+          'Concurrent upload rename',
+        )
+      }
+      return request
+    })
+  try {
+    resolve({ document: target, file })
+    await vi.waitFor(() => expect(rename).toBeDefined())
+    await rename
+    await vi.waitFor(async () =>
+      expect((await localDocumentStorage.get(target.id))?.name).toBe(
+        'Concurrent upload rename',
+      ),
+    )
+  } finally {
+    read.mockRestore()
+    await session.destroy()
+  }
+})
+
 it('does not recreate content or metadata when deletion wins a concurrent import', async () => {
   const file = await seed()
   let deletion: Promise<void> | undefined

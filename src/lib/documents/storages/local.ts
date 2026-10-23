@@ -300,10 +300,3 @@ export function persistDocumentUpdate(id: string, update: Uint8Array) {
     }
   })
 }
-
-// Recovery metadata uses Concept identity; provider file IDs never key IndexedDB.
-export async function storeDocumentInfo(document: DocumentInfo) {
-  await query('readwrite', (store) => store.put(document))
-  publishDocumentChange({ type: 'upsert', document })
-  return document
-}
