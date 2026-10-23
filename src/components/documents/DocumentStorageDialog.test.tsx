@@ -26,7 +26,7 @@ beforeEach(() => {
   mocks.importConcept.mockResolvedValue({ id: 'imported' })
   mocks.navigate.mockResolvedValue(undefined)
   container = document.createElement('div')
-  document.body.append(container)
+  document.body.appendChild(container)
   root = createRoot(container)
   doc = new Doc()
   doc.get('root', XmlText).insert(0, 'Document content')

@@ -27,8 +27,9 @@ li[aria-checked="false"]::before { content: '☐ '; }
 img,table { max-width: 100%; } img { height: auto; }
 @media print { @page { ${setup.mode === 'paper' ? `size: ${width}mm ${height}mm; margin: ${top}mm ${right}mm ${bottom}mm ${left}mm;` : 'margin: 25.4mm;'} } body { max-width: none; margin: 0; padding: 0; } }
 `
-  output.head.prepend(charset, policy)
-  output.head.append(style)
+  output.head.insertBefore(policy, output.head.firstChild)
+  output.head.insertBefore(charset, output.head.firstChild)
+  output.head.appendChild(style)
   output.body.innerHTML = $generateHtmlFromNodes(editor, null)
   output.body
     .querySelectorAll('ul[__lexicalListType="check"]')

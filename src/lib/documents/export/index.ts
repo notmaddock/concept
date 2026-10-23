@@ -53,7 +53,7 @@ export function downloadExport(name: string, file: ExportFile) {
   const link = document.createElement('a')
   link.href = url
   link.download = exportFilename(name, file.extension)
-  document.body.append(link)
+  document.body.appendChild(link)
   link.click()
   link.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)

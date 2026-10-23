@@ -25,8 +25,9 @@ beforeEach(async () => {
   sheet = document.createElement('div')
   sheet.setAttribute('data-document-sheet', '')
   const editable = document.createElement('div')
-  sheet.append(editable)
-  document.body.append(sheet, container)
+  sheet.appendChild(editable)
+  document.body.appendChild(sheet)
+  document.body.appendChild(container)
   root = createRoot(container)
   editor = createEditor({
     onError(error) {
@@ -95,8 +96,8 @@ it('applies the current settings when the editor root moves to a new sheet', asy
   const replacementSheet = document.createElement('div')
   replacementSheet.setAttribute('data-document-sheet', '')
   const replacementRoot = document.createElement('div')
-  replacementSheet.append(replacementRoot)
-  document.body.append(replacementSheet)
+  replacementSheet.appendChild(replacementRoot)
+  document.body.appendChild(replacementSheet)
   try {
     await act(() => editor.setRootElement(replacementRoot))
     expect(replacementSheet.style.width).toBe('100%')

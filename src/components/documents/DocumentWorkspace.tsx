@@ -1,3 +1,4 @@
+import { AccountManager } from '#/components/account/AccountManager'
 import {
   DocumentWorkspaceProvider,
   useDocumentWorkspace,
@@ -20,7 +21,6 @@ import {
 import { DocumentNavigation } from './DocumentNavigation'
 import { DocumentList } from './DocumentList'
 import { DocumentLoading } from './DocumentLoading'
-import { AppToaster } from '#/components/app-toaster'
 
 const loadEditor = () => import('./DocumentEditor')
 const DocumentEditor = lazy(() =>
@@ -33,7 +33,6 @@ export function DocumentWorkspace({ id }: { id?: string }) {
   }, [id])
   return (
     <DocumentWorkspaceProvider id={id}>
-      <AppToaster />
       <DocumentWorkspaceContent id={id} />
     </DocumentWorkspaceProvider>
   )
@@ -85,16 +84,19 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
         </SidebarContent>
       </Sidebar>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-sidebar">
-        <header className="z-10 shrink-0 px-4 py-1.5 md:px-6">
-          <div className="flex items-center gap-3">
-            <SidebarTrigger />
-            <DocumentName
-              key={document ? `${document.id}:${document.name}` : 'library'}
-              name={document?.name ?? 'Documents'}
-              onSave={document ? renameDocument : undefined}
-            />
+        <header className="z-10 flex shrink-0 items-center gap-3 px-4 py-1.5 md:px-6">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-3">
+              <SidebarTrigger />
+              <DocumentName
+                key={document ? `${document.id}:${document.name}` : 'library'}
+                name={document?.name ?? 'Documents'}
+                onSave={document ? renameDocument : undefined}
+              />
+            </div>
+            <DocumentNavigation />
           </div>
-          <DocumentNavigation />
+          <AccountManager />
         </header>
         {error && (
           <p role="alert" className="px-6 pb-3 text-sm text-destructive">

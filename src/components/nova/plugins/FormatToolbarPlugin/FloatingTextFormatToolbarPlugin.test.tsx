@@ -21,7 +21,7 @@ it('schedules updates after effect cleanup cancels a pending frame', async () =>
   vi.stubGlobal('cancelAnimationFrame', cancelFrame)
   editor = createEditor()
   const container = document.createElement('div')
-  document.body.append(container)
+  document.body.appendChild(container)
   const root = createRoot(container)
   const registerRoot = editor.registerRootListener.bind(editor)
   vi.spyOn(editor, 'registerRootListener').mockImplementation((listener) => {

@@ -44,7 +44,7 @@ beforeEach(() => {
   container = document.createElement('div')
   container.dataset.sidebar = 'content'
   Object.defineProperty(container, 'clientHeight', { value: 340 })
-  document.body.append(container)
+  document.body.appendChild(container)
   root = createRoot(container)
 })
 

@@ -15,7 +15,7 @@ it('steps mixed sizes independently and only changes selected characters', async
   })
   const root = document.createElement('div')
   root.style.fontSize = '16px'
-  document.body.append(root)
+  document.body.appendChild(root)
   editor.setRootElement(root)
   vi.spyOn(editor, 'focus').mockImplementation(() => {})
   editor.update(

@@ -178,7 +178,7 @@ it('renders spacing with the application extension configuration', async () => {
   const applicationEditor = buildEditorFromExtensions(editorExtension)
   const element = document.createElement('div')
   element.contentEditable = 'true'
-  document.body.append(element)
+  document.body.appendChild(element)
   applicationEditor.setRootElement(element)
   try {
     applicationEditor.update(
@@ -238,7 +238,8 @@ it('returns focus from a menu before committing formatting and preserves the sel
   editable.contentEditable = 'true'
   editable.tabIndex = 0
   const menu = document.createElement('button')
-  document.body.append(editable, menu)
+  document.body.appendChild(editable)
+  document.body.appendChild(menu)
   editor.setRootElement(editable)
   menu.focus()
   const warn = vi.spyOn(console, 'warn')

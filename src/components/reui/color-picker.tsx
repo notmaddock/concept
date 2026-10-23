@@ -709,8 +709,8 @@ function parseWithBrowser(text: string): ColorPickerColor | null {
   const probe = document.createElement('div')
   parent.style.display = 'none'
   probe.style.color = text
-  parent.append(probe)
-  document.body.append(parent)
+  parent.appendChild(probe)
+  document.body.appendChild(parent)
   parent.style.color = 'rgb(1, 2, 3)'
   const first = getComputedStyle(probe).color
   parent.style.color = 'rgb(4, 5, 6)'

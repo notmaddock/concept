@@ -20,7 +20,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   navigate.mockReset()
   container = document.createElement('div')
-  document.body.append(container)
+  document.body.appendChild(container)
   root = createRoot(container)
   storage = {
     subscribe: vi.fn().mockReturnValue(() => {}),

@@ -1,0 +1,2 @@
+ALTER TABLE account ADD COLUMN driveConnected INTEGER NOT NULL DEFAULT 0;
+UPDATE account SET idToken = NULL;

@@ -1,3 +1,5 @@
+import { OneTapPrompt } from '#/components/account/OneTapPrompt'
+import { AppToaster } from '#/components/app-toaster'
 import {
   ErrorComponent,
   HeadContent,
@@ -18,6 +20,9 @@ import appCss from '../styles.css?url'
 export const Route = createRootRoute({
   head: () => ({
     meta: [
+      ...(import.meta.env.DEV
+        ? [{ name: 'referrer', content: 'no-referrer-when-downgrade' }]
+        : []),
       {
         charSet: 'utf-8',
       },
@@ -64,6 +69,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           <PostHogProvider>
             <TooltipProvider delay={200}>
               {children}
+              <AppToaster />
+              <OneTapPrompt />
               <TanStackDevtools
                 config={{
                   position: 'bottom-right',
