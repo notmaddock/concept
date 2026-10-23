@@ -47,7 +47,11 @@ export function DocumentStorageDialog({
   const navigate = useNavigate()
   const [sourceId, setSourceId] = useState<string | null>(null)
   const [providerId, setProviderId] = useState(
-    providers.length === 1 ? providers[0].id : '',
+    providers === documentSaveProviders
+      ? 'local'
+      : providers.length === 1
+        ? providers[0].id
+        : '',
   )
   const [pending, setPending] = useState(false)
   const pendingRef = useRef(false)
@@ -72,10 +76,12 @@ export function DocumentStorageDialog({
       .then((items) => {
         if (active) setDocuments(items)
       })
-      .catch(() => {
+      .catch((cause) => {
         if (active)
           setError(
-            'Could not load documents. Choose the source again to retry.',
+            cause instanceof Error
+              ? cause.message
+              : 'Could not load documents. Choose the source again to retry.',
           )
       })
       .finally(() => {
@@ -136,7 +142,9 @@ export function DocumentStorageDialog({
     setPending(true)
     setError('')
     try {
-      let id = selected?.existingId
+      let id = selected?.open
+        ? (await selected.open()).id
+        : selected?.existingId
       if (!id) {
         const file =
           mode !== 'copy'

@@ -4,6 +4,7 @@ import { applyUpdate, Doc, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { importConcept, parseConcept, serializeConcept } from './concept-file'
 import { localDocumentStorage } from './storage'
+import { conceptFileSize } from './serialization'
 import { convertImport } from './import'
 
 async function contentDocument(content: string) {
@@ -170,5 +171,17 @@ it.each(['text', 'map', 'unknown-node'])(
 it('accepts an empty editable document', async () => {
   const doc = await contentDocument('')
   expect(parseConcept(serializeConcept('Empty', doc)).name).toBe('Empty')
+  doc.destroy()
+})
+
+it('measures exported UTF-8 file size including Unicode metadata and Base64 padding', () => {
+  const doc = new Doc()
+  for (const text of ['a', 'ab', 'café 🌎']) {
+    doc.getText('content').insert(0, text)
+    const name = 'Résumé "quoted" 🌎'
+    expect(conceptFileSize(name, doc)).toBe(
+      new Blob([serializeConcept(name, doc)]).size,
+    )
+  }
   doc.destroy()
 })

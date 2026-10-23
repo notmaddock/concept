@@ -2,7 +2,10 @@ import { observeDocumentTheme } from '#/lib/documents/document-theme'
 import type { DocumentTheme } from '#/lib/documents/document-theme'
 import type { RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'
-import type { DocumentPersistence } from '#/lib/documents/storage'
+import type {
+  DocumentPersistence,
+  DocumentSyncStatus,
+} from '#/lib/documents/storage'
 import { useEffect, useState } from 'react'
 import { LexicalCollaboration } from '@lexical/react/LexicalCollaborationContext'
 import { CollaborationPlugin } from '@lexical/react/LexicalCollaborationPlugin'
@@ -11,7 +14,7 @@ import { DocumentLoading } from './DocumentLoading'
 import { Nova } from '#/components/nova/Nova'
 import { initializeDocument } from '#/lib/documents/initial-document'
 import { LocalProvider } from '#/lib/documents/local-provider'
-import { localDocumentStorage } from '#/lib/documents/storage'
+import { workspaceDocumentStorage } from '#/lib/documents/workspace-storage'
 
 export function DocumentEditor({
   documentRef,
@@ -20,7 +23,9 @@ export function DocumentEditor({
   editorRef,
   onPageSetupOpenChange,
   onDocumentThemeChange,
+  onSyncStatusChange,
 }: {
+  onSyncStatusChange?: (status: DocumentSyncStatus, retry?: () => void) => void
   onDocumentThemeChange?: (theme: DocumentTheme) => void
   documentRef: RefObject<Doc | null>
   id: string
@@ -40,13 +45,17 @@ export function DocumentEditor({
     let active = true
     const doc = new Doc()
     let persistence: DocumentPersistence | undefined
+    let stopStatus: (() => void) | undefined
     let stopTheme: (() => void) | undefined
     // Lexical must observe the Yjs root before IndexedDB applies existing content.
     const provider = new LocalProvider(
       id,
       doc,
       () => {
-        persistence = localDocumentStorage.open(id, doc)
+        persistence = workspaceDocumentStorage.open(id, doc)
+        stopStatus = persistence.subscribeStatus?.((status) => {
+          if (active) onSyncStatusChange?.(status, persistence?.retrySync)
+        })
         void persistence.whenSynced.catch(() => {
           if (active)
             setError(
@@ -69,6 +78,7 @@ export function DocumentEditor({
     return () => {
       active = false
       stopTheme?.()
+      stopStatus?.()
       documentRef.current = null
       provider.off('sync', onSync)
       provider.destroy()
@@ -76,7 +86,7 @@ export function DocumentEditor({
         doc.destroy(),
       )
     }
-  }, [id, documentRef, onDocumentThemeChange])
+  }, [id, documentRef, onDocumentThemeChange, onSyncStatusChange])
 
   if (error)
     return (

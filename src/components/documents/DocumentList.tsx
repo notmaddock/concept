@@ -117,6 +117,7 @@ export function DocumentList({
                   <DocumentContextMenu
                     id={item.id}
                     name={item.name}
+                    backedUp={Boolean(item.backing)}
                     onRename={
                       onRename ? (name) => onRename(item.id, name) : undefined
                     }

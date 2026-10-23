@@ -1,6 +1,8 @@
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import { localDocumentStorage } from './storage'
+import type { DocumentInfo } from './storage'
+import { storeDocumentInfo } from './storages/local'
 import { serializeConcept } from './serialization'
 import { validateDocumentContent } from './validate-content'
 
@@ -59,9 +61,27 @@ function decodeUpdate(file: ConceptFile) {
   )
 }
 
-export async function importConcept(file: ConceptFile, name = file.name) {
+export async function importConcept(
+  file: ConceptFile,
+  name = file.name,
+  target?: DocumentInfo,
+) {
   validateDocumentContent(decodeUpdate(file))
-  const created = await localDocumentStorage.create()
+  const existing = target
+    ? await localDocumentStorage.get(target.id)
+    : undefined
+  if (
+    existing &&
+    (existing.backing?.provider !== target?.backing?.provider ||
+      existing.backing?.fileId !== target?.backing?.fileId ||
+      existing.backing?.accountId !== target?.backing?.accountId)
+  )
+    throw new Error(
+      'A different document already uses this Concept ID in this browser.',
+    )
+  const created = target
+    ? await storeDocumentInfo(existing ?? target)
+    : await localDocumentStorage.create()
   const doc = new Doc()
   let persistence: IndexeddbPersistence | undefined
   try {
@@ -83,11 +103,19 @@ export async function importConcept(file: ConceptFile, name = file.name) {
         )
       transaction.onerror = () => reject(transaction.error)
     })
-    return await localDocumentStorage.rename(created.id, name)
+    return target
+      ? await storeDocumentInfo({
+          ...target,
+          name:
+            existing && existing.name !== existing.backing?.syncedName
+              ? existing.name
+              : name,
+        })
+      : await localDocumentStorage.rename(created.id, name)
   } catch (error) {
     await persistence?.destroy()
     persistence = undefined
-    await localDocumentStorage.delete(created.id)
+    if (!existing) await localDocumentStorage.delete(created.id)
     throw error
   } finally {
     await persistence?.destroy()

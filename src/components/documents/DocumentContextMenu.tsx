@@ -29,10 +29,12 @@ export function DocumentContextMenu({
   children,
   id,
   name,
+  backedUp = false,
   onRename,
   onDelete,
 }: {
   id: string
+  backedUp?: boolean
   onRename?: (name: string) => Promise<boolean>
   children: ReactNode
   name: string
@@ -101,8 +103,9 @@ export function DocumentContextMenu({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete document?</AlertDialogTitle>
             <AlertDialogDescription>
-              “{name}” will be removed from your documents. Are you sure you
-              want to delete it?
+              {backedUp
+                ? `“${name}” and any unsynced changes will be removed from this browser. The saved file remains in Google Drive.`
+                : `“${name}” will be removed from your documents. Are you sure you want to delete it?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

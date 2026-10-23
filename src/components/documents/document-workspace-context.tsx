@@ -2,6 +2,7 @@ import { setDocumentTheme } from '#/lib/documents/document-theme'
 import type { DocumentTheme } from '#/lib/documents/document-theme'
 import {
   createContext,
+  useCallback,
   lazy,
   Suspense,
   useContext,
@@ -12,6 +13,7 @@ import {
 import type { ReactNode } from 'react'
 import type { LexicalEditor } from 'lexical'
 import type { Doc } from 'yjs'
+import type { DocumentSyncStatus } from '#/lib/documents/storage'
 import type { ImportFormat } from '#/lib/documents/import/formats'
 import type { ExportFormat } from '#/lib/documents/export'
 import { useDocuments } from '#/hooks/use-documents'
@@ -40,6 +42,17 @@ function useWorkspaceState(id?: string) {
   const library = useDocuments(id)
   const { document } = library
 
+  const [sync, setSync] = useState<{
+    id?: string
+    status: DocumentSyncStatus
+    retry?: () => void
+  }>()
+  const onSyncStatusChange = useCallback(
+    (status: DocumentSyncStatus, retry?: () => void) => {
+      setSync({ id, status, retry })
+    },
+    [id],
+  )
   const documentName = document?.name
   useEffect(() => {
     const previousTitle = window.document.title
@@ -111,6 +124,9 @@ function useWorkspaceState(id?: string) {
 
   const workspace = {
     ...library,
+    syncStatus: sync?.id === id ? sync?.status : undefined,
+    retrySync: sync?.id === id ? sync?.retry : undefined,
+    onSyncStatusChange,
     documentTheme,
     onDocumentThemeChange,
     changeDocumentTheme: (theme: DocumentTheme) => {

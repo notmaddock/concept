@@ -285,3 +285,45 @@ it('converts an import before saving and reuses destination selection', async ()
   })
   expect(onClose).toHaveBeenCalledOnce()
 })
+
+it('caches a Drive selection only on confirmation and navigates with its Concept ID', async () => {
+  const open = vi.fn().mockResolvedValue({ id: 'concept-id' })
+  const file = JSON.parse(
+    serializeConcept('Drive document', doc),
+  ) as ConceptFileModule.ConceptFile
+  await act(() =>
+    root.render(
+      <DocumentStorageDialog
+        mode="open"
+        onClose={onClose}
+        sources={[
+          {
+            ...storageLocations.drive,
+            kind: 'library',
+            list: async () => [
+              { id: 'concept-id', name: 'Drive document', updatedAt: 0 },
+            ],
+            read: async () => ({
+              file,
+              filename: 'Drive document.concept',
+              size: 100,
+              origin: 'Google Drive',
+              existingId: 'concept-id',
+              open,
+            }),
+          },
+        ]}
+      />,
+    ),
+  )
+  await click('Google Drive')
+  await click('Drive document')
+  expect(open).not.toHaveBeenCalled()
+  await click('Open document')
+  expect(open).toHaveBeenCalledOnce()
+  expect(mocks.navigate).toHaveBeenCalledWith({
+    to: '/d/$id',
+    params: { id: 'concept-id' },
+  })
+  expect(mocks.importConcept).not.toHaveBeenCalled()
+})

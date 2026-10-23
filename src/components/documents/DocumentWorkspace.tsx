@@ -12,6 +12,7 @@ import { Link } from '@tanstack/react-router'
 import { FileTextIcon, PlusIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { DocumentName } from './DocumentName'
+import { DocumentSyncStatus } from './DocumentSyncStatus'
 import {
   Sidebar,
   SidebarContent,
@@ -56,6 +57,9 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     deleteDocument,
     documentRef,
     onDocumentThemeChange,
+    syncStatus,
+    retrySync,
+    onSyncStatusChange,
     editorRef,
     pageSetupOpen,
     onPageSetupOpenChange,
@@ -103,6 +107,22 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 name={document?.name ?? 'Documents'}
                 onSave={document ? renameDocument : undefined}
               />
+              {document && (
+                <DocumentSyncStatus
+                  key={document.id}
+                  status={
+                    syncStatus ?? {
+                      state: document.backing ? 'pending' : 'local',
+                      message: document.backing
+                        ? 'Opening document and checking cloud sync…'
+                        : 'Stored in this browser.',
+                    }
+                  }
+                  document={document}
+                  documentRef={documentRef}
+                  onRetry={retrySync}
+                />
+              )}
             </div>
             <DocumentNavigation />
           </div>
@@ -127,6 +147,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                   key={document.id}
                   documentRef={documentRef}
                   onDocumentThemeChange={onDocumentThemeChange}
+                  onSyncStatusChange={onSyncStatusChange}
                   id={document.id}
                   editorRef={editorRef}
                   pageSetupOpen={pageSetupOpen}

@@ -3,10 +3,25 @@ import type { Doc } from 'yjs'
 export interface DocumentInfo {
   id: string
   name: string
+  backing?: {
+    provider: string
+    fileId: string
+    accountId: string
+    syncedName?: string
+  }
   updatedAt: number
 }
 
+export interface DocumentSyncStatus {
+  state: 'local' | 'pending' | 'syncing' | 'synced' | 'offline' | 'error'
+  message: string
+}
+
 export interface DocumentPersistence {
+  retrySync?: () => void
+  subscribeStatus?: (
+    listener: (status: DocumentSyncStatus) => void,
+  ) => () => void
   whenSynced: Promise<unknown>
   destroy: () => Promise<void>
 }

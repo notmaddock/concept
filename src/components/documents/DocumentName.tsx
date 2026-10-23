@@ -33,7 +33,7 @@ export function DocumentName({
           event.preventDefault()
         }
       }}
-      className="h-8 w-full max-w-md border-transparent bg-transparent text-lg! shadow-none hover:border-input focus-visible:bg-background read-only:pointer-events-none"
+      className="h-8 w-auto min-w-0 max-w-md field-sizing-content border-transparent bg-transparent text-lg! shadow-none hover:border-input focus-visible:bg-background read-only:pointer-events-none"
     />
   )
 }

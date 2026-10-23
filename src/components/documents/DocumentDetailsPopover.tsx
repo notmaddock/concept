@@ -10,8 +10,10 @@ import {
   PopoverTrigger,
 } from '#/components/ui/popover'
 
-export function StorageLocation() {
-  const location = storageLocations.local
+export function StorageLocation({ document }: { document?: DocumentInfo }) {
+  const location = document?.backing
+    ? storageLocations.drive
+    : storageLocations.local
   return (
     <span className="inline-flex items-center gap-1.5">
       <location.icon aria-hidden="true" className="size-3.5 shrink-0" />
@@ -58,7 +60,7 @@ export function DocumentDetailsPopover({
           {document.name}
         </PopoverTitle>
         <div className="text-muted-foreground">
-          <StorageLocation />
+          <StorageLocation document={document} />
         </div>
         <div className="grid gap-0.5 text-muted-foreground">
           <span>Library updated</span>

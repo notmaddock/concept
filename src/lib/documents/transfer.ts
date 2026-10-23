@@ -1,5 +1,5 @@
 import { Doc } from 'yjs'
-import type { LucideIcon } from 'lucide-react'
+import type { ComponentType } from 'react'
 import { storageLocations } from './storage-locations'
 import type { ConceptFile } from './concept-file'
 import type { DocumentInfo } from './storage'
@@ -12,13 +12,14 @@ export interface SelectedDocument {
   size: number
   origin: string
   existingId?: string
+  open?: () => Promise<DocumentInfo>
 }
 
 interface SourceInfo {
   id: string
   label: string
   description: string
-  icon: LucideIcon
+  icon: ComponentType<{ className?: string }>
 }
 
 export type DocumentSource = SourceInfo &
@@ -38,13 +39,38 @@ export interface DocumentSaveProvider extends SourceInfo {
 
 export const documentSources: Array<DocumentSource> = [
   {
+    ...storageLocations.drive,
+    kind: 'library',
+    async list() {
+      const { listDrive } = await import('./drive/functions')
+      return listDrive()
+    },
+    async read(document) {
+      if (!document.backing) throw new Error('Missing backing file.')
+      const { readDrive } = await import('./drive/functions')
+      const remote = await readDrive({ data: document.backing })
+      return {
+        file: remote.file,
+        filename: `${remote.document.name}.concept`,
+        size: new Blob([JSON.stringify(remote.file)]).size,
+        origin: storageLocations.drive.label,
+        existingId: remote.document.id,
+        open: () =>
+          importConcept(remote.file, remote.document.name, remote.document),
+      }
+    },
+  },
+  {
     ...storageLocations.device,
     kind: 'device',
   },
   {
     ...storageLocations.local,
     kind: 'library',
-    list: () => localDocumentStorage.list(),
+    list: async () =>
+      (await localDocumentStorage.list()).filter(
+        (document) => !document.backing,
+      ),
     async read(document) {
       const doc = new Doc()
       const session = localDocumentStorage.open(document.id, doc)
@@ -67,6 +93,16 @@ export const documentSources: Array<DocumentSource> = [
 ]
 
 export const documentSaveProviders: Array<DocumentSaveProvider> = [
+  {
+    ...storageLocations.drive,
+    async save(file, name) {
+      const { saveDrive } = await import('./drive/functions')
+      const remote = await saveDrive({
+        data: { id: crypto.randomUUID(), name, text: JSON.stringify(file) },
+      })
+      return importConcept(remote.file, name, remote.document)
+    },
+  },
   {
     ...storageLocations.local,
     save: (file, name) => importConcept(file, name),

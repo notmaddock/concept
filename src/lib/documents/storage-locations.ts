@@ -1,6 +1,13 @@
 import { HardDriveIcon, MonitorIcon } from 'lucide-react'
+import { GoogleDriveIcon } from '#/components/icons/GoogleDriveIcon'
 
 export const storageLocations = {
+  drive: {
+    id: 'drive',
+    label: 'Google Drive',
+    description: 'Concept files in your connected Google Drive account',
+    icon: GoogleDriveIcon,
+  },
   local: {
     id: 'local',
     label: 'This browser',
