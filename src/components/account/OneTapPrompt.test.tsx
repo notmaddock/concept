@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Root } from 'react-dom/client'
 import { OneTapPrompt } from './OneTapPrompt'
 
-const { state, oneTap, refetch, toastError } = vi.hoisted(() => ({
+const { state, oneTap, refetch, toastError, cancelPrompt } = vi.hoisted(() => ({
   state: {
     session: null as { user: { id: string } } | null,
     pending: false,
@@ -13,9 +13,13 @@ const { state, oneTap, refetch, toastError } = vi.hoisted(() => ({
   oneTap: vi.fn(),
   refetch: vi.fn(),
   toastError: vi.fn(),
+  cancelPrompt: vi.fn(),
 }))
 vi.mock('#/env', () => ({
   env: { VITE_GOOGLE_CLIENT_ID: 'public-google-client-id' },
+}))
+vi.mock('#/lib/auth/google-identity', () => ({
+  cancelOneTapPrompt: cancelPrompt,
 }))
 vi.mock('#/lib/auth/client', () => ({
   authClient: {
@@ -65,6 +69,8 @@ it('does not prompt signed-in users or when session lookup fails', async () => {
   state.session = { user: { id: 'user-1' } }
   await act(() => root.render(<OneTapPrompt />))
   expect(oneTap).not.toHaveBeenCalled()
+  expect(cancelPrompt).toHaveBeenCalledOnce()
+  cancelPrompt.mockClear()
   state.session = null
   state.error = new Error('offline')
   await act(() => root.render(<OneTapPrompt />))
@@ -83,5 +89,45 @@ it('refreshes the session on success and reports authentication errors through S
 it('keeps the fallback login available when the prompt is blocked', async () => {
   oneTap.mockRejectedValue(new Error('Script blocked'))
   await act(() => root.render(<OneTapPrompt />))
+  expect(toastError).not.toHaveBeenCalled()
+})
+
+it('cancels the prompt on teardown', async () => {
+  await act(() => root.render(<OneTapPrompt />))
+  expect(cancelPrompt).not.toHaveBeenCalled()
+  await act(() => root.unmount())
+  expect(cancelPrompt).toHaveBeenCalledOnce()
+})
+
+it('cancels the prompt when session is acquired', async () => {
+  await act(() => root.render(<OneTapPrompt />))
+  expect(cancelPrompt).not.toHaveBeenCalled()
+  state.session = { user: { id: 'user-1' } }
+  await act(() => root.render(<OneTapPrompt />))
+  expect(cancelPrompt).toHaveBeenCalled()
+})
+
+it('guards asynchronous initialization and cancels late settlement after teardown', async () => {
+  let resolveOneTap: () => void = () => {}
+  const pendingOneTap = new Promise<void>((resolve) => {
+    resolveOneTap = resolve
+  })
+  oneTap.mockReturnValueOnce(pendingOneTap)
+
+  await act(() => root.render(<OneTapPrompt />))
+  const { fetchOptions } = oneTap.mock.calls[0][0]
+  await act(() => root.unmount())
+
+  expect(cancelPrompt).toHaveBeenCalledOnce()
+  cancelPrompt.mockClear()
+
+  // Settle promise late
+  await act(() => resolveOneTap())
+  expect(cancelPrompt).toHaveBeenCalledOnce()
+
+  // Calling callbacks after teardown does not refetch or toast
+  fetchOptions.onSuccess()
+  fetchOptions.onError({ error: { message: 'Late failure' } })
+  expect(refetch).not.toHaveBeenCalled()
   expect(toastError).not.toHaveBeenCalled()
 })
