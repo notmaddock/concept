@@ -80,7 +80,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
           >
             <FileTextIcon className="size-5" /> Concept
           </Link>
-          <Button onClick={createDocument} disabled={creating}>
+          <Button onClick={() => void createDocument()} disabled={creating}>
             <PlusIcon /> New document
           </Button>
         </SidebarHeader>
@@ -176,7 +176,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                     ? 'This document is not available in this browser.'
                     : 'Choose a document from the sidebar, or start something new.'}
               </p>
-              <Button onClick={createDocument} disabled={creating}>
+              <Button onClick={() => void createDocument()} disabled={creating}>
                 <PlusIcon /> New document
               </Button>
             </div>
