@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const ROW_HEIGHT = 34
 const OVERSCAN = 6
@@ -59,36 +59,39 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
     }
   }, [virtual])
 
-  function reveal(index: number) {
-    const list = listRef.current
-    const scroller =
-      scrollerRef.current ??
-      list?.closest<HTMLElement>('[data-sidebar="content"]')
-    if (!list || !scroller) return
-    const offset =
-      list.getBoundingClientRect().top -
-      scroller.getBoundingClientRect().top +
-      scroller.scrollTop
-    const top = offset + index * ROW_HEIGHT
-    const bottom = top + ROW_HEIGHT
-    if (top < scroller.scrollTop) scroller.scrollTop = top
-    else if (bottom > scroller.scrollTop + scroller.clientHeight)
-      scroller.scrollTop = Math.max(
-        0,
-        bottom - (scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT),
-      )
-    if (virtual) {
-      const relativeTop = Math.max(0, scroller.scrollTop - offset)
-      setViewport({
-        top: relativeTop,
-        height: scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT,
-      })
-    }
-  }
+  const reveal = useCallback(
+    (index: number) => {
+      const list = listRef.current
+      const scroller =
+        scrollerRef.current ??
+        list?.closest<HTMLElement>('[data-sidebar="content"]')
+      if (!list || !scroller) return
+      const offset =
+        list.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top +
+        scroller.scrollTop
+      const top = offset + index * ROW_HEIGHT
+      const bottom = top + ROW_HEIGHT
+      if (top < scroller.scrollTop) scroller.scrollTop = top
+      else if (bottom > scroller.scrollTop + scroller.clientHeight)
+        scroller.scrollTop = Math.max(
+          0,
+          bottom - (scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT),
+        )
+      if (virtual) {
+        const relativeTop = Math.max(0, scroller.scrollTop - offset)
+        setViewport({
+          top: relativeTop,
+          height: scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT,
+        })
+      }
+    },
+    [virtual],
+  )
 
   useEffect(() => {
     if (activeIndex >= 0) reveal(activeIndex)
-  }, [activeIndex])
+  }, [activeIndex, reveal])
 
   const start = virtual
     ? Math.max(

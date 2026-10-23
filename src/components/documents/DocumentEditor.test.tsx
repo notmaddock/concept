@@ -160,6 +160,6 @@ it('resets the document theme to default when unmounted', async () => {
     ),
   )
   await act(() => root.render(null))
-  expect(document.documentElement.dataset.documentTheme ?? 'default').toBe('default')
+  expect(document.documentElement.dataset.documentTheme).toBe('default')
   expect(themeSpy).toHaveBeenCalledWith('default')
 })

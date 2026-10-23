@@ -38,13 +38,15 @@ export function useDocuments(
         .list()
         .then(async (items) => {
           performance.measure('concept:library-read', { start: startedAt })
-          if (!active) return
           let initialItems = items
-          if (id && !items.some((item) => item.id === id)) {
+          const directId = activeId.current
+          if (active && directId && !items.some((item) => item.id === directId)) {
             try {
-              const direct = await storage.get(id)
-              if (direct && active) {
-                initialItems = [direct, ...items]
+              const direct = await storage.get(directId)
+              if (direct) {
+                initialItems = [direct, ...items].sort(
+                  (a, b) => b.updatedAt - a.updatedAt,
+                )
               }
             } catch {
               // ignore fallback error
@@ -58,11 +60,11 @@ export function useDocuments(
             else reconciled.delete(change.id)
           }
           setDocuments(
-            changesDuringRead.size || initialItems !== items
+            changesDuringRead.size
               ? [...reconciled.values()].sort(
                   (a, b) => b.updatedAt - a.updatedAt,
                 )
-              : items,
+              : initialItems,
           )
           setLoaded(true)
           setError('')
