@@ -2,6 +2,7 @@ import {
   LexicalTypeaheadMenuPlugin,
   useBasicTypeaheadTriggerMatch,
 } from '@lexical/react/LexicalTypeaheadMenuPlugin'
+import type { TriggerFn } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import { useCallback, useMemo, useState } from 'react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import {
@@ -13,14 +14,25 @@ import type { BlockOption } from './options'
 import type { OnSelectOptionCallback } from './types'
 import { SlashMenuPluginMenu } from './SlashMenuPluginMenu'
 
-export function SlashMenuPlugin() {
-  const [editor] = useLexicalComposerContext()
-  const [queryString, setQueryString] = useState<string | null>(null)
-
-  const triggerFunction = useBasicTypeaheadTriggerMatch('/', {
+export function useSlashTriggerMatch(): TriggerFn {
+  const baseTriggerFunction = useBasicTypeaheadTriggerMatch('/', {
     allowWhitespace: true,
     minLength: 0,
   })
+
+  return useCallback<TriggerFn>(
+    (text, currentEditor) => {
+      if (currentEditor.isComposing()) return null
+      return baseTriggerFunction(text, currentEditor)
+    },
+    [baseTriggerFunction],
+  )
+}
+
+export function SlashMenuPlugin() {
+  const [editor] = useLexicalComposerContext()
+  const [queryString, setQueryString] = useState<string | null>(null)
+  const triggerFunction = useSlashTriggerMatch()
 
   const options = useMemo<BlockOption[]>(
     () => filterBlockOptions(getBlockOptions(editor), queryString),
@@ -29,9 +41,10 @@ export function SlashMenuPlugin() {
 
   const onSelectOption = useCallback<OnSelectOptionCallback<BlockOption>>(
     (selectedOption, queryNode, closeMenu) => {
+      if (editor.isComposing()) return
       $selectBlockOption(selectedOption, queryNode, closeMenu)
     },
-    [],
+    [editor],
   )
 
   return (

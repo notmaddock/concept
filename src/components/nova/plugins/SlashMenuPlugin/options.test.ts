@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { act, createElement } from 'react'
+import { createRoot } from 'react-dom/client'
+import { describe, expect, it, vi } from 'vitest'
 import {
   $createParagraphNode,
   $createTextNode,
@@ -6,15 +8,18 @@ import {
   $getSelection,
   $isElementNode,
   $isRangeSelection,
+  $setCompositionKey,
   createEditor,
 } from 'lexical'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
+import type { TriggerFn } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import { $getParagraphStyle, $setParagraphStyle } from '../../paragraph-format'
 import {
   $selectBlockOption,
   filterBlockOptions,
   getBlockOptions,
 } from './options'
+import { useSlashTriggerMatch } from './SlashMenuPlugin'
 
 describe('slash block conversion', () => {
   it.each(['text', 'heading-1', 'heading-2', 'heading-3', 'quote'])(
@@ -113,5 +118,69 @@ describe('slash block conversion', () => {
     expect(
       filterBlockOptions(baseOptions, 'TODO').map((option) => option.key),
     ).toEqual(['list-checked'])
+  })
+
+  it('suppresses slash trigger matching during IME composition and resumes after composition ends', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    const editor = createEditor({ nodes: [HeadingNode, QuoteNode] })
+    let capturedTrigger: TriggerFn | undefined
+
+    function TriggerHarness() {
+      capturedTrigger = useSlashTriggerMatch()
+      return null
+    }
+
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    try {
+      await act(() => {
+        root.render(createElement(TriggerHarness))
+      })
+      if (!capturedTrigger) throw new Error('Expected trigger function')
+
+      // Bare '/' and multi-word queries match when not composing
+      expect(capturedTrigger('/', editor)).toEqual({
+        leadOffset: 0,
+        matchingString: '',
+        replaceableString: '/',
+      })
+      expect(capturedTrigger('/heading 1', editor)).toEqual({
+        leadOffset: 0,
+        matchingString: 'heading 1',
+        replaceableString: '/heading 1',
+      })
+
+      // Simulate active IME composition on a text node
+      editor.update(
+        () => {
+          const paragraph = $createParagraphNode()
+          const textNode = $createTextNode('/h1')
+          paragraph.append(textNode)
+          $getRoot().append(paragraph)
+          $setCompositionKey(textNode.getKey())
+        },
+        { discrete: true },
+      )
+      expect(editor.isComposing()).toBe(true)
+      expect(capturedTrigger('/', editor)).toBeNull()
+      expect(capturedTrigger('/h1', editor)).toBeNull()
+
+      // Simulate compositionend
+      editor.update(
+        () => {
+          $setCompositionKey(null)
+        },
+        { discrete: true },
+      )
+      expect(editor.isComposing()).toBe(false)
+      expect(capturedTrigger('/h1', editor)).toEqual({
+        leadOffset: 0,
+        matchingString: 'h1',
+        replaceableString: '/h1',
+      })
+    } finally {
+      await act(() => root.unmount())
+      vi.unstubAllGlobals()
+    }
   })
 })
