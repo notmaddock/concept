@@ -1,10 +1,6 @@
-import { Nova } from '#/components/nova/Nova'
+import { NewDocument } from '#/components/documents/NewDocument'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/new/')({
-  component: RouteComponent,
+  component: NewDocument,
 })
-
-function RouteComponent() {
-  return <Nova />
-}
