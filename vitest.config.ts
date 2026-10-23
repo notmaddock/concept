@@ -14,6 +14,10 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // VM pools break globals required by TanStack Start and workerd dependencies.
+    pool: 'forks',
+    // Suites depend on per-file module and global isolation.
+    isolate: true,
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['./src/test/setup.ts'],
     clearMocks: true,
