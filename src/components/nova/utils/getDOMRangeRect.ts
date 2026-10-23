@@ -8,12 +8,16 @@ export function getDOMRangeRect(
     nativeSelection,
     rootElement,
   )
-  if (points.anchorNode === rootElement || range === null) {
-    let inner = rootElement
-    while (inner.firstElementChild != null) {
-      inner = inner.firstElementChild as HTMLElement
-    }
-    return inner.getBoundingClientRect()
+  if (range && points.anchorNode !== rootElement) {
+    return range.getBoundingClientRect()
   }
-  return range.getBoundingClientRect()
+  const focusNode = nativeSelection.focusNode
+  if (focusNode) {
+    const element =
+      focusNode instanceof HTMLElement ? focusNode : focusNode.parentElement
+    if (element && rootElement.contains(element)) {
+      return element.getBoundingClientRect()
+    }
+  }
+  return new DOMRect(0, 0, 0, 0)
 }

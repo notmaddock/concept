@@ -185,6 +185,8 @@ This review covers the core Nova editor components (`Nova.tsx`, `NovaContentEdit
 
 ### 2.3 `getDOMRangeRect` Jumps to Top of Document on Root Element Selection
 
+- **Status**: FIXED
+- **Evidence & Validation**: Confirmed that `points.anchorNode === rootElement` traversed `firstElementChild` to line 1 of the document. Replaced the traversal loop by resolving the focused node element within `rootElement` or returning an empty `DOMRect(0, 0, 0, 0)`. Validated with unit tests in `src/components/nova/utils/getDOMRangeRect.test.ts`.
 - **File & Line**: [`src/components/nova/utils/getDOMRangeRect.ts#L10-L16`](file:///home/maddock/concept/src/components/nova/utils/getDOMRangeRect.ts#L10-L16)
 - **Root Cause**:
   ```ts
