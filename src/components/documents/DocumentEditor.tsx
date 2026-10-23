@@ -1,4 +1,5 @@
 import { observeDocumentTheme } from '#/lib/documents/document-theme'
+import { applyDocumentTheme } from '#/lib/documents/theme-transition'
 import type { DocumentTheme } from '#/lib/documents/document-theme'
 import type { RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'
@@ -79,6 +80,8 @@ export function DocumentEditor({
       active = false
       stopTheme?.()
       stopStatus?.()
+      applyDocumentTheme('default')
+      onDocumentThemeChange?.('default')
       documentRef.current = null
       provider.off('sync', onSync)
       provider.destroy()

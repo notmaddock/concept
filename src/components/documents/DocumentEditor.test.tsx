@@ -142,3 +142,24 @@ it('replaces the loading state with an error when stored content cannot be opene
     expect(container.querySelector('[role="status"]')).toBeNull()
   })
 })
+
+it('resets the document theme to default when unmounted', async () => {
+  const doc = await localDocumentStorage.create()
+  const themeSpy = vi.fn()
+  document.documentElement.dataset.documentTheme = 'amber'
+  await act(() =>
+    root.render(
+      <DocumentEditor
+        id={doc.id}
+        documentRef={documentRef}
+        editorRef={editorRef}
+        pageSetupOpen={false}
+        onPageSetupOpenChange={() => {}}
+        onDocumentThemeChange={themeSpy}
+      />,
+    ),
+  )
+  await act(() => root.render(null))
+  expect(document.documentElement.dataset.documentTheme ?? 'default').toBe('default')
+  expect(themeSpy).toHaveBeenCalledWith('default')
+})
