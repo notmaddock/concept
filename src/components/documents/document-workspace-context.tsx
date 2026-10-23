@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   lazy,
+  useMemo,
   Suspense,
   useContext,
   useEffect,
@@ -74,19 +75,19 @@ function useWorkspaceState(id?: string) {
   const [shareOpen, setShareOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
 
-  function openDocument() {
+  const openDocument = useCallback(() => {
     setFileAction('open')
-  }
+  }, [])
 
-  function copyDocument() {
+  const copyDocument = useCallback(() => {
     if (documentRef.current && document) setFileAction('copy')
     else
       setFileError(
         'Open a document and wait for it to load before making a copy.',
       )
-  }
+  }, [document])
 
-  async function downloadDocument() {
+  const downloadDocument = useCallback(async () => {
     try {
       if (!document || !documentRef.current)
         throw new Error(
@@ -103,60 +104,107 @@ function useWorkspaceState(id?: string) {
           : 'Could not download the document.',
       )
     }
-  }
+  }, [document])
 
-  async function exportDocument(format: ExportFormat) {
-    const editor = editorRef.current
-    if (!document || !editor) {
-      setFileError('Open a document and wait for it to load before exporting.')
-      return
-    }
-    try {
-      const { serializeExport, downloadExport } =
-        await import('#/lib/documents/export')
-      const file = await serializeExport(editor, document.name, format)
-      downloadExport(document.name, file)
-      setFileError('')
-    } catch {
-      setFileError('Could not export the document. Please try again.')
-    }
-  }
-
-  const workspace = {
-    ...library,
-    syncStatus: sync?.id === id ? sync?.status : undefined,
-    retrySync: sync?.id === id ? sync?.retry : undefined,
-    onSyncStatusChange,
-    documentTheme,
-    onDocumentThemeChange,
-    changeDocumentTheme: (theme: DocumentTheme) => {
-      if (documentRef.current) setDocumentTheme(documentRef.current, theme)
+  const exportDocument = useCallback(
+    async (format: ExportFormat) => {
+      const editor = editorRef.current
+      if (!document || !editor) {
+        setFileError('Open a document and wait for it to load before exporting.')
+        return
+      }
+      try {
+        const { serializeExport, downloadExport } =
+          await import('#/lib/documents/export')
+        const file = await serializeExport(editor, document.name, format)
+        downloadExport(document.name, file)
+        setFileError('')
+      } catch {
+        setFileError('Could not export the document. Please try again.')
+      }
     },
-    error: library.error || fileError,
-    enabled: Boolean(document),
-    documentRef,
-    editorRef,
-    detailsOpen,
-    onDetailsOpenChange: setDetailsOpen,
-    showDetails: () => setDetailsOpen(true),
-    shareOpen,
-    onShareOpenChange: setShareOpen,
-    shareDocument: () => setShareOpen(true),
-    pageSetupOpen,
-    onPageSetupOpenChange: setPageSetupOpen,
-    openDocument,
-    importDocument: (format: ImportFormat) => setFileAction(format),
-    copyDocument,
-    downloadDocument,
-    exportDocument,
-    openPageSetup: () => setPageSetupOpen(true),
-    focusEditor: () => {
-      editorRef.current?.getRootElement()?.focus({ preventScroll: true })
-      editorRef.current?.focus()
-    },
-  }
+    [document],
+  )
 
-  return { workspace, fileAction, closeFileDialog: () => setFileAction(null) }
+  const changeDocumentTheme = useCallback((theme: DocumentTheme) => {
+    if (documentRef.current) setDocumentTheme(documentRef.current, theme)
+  }, [])
+
+  const showDetails = useCallback(() => setDetailsOpen(true), [])
+  const shareDocument = useCallback(() => setShareOpen(true), [])
+  const openPageSetup = useCallback(() => setPageSetupOpen(true), [])
+  const importDocument = useCallback(
+    (format: ImportFormat) => setFileAction(format),
+    [],
+  )
+  const focusEditor = useCallback(() => {
+    editorRef.current?.getRootElement()?.focus({ preventScroll: true })
+    editorRef.current?.focus()
+  }, [])
+  const closeFileDialog = useCallback(() => setFileAction(null), [])
+
+  const syncStatus = sync?.id === id ? sync?.status : undefined
+  const retrySync = sync?.id === id ? sync?.retry : undefined
+  const error = library.error || fileError
+  const enabled = Boolean(document)
+
+  const workspace = useMemo(
+    () => ({
+      ...library,
+      syncStatus,
+      retrySync,
+      onSyncStatusChange,
+      documentTheme,
+      onDocumentThemeChange,
+      changeDocumentTheme,
+      error,
+      enabled,
+      documentRef,
+      editorRef,
+      detailsOpen,
+      onDetailsOpenChange: setDetailsOpen,
+      showDetails,
+      shareOpen,
+      onShareOpenChange: setShareOpen,
+      shareDocument,
+      pageSetupOpen,
+      onPageSetupOpenChange: setPageSetupOpen,
+      openDocument,
+      importDocument,
+      copyDocument,
+      downloadDocument,
+      exportDocument,
+      openPageSetup,
+      focusEditor,
+    }),
+    [
+      library,
+      syncStatus,
+      retrySync,
+      onSyncStatusChange,
+      documentTheme,
+      onDocumentThemeChange,
+      changeDocumentTheme,
+      error,
+      enabled,
+      documentRef,
+      editorRef,
+      detailsOpen,
+      showDetails,
+      shareOpen,
+      shareDocument,
+      pageSetupOpen,
+      openDocument,
+      importDocument,
+      copyDocument,
+      downloadDocument,
+      exportDocument,
+      openPageSetup,
+      focusEditor,
+    ],
+  )
+
+  return { workspace, fileAction, closeFileDialog }
 }
 
 const DocumentWorkspaceContext = createContext<
