@@ -19,6 +19,15 @@ interface DriveFile {
   version?: string
 }
 
+export class DriveError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+  }
+}
+
 async function connection(headers: Headers, accountId?: string) {
   if (!accountId) {
     const auth = getAuth()
@@ -48,18 +57,24 @@ async function request(token: string, url: string, init?: RequestInit) {
     headers: { ...init?.headers, Authorization: `Bearer ${token}` },
   })
   if (response.status === 412)
-    throw new Error(
+    throw new DriveError(
       'The Drive document changed during saving. Retry to merge the latest changes.',
+      412,
     )
   if (response.status === 401 || response.status === 403)
-    throw new Error(
+    throw new DriveError(
       'Google Drive access was denied. Reconnect in account settings.',
+      response.status,
     )
   if (response.status === 404)
-    throw new Error('The Google Drive file is missing or no longer accessible.')
+    throw new DriveError(
+      'The Google Drive file is missing or no longer accessible.',
+      404,
+    )
   if (!response.ok)
-    throw new Error(
+    throw new DriveError(
       'Google Drive is unavailable. Your browser copy is safe; try again.',
+      response.status >= 400 && response.status < 600 ? response.status : 502,
     )
   return response
 }
@@ -126,8 +141,9 @@ async function read(token: string, accountId: string, fileId: string) {
   if (!etag && file.version) {
     const latest = await request(token, `${url}?fields=version`)
     if ((await latest.json<DriveFile>()).version !== file.version)
-      throw new Error(
+      throw new DriveError(
         'The Drive document changed during saving. Retry to merge the latest changes.',
+        412,
       )
   }
   return {
@@ -165,7 +181,7 @@ export async function saveDriveDocument(
     )
     if (!response.ok) {
       const failure = await response.json<{ error: string }>()
-      throw new Error(failure.error)
+      throw new DriveError(failure.error, response.status)
     }
     return response.json<{
       document: DocumentInfo

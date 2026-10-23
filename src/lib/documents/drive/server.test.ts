@@ -5,6 +5,7 @@ import { DriveSaveCoordinator } from './coordinator'
 import { initializeDocument } from '../initial-document'
 import { parseConcept, serializeConcept } from '../concept-file'
 import {
+  DriveError,
   listDriveDocuments,
   readDriveDocument,
   saveDriveDocument,
@@ -397,4 +398,48 @@ it('allows a later queued save after the prior save fails', async () => {
   ])
   expect(saves[0].status).toBe('rejected')
   expect(saves[1].status).toBe('fulfilled')
+})
+
+it('preserves HTTP status codes through DriveSaveCoordinator and parses Bearer headers flexibly', async () => {
+  const coordinator = new DriveSaveCoordinator(
+    {} as DurableObjectState,
+    {} as Env,
+  )
+  const payload = {
+    accountId: 'account',
+    data: {
+      id,
+      accountId: 'account',
+      fileId: 'drive-file',
+      name: 'Remote',
+      text: content(),
+    },
+  }
+
+  const unauthorized = await coordinator.fetch(
+    new Request('https://drive-save.internal/', {
+      method: 'POST',
+      headers: { Authorization: 'Basic invalid' },
+      body: JSON.stringify(payload),
+    }),
+  )
+  expect(unauthorized.status).toBe(401)
+
+  mocks.fetch.mockResolvedValueOnce(new Response('', { status: 412 }))
+  const conflict = await coordinator.fetch(
+    new Request('https://drive-save.internal/', {
+      method: 'POST',
+      headers: { Authorization: 'bearer   spaced-token  ' },
+      body: JSON.stringify(payload),
+    }),
+  )
+  expect(conflict.status).toBe(412)
+  expect(mocks.fetch.mock.calls[0][1].headers).toMatchObject({
+    Authorization: 'Bearer spaced-token',
+  })
+
+  mocks.fetch.mockResolvedValueOnce(new Response('', { status: 403 }))
+  await expect(saveDriveDocument(headers, payload.data)).rejects.toMatchObject({
+    status: 403,
+  } satisfies Partial<DriveError>)
 })
