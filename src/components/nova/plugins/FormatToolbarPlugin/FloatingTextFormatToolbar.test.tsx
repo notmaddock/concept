@@ -119,12 +119,18 @@ describe('FloatingTextFormatToolbar', () => {
     expect(boldButton?.getAttribute('aria-pressed')).toBe('true')
     expect(italicButton?.getAttribute('aria-pressed')).toBe('false')
 
+    expect(boldButton).toBeDefined()
+    expect(italicButton).toBeDefined()
+    expect(underlineButton).toBeDefined()
+    expect(strikethroughButton).toBeDefined()
     await act(async () => {
+      boldButton!.click()
       italicButton?.click()
       underlineButton?.click()
       strikethroughButton?.click()
     })
 
+    expect(dispatchSpy).toHaveBeenCalledWith(FORMAT_TEXT_COMMAND, 'bold')
     expect(dispatchSpy).toHaveBeenCalledWith(FORMAT_TEXT_COMMAND, 'italic')
     expect(dispatchSpy).toHaveBeenCalledWith(FORMAT_TEXT_COMMAND, 'underline')
     expect(dispatchSpy).toHaveBeenCalledWith(
@@ -193,7 +199,8 @@ describe('FloatingTextFormatToolbar', () => {
 
     editor.getEditorState().read(() => {
       const node = $getRoot().getFirstDescendant()
-      expect($isTextNode(node) ? node.getStyle() : '').toBe('')
+      expect($isTextNode(node)).toBe(true)
+      if ($isTextNode(node)) expect(node.getStyle()).toBe('')
     })
   })
 })
