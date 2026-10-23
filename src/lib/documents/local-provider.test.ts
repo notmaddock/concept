@@ -124,3 +124,20 @@ it('restores awareness and catches up edits after reconnecting', async () => {
     second.provider.awareness.getStates().get(first.doc.clientID)?.name,
   ).toBe('Returning tab')
 })
+
+it("does not amplify messages or trigger echo loops when 3 or more tabs are connected (SYNC-03)", async () => {
+  const first = peer()
+  const second = peer()
+  first.provider.connect()
+  second.provider.connect()
+  await flushBroadcasts()
+
+  const third = peer()
+  third.provider.connect()
+  await flushBroadcasts()
+
+  // Subsequent flush produces no further messages
+  const baselineSent = TestBroadcastChannel.sent
+  await flushBroadcasts()
+  expect(TestBroadcastChannel.sent).toBe(baselineSent)
+})

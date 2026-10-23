@@ -27,6 +27,7 @@ export class LocalProvider
   private channel?: BroadcastChannel
   private resumeAfterPageHide = false
   private savedAwareness: ReturnType<Awareness['getLocalState']> = null
+  private clientId = `${Math.random().toString(36).slice(2)}-${Date.now()}`
 
   private onPageHide = () => {
     this.resumeAfterPageHide = this.connected
@@ -61,7 +62,7 @@ export class LocalProvider
 
   private onDocumentUpdate = (update: Uint8Array, origin: unknown) => {
     if (origin !== this && origin !== remoteDocumentOrigin)
-      this.send({ type: 'update', update })
+      this.send({ type: 'update', update, clientId: this.clientId })
   }
 
   private onAwarenessUpdate = (
@@ -80,29 +81,39 @@ export class LocalProvider
           ...updated,
           ...removed,
         ]),
+        clientId: this.clientId,
       })
   }
 
   private onMessage = ({ data }: MessageEvent<DocumentChannelMessage>) => {
     if (!this.connected) return
+    if (data.clientId && data.clientId === this.clientId) return
     if (data.type === 'request') {
       this.send({
         type: 'response',
         vector: encodeStateVector(this.doc),
         update: encodeStateAsUpdate(this.doc, data.vector),
+        targetId: data.clientId,
+        clientId: this.clientId,
       })
       this.send({
         type: 'awareness',
         update: encodeAwarenessUpdate(this.localAwareness, [
           ...this.localAwareness.getStates().keys(),
         ]),
+        clientId: this.clientId,
       })
     } else if (data.type === 'response') {
+      if (data.targetId && data.targetId !== this.clientId) return
       applyUpdate(this.doc, data.update, this)
-      this.send({
-        type: 'update',
-        update: encodeStateAsUpdate(this.doc, data.vector),
-      })
+      const diff = encodeStateAsUpdate(this.doc, data.vector)
+      if (diff.byteLength > 2) {
+        this.send({
+          type: 'update',
+          update: diff,
+          clientId: this.clientId,
+        })
+      }
     } else if (data.type === 'update') {
       applyUpdate(
         this.doc,
@@ -132,12 +143,17 @@ export class LocalProvider
         }
         this.doc.on('update', this.onDocumentUpdate)
         this.localAwareness.on('update', this.onAwarenessUpdate)
-        this.send({ type: 'request', vector: encodeStateVector(this.doc) })
+        this.send({
+          type: 'request',
+          vector: encodeStateVector(this.doc),
+          clientId: this.clientId,
+        })
         this.send({
           type: 'awareness',
           update: encodeAwarenessUpdate(this.localAwareness, [
             this.doc.clientID,
           ]),
+          clientId: this.clientId,
         })
         this.emit('status', [{ status: 'connected' }])
         this.emit('sync', [true])
