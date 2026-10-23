@@ -49,6 +49,8 @@ export function getAuth() {
   })
   return betterAuth({
     appName: 'Concept',
+    // Shared D1 counters; Better Auth 1.7 uses atomic conditional updates.
+    rateLimit: { enabled: true, storage: 'database' },
     advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
