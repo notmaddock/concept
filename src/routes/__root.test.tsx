@@ -49,9 +49,9 @@ it('defines root SEO metadata and per-route head titles', () => {
   expect(newDocHead?.meta).toEqual([{ title: 'New document — Concept' }])
 })
 
-it('configures router preload caching and user-facing RouteError fallback', async () => {
+it('configures the user-facing RouteError fallback', async () => {
   const router = getRouter()
-  expect(router.options.defaultPreloadStaleTime).toBe(30_000)
+  expect(router.options.defaultPreloadStaleTime).toBe(0)
   expect(router.options.defaultErrorComponent).toBe(RouteError)
   expect(RootRoute.options.errorComponent).toBe(RouteError)
 
