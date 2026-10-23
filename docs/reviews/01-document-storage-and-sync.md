@@ -361,4 +361,4 @@ This review covers the document storage, synchronization, lifecycle, and formatt
 
 ## Storage integration follow-ups
 
-All assigned storage commits except 7137ab4 were integrated. DRIVE-01 skip-on-open was rejected because matching names do not prove cached content is saved. The DRIVE-01 follow-up now avoids redundant server PATCH while retaining reopening synchronization; regression coverage includes cached unsaved content and Yjs deletions. STOR-01 compaction also has a focused follow-up to preserve another tab's writes atomically in the compaction transaction. These sections remain under integration until regression validation completes.
+All assigned storage commits except 7137ab4 were integrated. DRIVE-01 skip-on-open was rejected because matching names do not prove cached content is saved. Follow-up 205096d now avoids redundant server PATCH while retaining reopening synchronization; canonical Yjs comparison includes delete sets. STOR-01 compaction also has a focused follow-up to preserve another tab's writes atomically in the compaction transaction. These sections remain under integration until regression validation completes.
