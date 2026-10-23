@@ -22,11 +22,15 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
     if (!list || !scroller || !virtual) return
     scrollerRef.current = scroller
     let frame = 0
+    let listOffset = 0
+    const updateOffset = () => {
+      listOffset =
+        list.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top +
+        scroller.scrollTop
+    }
     const measure = () => {
-      const top = Math.max(
-        0,
-        scroller.getBoundingClientRect().top - list.getBoundingClientRect().top,
-      )
+      const top = Math.max(0, scroller.scrollTop - listOffset)
       const height = scroller.clientHeight || INITIAL_VIEWPORT_HEIGHT
       setViewport((previous) =>
         previous.top === top && previous.height === height
@@ -38,10 +42,15 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(measure)
     }
-    const observer = new ResizeObserver(measure)
+    const observer = new ResizeObserver(() => {
+      updateOffset()
+      measure()
+    })
     observer.observe(scroller)
-    scroller.addEventListener('scroll', onScroll, { passive: true })
+    observer.observe(list)
+    updateOffset()
     measure()
+    scroller.addEventListener('scroll', onScroll, { passive: true })
     return () => {
       cancelAnimationFrame(frame)
       observer.disconnect()
