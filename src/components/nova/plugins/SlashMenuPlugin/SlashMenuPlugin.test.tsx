@@ -7,7 +7,7 @@ import {
   $getRoot,
   createEditor,
 } from 'lexical'
-import type { TextNode } from 'lexical'
+import type { LexicalEditor, TextNode } from 'lexical'
 import { $isHeadingNode, HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListItemNode, ListNode } from '@lexical/list'
 import { HorizontalRuleNode } from '@lexical/extension'
@@ -22,7 +22,10 @@ let capturedProps: {
   onQueryChange: (matchingString: string | null) => void
   onSelectOption: OnSelectOptionCallback<BlockOption>
   options: Array<BlockOption>
-  triggerFn: (text: string) => {
+  triggerFn: (
+    text: string,
+    editor: LexicalEditor,
+  ) => {
     leadOffset: number
     matchingString: string
     replaceableString: string
@@ -38,6 +41,8 @@ let capturedProps: {
     matchingString: string,
   ) => React.ReactNode
 } | null = null
+
+let scrollDescriptor: PropertyDescriptor | undefined
 
 let editor: ReturnType<typeof createEditor>
 
@@ -60,7 +65,7 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -69,7 +74,15 @@ beforeEach(() => {
       disconnect() {}
     },
   )
-  Element.prototype.scrollIntoView = vi.fn()
+  const originalScroll = Object.getOwnPropertyDescriptor(
+    Element.prototype,
+    'scrollIntoView',
+  )
+  scrollDescriptor = originalScroll
+  Object.defineProperty(Element.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  })
   capturedProps = null
   editor = createEditor({
     nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, HorizontalRuleNode],
@@ -84,6 +97,9 @@ afterEach(async () => {
     root.unmount()
   })
   container.remove()
+  if (scrollDescriptor)
+    Object.defineProperty(Element.prototype, 'scrollIntoView', scrollDescriptor)
+  else Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -97,17 +113,21 @@ describe('SlashMenuPlugin', () => {
     expect(capturedProps).not.toBeNull()
 
     // Trigger matching on '/'
-    expect(capturedProps!.triggerFn('/h1')).toEqual({
+    expect(capturedProps!.triggerFn('/h1', editor)).toEqual({
       leadOffset: 0,
       matchingString: 'h1',
       replaceableString: '/h1',
     })
-    expect(capturedProps!.triggerFn('Hello /quote')).toEqual({
+    expect(capturedProps!.triggerFn('Hello /quote', editor)).toEqual({
       leadOffset: 6,
       matchingString: 'quote',
       replaceableString: '/quote',
     })
-    expect(capturedProps!.triggerFn('plain text')).toBeNull()
+    expect(capturedProps!.triggerFn('plain text', editor)).toBeNull()
+
+    const composing = vi.spyOn(editor, 'isComposing').mockReturnValue(true)
+    expect(capturedProps!.triggerFn('/h1', editor)).toBeNull()
+    composing.mockRestore()
 
     // Initially all 9 block options are returned
     expect(capturedProps!.options.length).toBeGreaterThanOrEqual(8)
@@ -142,8 +162,37 @@ describe('SlashMenuPlugin', () => {
     )
 
     const closeMenu = vi.fn()
+    const composingSelection = vi
+      .spyOn(editor, 'isComposing')
+      .mockReturnValue(true)
+    editor.update(
+      () => {
+        capturedProps!.onSelectOption(
+          heading1Option,
+          slashNode,
+          closeMenu,
+          'h1',
+        )
+      },
+      { discrete: true },
+    )
+    expect(closeMenu).not.toHaveBeenCalled()
+    editor.getEditorState().read(() => {
+      expect($getRoot().getTextContent()).toBe('/h1')
+    })
+    composingSelection.mockRestore()
     await act(async () => {
-      capturedProps!.onSelectOption(heading1Option, slashNode, closeMenu, 'h1')
+      editor.update(
+        () => {
+          capturedProps!.onSelectOption(
+            heading1Option,
+            slashNode,
+            closeMenu,
+            'h1',
+          )
+        },
+        { discrete: true },
+      )
     })
 
     expect(closeMenu).toHaveBeenCalledOnce()
@@ -157,7 +206,7 @@ describe('SlashMenuPlugin', () => {
     })
   })
 
-  it('renders grouped options in SlashMenuPluginMenu and supports keyboard/click selection and empty state', async () => {
+  it('renders grouped options in SlashMenuPluginMenu and supports keyboard highlighting, click selection and empty state', async () => {
     await act(async () => {
       root.render(<SlashMenuPlugin />)
     })
@@ -198,6 +247,15 @@ describe('SlashMenuPlugin', () => {
       expect(selectOptionAndCleanUp).toHaveBeenCalledWith(
         expect.objectContaining({ key: 'heading-1' }),
       )
+
+      const command = anchor.querySelector<HTMLElement>('[cmdk-root]')!
+      expect(command).not.toBeNull()
+      await act(async () => {
+        command.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }),
+        )
+      })
+      expect(setHighlightedIndex).toHaveBeenCalledWith(1)
 
       // Empty options renders "No results found."
       await act(async () => {
