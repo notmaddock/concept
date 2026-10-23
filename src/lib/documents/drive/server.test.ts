@@ -4,8 +4,9 @@ import { applyUpdate, Doc } from 'yjs'
 import { DriveSaveCoordinator } from './coordinator'
 import { initializeDocument } from '../initial-document'
 import { parseConcept, serializeConcept } from '../concept-file'
+import type {
+  DriveError} from './server';
 import {
-  DriveError,
   listDriveDocuments,
   readDriveDocument,
   saveDriveDocument,

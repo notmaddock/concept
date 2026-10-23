@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 
+import { Route } from './index'
+
 vi.mock('#/components/account/AccountManager', () => ({
   AccountManager: () => <div data-testid="account-manager" />,
 }))
@@ -24,8 +26,6 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
     ),
   }
 })
-
-import { Route } from './index'
 
 const container = document.createElement('div')
 let root: ReturnType<typeof createRoot>

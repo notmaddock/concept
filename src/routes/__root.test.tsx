@@ -2,11 +2,16 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import type * as RouterModule from '@tanstack/react-router'
+
+import { RouteError } from '#/components/route-error'
+import { getRouter } from '#/router'
+import { Route as RootRoute } from './__root'
+import { Route as DocumentsRoute } from './d/index'
+import { Route as NewDocumentRoute } from './new/index'
 
 const invalidate = vi.hoisted(() => vi.fn())
 vi.mock('@tanstack/react-router', async (importOriginal) => {
-  const actual = await importOriginal<typeof RouterModule>()
+  const actual = await importOriginal<typeof import('@tanstack/react-router')>()
   return {
     ...actual,
     useRouter: () => ({ invalidate }),
@@ -25,14 +30,8 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   }
 })
 
-import { RouteError } from '#/components/route-error'
-import { getRouter } from '#/router'
-import { Route as RootRoute } from './__root'
-import { Route as DocumentsRoute } from './d/index'
-import { Route as NewDocumentRoute } from './new/index'
-
-it('defines root SEO metadata and per-route head titles', async () => {
-  const rootHead = await RootRoute.options.head?.({} as never)
+it('defines root SEO metadata and per-route head titles', () => {
+  const rootHead = RootRoute.options.head?.({} as never)
   expect(rootHead?.meta).toEqual(
     expect.arrayContaining([
       { title: 'Concept' },
@@ -43,10 +42,10 @@ it('defines root SEO metadata and per-route head titles', async () => {
     ]),
   )
 
-  const documentsHead = await DocumentsRoute.options.head?.({} as never)
+  const documentsHead = DocumentsRoute.options.head?.({} as never)
   expect(documentsHead?.meta).toEqual([{ title: 'Documents — Concept' }])
 
-  const newDocHead = await NewDocumentRoute.options.head?.({} as never)
+  const newDocHead = NewDocumentRoute.options.head?.({} as never)
   expect(newDocHead?.meta).toEqual([{ title: 'New document — Concept' }])
 })
 

@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest'
 
+import worker from './worker'
+
 const serverFetch = vi.hoisted(() => vi.fn())
 
 vi.mock('@tanstack/react-start/server-entry', () => ({
@@ -10,8 +12,6 @@ vi.mock('cloudflare:workers', () => ({
   DurableObject: class {},
   env: {},
 }))
-
-import worker from './worker'
 
 beforeEach(() => {
   serverFetch.mockReset()
