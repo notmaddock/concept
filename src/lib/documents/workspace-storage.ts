@@ -53,9 +53,10 @@ export const workspaceDocumentStorage: DocumentStorage = {
     function schedule() {
       if (isClosed()) return
       dirty = true
+      const isOnline = typeof navigator === 'undefined' || navigator.onLine
       report({
-        state: navigator.onLine ? 'pending' : 'offline',
-        message: navigator.onLine
+        state: isOnline ? 'pending' : 'offline',
+        message: isOnline
           ? 'Changes are stored in this browser and waiting to save to Google Drive.'
           : 'You’re offline. Changes stay in this browser and will save to Google Drive when you reconnect.',
       })
@@ -109,9 +110,10 @@ export const workspaceDocumentStorage: DocumentStorage = {
       } catch (cause) {
         dirty = true
         retryDelay = 30_000
+        const isOnline = typeof navigator === 'undefined' || navigator.onLine
         if (!isClosed())
           report({
-            state: navigator.onLine ? 'error' : 'offline',
+            state: isOnline ? 'error' : 'offline',
             message: `Changes are stored in this browser. ${cause instanceof Error ? cause.message : 'Could not save to Google Drive.'}`,
           })
       } finally {
@@ -144,8 +146,10 @@ export const workspaceDocumentStorage: DocumentStorage = {
             if (name !== change.document.backing?.syncedName) schedule()
           }
         })
-        window.addEventListener('online', retry)
-        window.addEventListener('focus', retry)
+        if (typeof window !== 'undefined') {
+          window.addEventListener('online', retry)
+          window.addEventListener('focus', retry)
+        }
         // Merge remote Yjs state before replacing the existing Drive file.
         schedule()
       })
@@ -169,8 +173,10 @@ export const workspaceDocumentStorage: DocumentStorage = {
         clearTimeout(timer)
         doc.off('update', changed)
         unsubscribe?.()
-        window.removeEventListener('online', retry)
-        window.removeEventListener('focus', retry)
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('online', retry)
+          window.removeEventListener('focus', retry)
+        }
         listeners.clear()
         await local.destroy()
       },
