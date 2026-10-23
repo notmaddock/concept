@@ -97,3 +97,32 @@ it('defaults relinked accounts to disconnected even when Google returns prior Dr
       .get('relinked')?.driveConnected,
   ).toBe(0)
 })
+
+it('adds expiry indexes to an existing populated schema without changing credentials', () => {
+  database.exec(`INSERT INTO session (id, expiresAt, token, createdAt, updatedAt, userId) VALUES ('session-1', 10, 'token', 0, 0, 'user-1');
+    INSERT INTO verification (id, identifier, value, expiresAt, createdAt, updatedAt) VALUES ('verification-1', 'email', 'proof', 10, 0, 0);
+    UPDATE account SET accessToken = 'encrypted-access', refreshToken = 'encrypted-refresh';`)
+  const migration = readFileSync(
+    new URL('../../../migrations/0005_expiry_indexes.sql', import.meta.url),
+    'utf8',
+  )
+  database.exec(migration)
+  database.exec(migration)
+  for (const table of ['session', 'verification']) {
+    const plan = database
+      .prepare(`EXPLAIN QUERY PLAN DELETE FROM ${table} WHERE expiresAt < ?`)
+      .all(20)
+    expect(
+      plan.some((row) => String(row.detail).includes(`${table}_expiresAt_idx`)),
+    ).toBe(true)
+    expect(
+      database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()?.count,
+    ).toBe(1)
+  }
+  expect(
+    database.prepare('SELECT accessToken, refreshToken FROM account').get(),
+  ).toEqual({
+    accessToken: 'encrypted-access',
+    refreshToken: 'encrypted-refresh',
+  })
+})
