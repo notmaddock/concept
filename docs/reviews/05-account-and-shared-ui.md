@@ -24,7 +24,7 @@ None identified.
 
 ## Low
 
-6. Theme bootstrap fails entirely when storage access throws — src/components/theme-provider.tsx:17-20, 48-65. localStorage.getItem shares a try block with initial DOM theme application. When storage is blocked, the bootstrap exits without applying defaultTheme/system preference; React only repairs this in a post-mount effect, permitting a wrong-theme first paint. Catch the storage read separately and always resolve/apply the fallback theme before hydration.
+6. Theme bootstrap fails entirely when storage access throws — src/components/theme-provider.tsx:17-20, 48-65. Status: FIXED. Triage confirmed: localStorage.getItem and DOM theme class/style application shared a single try block in getThemeScript. When storage access was blocked, an exception aborted script execution before documentElement received any theme class, resulting in unstyled/wrong-theme flash before React hydration. Fixed by isolating localStorage.getItem in its own try/catch block and always resolving and applying the fallback or system theme to documentElement in a dedicated try block. Validated with unit test in theme-provider.test.tsx ensuring bootstrap script applies dark/light theme to documentElement when localStorage.getItem throws SecurityError.
 
 7. Theme preferences do not synchronize across tabs — src/components/theme-provider.tsx:48-82. Storage is read on mount, but no storage-event listener updates the mounted provider. Changing theme in one tab leaves other open tabs using the previous theme until reload. Add a cleaned-up storage listener filtered to storageKey, validating values and using defaultTheme when the preference is removed.
 

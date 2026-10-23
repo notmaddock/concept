@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Root } from 'react-dom/client'
-import { ThemeProvider, useTheme } from './theme-provider'
+import { ThemeProvider, getThemeScript, useTheme } from './theme-provider'
 
 vi.mock('@tanstack/react-router', () => ({ ScriptOnce: () => null }))
 
@@ -61,4 +61,14 @@ it('applies a theme even when saving the preference fails', async () => {
   await act(() => container.querySelector('button')!.click())
   expect(container.textContent).toBe('dark')
   expect(document.documentElement.classList.contains('dark')).toBe(true)
+})
+
+it('applies fallback theme during bootstrap script execution when storage access throws', () => {
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    throw new DOMException('Storage denied', 'SecurityError')
+  })
+  const script = getThemeScript('theme', 'dark')
+  new Function(script)()
+  expect(document.documentElement.classList.contains('dark')).toBe(true)
+  expect(document.documentElement.style.colorScheme).toBe('dark')
 })
