@@ -141,6 +141,7 @@ export function DocumentStorageDialog({
     pendingRef.current = true
     setPending(true)
     setError('')
+    let closed = false
     try {
       let id = selected?.open
         ? (await selected.open()).id
@@ -157,6 +158,7 @@ export function DocumentStorageDialog({
         id = (await provider.save(file, name.trim())).id
       }
       await navigate({ to: '/d/$id', params: { id } })
+      closed = true
       onClose()
     } catch (cause) {
       setError(
@@ -166,7 +168,7 @@ export function DocumentStorageDialog({
       )
     } finally {
       pendingRef.current = false
-      setPending(false)
+      if (!closed) setPending(false)
     }
   }
 
@@ -195,7 +197,7 @@ export function DocumentStorageDialog({
               : mode === 'copy'
                 ? 'Name your copy and choose where to save it.'
                 : selected
-                  ? 'Review the document and choose where you’ll work on it.'
+                  ? 'Review the document and choose where you\u2019ll work on it.'
                   : 'Choose where to open your document from.'}
           </DialogDescription>
         </DialogHeader>
@@ -205,7 +207,7 @@ export function DocumentStorageDialog({
             accept={format.extensions.join(',')}
             description={`Import a ${format.label} file from your device.`}
             reading={reading}
-            status="Converting document…"
+            status="Converting document\u2026"
             onSelect={(file) => {
               void readDocument(async () => {
                 const { convertImport } = await import('#/lib/documents/import')
@@ -263,7 +265,7 @@ export function DocumentStorageDialog({
                     accept=".concept"
                     description="Open a .concept file from your device."
                     reading={reading}
-                    status="Reading document…"
+                    status="Reading document\u2026"
                     onSelect={(file) => {
                       void readDocument(async () => {
                         if (!file.name.toLowerCase().endsWith('.concept'))
@@ -306,7 +308,7 @@ export function DocumentStorageDialog({
                 )}
                 {reading && openSource.kind === 'library' && (
                   <p role="status" className="text-sm text-muted-foreground">
-                    Reading document…
+                    Reading document\u2026
                   </p>
                 )}
               </>
@@ -414,10 +416,10 @@ export function DocumentStorageDialog({
             >
               {pending
                 ? mode === 'copy'
-                  ? 'Saving…'
+                  ? 'Saving\u2026'
                   : mode === 'import'
-                    ? 'Importing…'
-                    : 'Opening…'
+                    ? 'Importing\u2026'
+                    : 'Opening\u2026'
                 : mode === 'copy'
                   ? 'Save copy'
                   : mode === 'import'
