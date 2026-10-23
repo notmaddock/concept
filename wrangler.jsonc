@@ -59,6 +59,11 @@
     "required": ["BETTER_AUTH_SECRET", "GOOGLE_CLIENT_SECRET"],
   },
   "previews": {
+    "durable_objects": {
+      "bindings": [
+        { "name": "DRIVE_SAVES", "class_name": "DriveSaveCoordinator" },
+      ],
+    },
     "vars": {
       "BETTER_AUTH_URL": "https://staging.concept.maddock.world",
       "GOOGLE_CLIENT_ID": "819574860574-3e68a16ekd85g25uj9jliejt4l2qaamp.apps.googleusercontent.com",
