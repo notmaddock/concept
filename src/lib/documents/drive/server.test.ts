@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { applyUpdate, Doc } from 'yjs'
+import { applyUpdate, Doc, encodeStateAsUpdate, encodeStateVector } from 'yjs'
 import { DriveSaveCoordinator } from './coordinator'
 import { initializeDocument } from '../initial-document'
 import { parseConcept, serializeConcept } from '../concept-file'
@@ -235,7 +235,7 @@ it('opens and updates an existing Drive file without an ETag header', async () =
       id,
       accountId: 'account',
       fileId: 'drive-file',
-      name: 'Remote',
+      name: 'Renamed',
       text: file,
     }),
   ).resolves.toMatchObject({ document: { id } })
@@ -280,6 +280,9 @@ it('authorizes uploads before decoding and hydrating the supplied document', asy
 it.each(['.concept', '   .CONCEPT'])(
   'preserves a valid content name when Drive basename is empty: %s',
   async (name) => {
+    const local = new Doc()
+    initializeDocument(local)
+    local.getMap('metadata').set('new-content', 'upload')
     mocks.fetch
       .mockResolvedValueOnce(json({ ...metadata, name }))
       .mockResolvedValueOnce(new Response(content('Valid prior name')))
@@ -292,7 +295,7 @@ it.each(['.concept', '   .CONCEPT'])(
       fileId: 'drive-file',
       name: 'Remote',
       previousName: 'Remote',
-      text: content(),
+      text: serializeConcept('Remote', local),
     })
     expect(result.file.name).toBe('Valid prior name')
     const uploaded = mocks.fetch.mock.calls[2][1].body as string
@@ -300,6 +303,7 @@ it.each(['.concept', '   .CONCEPT'])(
       .split(`Content-Type: application/vnd.concept+json\r\n\r\n`)[1]
       .split('\r\n--')[0]
     expect(parseConcept(payload).name).toBe('Valid prior name')
+    local.destroy()
   },
 )
 
@@ -457,3 +461,79 @@ it('preserves HTTP status codes through DriveSaveCoordinator and parses Bearer h
     status: 403,
   } satisfies Partial<DriveError>)
 })
+
+it.each([false, true])(
+  'skips PATCH for unchanged read-only content and returns remote-only changes: %s',
+  async (remoteChanges) => {
+    const remote = new Doc()
+    initializeDocument(remote)
+    const localText = serializeConcept('Remote', remote)
+    if (remoteChanges) remote.getMap('metadata').set('remote-only', 'kept')
+    const remoteText = serializeConcept('Remote renamed', remote)
+    mocks.fetch.mockImplementation(async (url: string, init: RequestInit) => {
+      if (init.method) return new Response('', { status: 403 })
+      return url.includes('alt=media')
+        ? new Response(remoteText)
+        : json({ ...metadata, name: 'Remote renamed.concept' })
+    })
+    const result = await saveDriveDocument(headers, {
+      id,
+      accountId: 'account',
+      fileId: 'drive-file',
+      name: 'Remote',
+      previousName: 'Remote',
+      text: localText,
+    })
+    expect(result.file).toEqual(parseConcept(remoteText))
+    expect(result.document).toMatchObject({
+      id,
+      name: 'Remote renamed',
+      updatedAt: Date.parse(metadata.modifiedTime),
+    })
+    expect(mocks.fetch).toHaveBeenCalledTimes(2)
+    expect(mocks.fetch.mock.calls.every(([, init]) => !init.method)).toBe(true)
+    remote.destroy()
+  },
+)
+
+it.each(['deletion', 'name'])(
+  'uploads a local %s even when state vectors match',
+  async (change) => {
+    const remote = new Doc()
+    initializeDocument(remote)
+    remote.getMap('metadata').set('remove-me', 'value')
+    const local = new Doc()
+    applyUpdate(local, encodeStateAsUpdate(remote))
+    if (change === 'deletion') local.getMap('metadata').delete('remove-me')
+    expect(encodeStateVector(local)).toEqual(encodeStateVector(remote))
+    const name = change === 'name' ? 'Renamed' : 'Remote'
+    mocks.fetch
+      .mockResolvedValueOnce(json(metadata))
+      .mockResolvedValueOnce(new Response(serializeConcept('Remote', remote)))
+      .mockResolvedValueOnce(json({ ...metadata, name: name + '.concept' }))
+    const result = await saveDriveDocument(headers, {
+      id,
+      accountId: 'account',
+      fileId: 'drive-file',
+      name,
+      previousName: 'Remote',
+      text: serializeConcept(name, local),
+    })
+    expect(mocks.fetch.mock.calls[2][1]).toMatchObject({
+      method: 'PATCH',
+      headers: { 'If-Match': '"revision-1"' },
+    })
+    const merged = new Doc()
+    applyUpdate(
+      merged,
+      Uint8Array.from(atob(result.file.update), (c) => c.charCodeAt(0)),
+    )
+    expect(merged.getMap('metadata').has('remove-me')).toBe(
+      change !== 'deletion',
+    )
+    expect(result.file.name).toBe(name)
+    remote.destroy()
+    local.destroy()
+    merged.destroy()
+  },
+)

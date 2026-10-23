@@ -1,11 +1,16 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { Doc } from 'yjs'
+import { applyUpdate as applyYjsUpdate, Doc } from 'yjs'
 import { localDocumentStorage } from './storages/local'
 import type { DocumentInfo, DocumentPersistence } from './storage'
 import { workspaceDocumentStorage } from './workspace-storage'
-import { importConcept, parseConcept, serializeConcept } from './concept-file'
+import {
+  decodeUpdate,
+  importConcept,
+  parseConcept,
+  serializeConcept,
+} from './concept-file'
 import { initializeDocument } from './initial-document'
 
 const save = vi.hoisted(() => vi.fn())
@@ -476,4 +481,24 @@ it('handles synchronous synced status or early rejection during background sync 
   await expect(workspaceDocumentStorage.list()).resolves.toBeDefined()
 
   openSpy.mockRestore()
+})
+
+it('uploads cached unsynced content after reopening even when names match', async () => {
+  const file = await seed()
+  const first = await open(target.id)
+  first.doc.getMap('metadata').set('offline-unsaved', 'kept')
+  await first.session.destroy()
+  save.mockResolvedValue({ document: target, file })
+  const reopened = await open(target.id)
+  expect(reopened.doc.getMap('metadata').get('offline-unsaved')).toBe('kept')
+  await vi.waitFor(() => expect(save).toHaveBeenCalled(), { timeout: 3000 })
+  const uploaded = new Doc()
+  docs.push(uploaded)
+  const snapshot = parseConcept(save.mock.calls[0][0].data.text)
+  applyYjsUpdate(uploaded, decodeUpdate(snapshot))
+  expect(uploaded.getMap('metadata').get('offline-unsaved')).toBe('kept')
+  expect(save.mock.calls[0][0].data).toMatchObject({
+    name: target.name,
+    previousName: target.name,
+  })
 })

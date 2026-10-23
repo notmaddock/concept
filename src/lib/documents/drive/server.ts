@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers'
-import { applyUpdate, Doc } from 'yjs'
+import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
 import { getAuth, getProviderAccessToken } from '#/lib/auth/server'
 import { googlePermissions } from '#/lib/auth/connections'
 import { decodeUpdate, parseConcept, serializeConcept } from '../concept-file'
@@ -219,11 +219,18 @@ export async function saveDriveFile(
     if (data.previousName === data.name) data.name = remote.document.name
     const doc = new Doc()
     try {
-      for (const update of [remote.file.update, file.update])
-        applyUpdate(
-          doc,
-          decodeUpdate(update),
-        )
+      applyUpdate(doc, decodeUpdate(remote.file.update))
+      // Compare canonical snapshots, including the delete set. State vectors alone
+      // miss deletions, and raw file bytes may use a different update encoding.
+      const before = encodeStateAsUpdate(doc)
+      applyUpdate(doc, decodeUpdate(file.update))
+      const after = encodeStateAsUpdate(doc)
+      if (
+        data.name === remote.document.name &&
+        before.length === after.length &&
+        before.every((byte, index) => byte === after[index])
+      )
+        return { document: remote.document, file: remote.file }
       text = serializeConcept(data.name, doc)
     } finally {
       doc.destroy()
