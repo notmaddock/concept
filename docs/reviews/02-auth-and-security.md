@@ -22,7 +22,7 @@ Fix: require residentKey: "required" for this username-less product. Account for
 
 Locations: wrangler.jsonc:39-52; src/routes/api/auth/$.ts:5-10.
 
-Query-string redaction is explicitly disabled while invocation logs and persistent traces are enabled at full sampling. GET OAuth callbacks include authorization code and state in the request URL. Those values can therefore enter observability storage and integrations, expanding access beyond the auth service. This is a confidentiality issue; PKCE, short expiry, state binding, and single-use codes limit replay, so this finding does not establish an account-takeover exploit.
+Status: DOCUMENTED OVERLAP (OWNED BY CONFIG AGENT). Triage confirmed: wrangler.jsonc:41 specifies redact_query_string: false while persistent invocation logs and traces are enabled at 100% sampling. GET OAuth callbacks include authorization codes and state in the query string, allowing sensitive transient secrets into log retention. As instructed, wrangler.jsonc and observability configuration are owned by the config agent (finding SEC-01 in 07-config-and-migrations.md); documented here to prevent conflicting modifications.
 
 Fix: set observability.redact_query_string to true; inspect downstream sinks for URL capture and restrict access/retention of existing records. Verify with a synthetic callback that code/state never appear in persisted invocation metadata. Cloudflare reference: https://developers.cloudflare.com/workers/observability/logs/workers-logs/.
 
@@ -30,7 +30,7 @@ Fix: set observability.redact_query_string to true; inspect downstream sinks for
 
 Location: src/lib/auth/server.ts:49-51,115.
 
-No shared rate-limit storage or edge rate-limit configuration is provided in the reviewed repository. Better Auth defaults to an in-memory map, which is shared within an isolate but not across Workers isolates/regions and is lost on restart. The configured cf-connecting-ip header improves IP integrity but does not make counters global. Distributed auth traffic can exceed the intended per-client limits, increasing OAuth verification, challenge creation, D1 load, and cost. This is an abuse-protection gap, not a demonstrated signature or login bypass.
+Status: BLOCKED / ARCHITECTURAL LIMITATION. Triage confirmed: Better Auth defaults to an in-memory rate-limiter map, meaning rate limits are enforced within individual Worker isolates rather than globally across Cloudflare edge locations or surviving isolate recycles. However, resolving global edge rate limiting requires infrastructure configuration: either Cloudflare edge WAF rate-limiting rules, a Durable Object rate-limit binding in wrangler.jsonc (owned by config agent), or a D1-backed rate-limit table (which requires D1 schema migrations owned by domain 7 and would add single-writer lock contention to global auth requests). This abuse-protection gap is blocked pending platform/infrastructure coordination.
 
 Fix: configure an atomic shared limiter, such as a Durable Object-backed custom store, or deploy equivalent Cloudflare edge limits. If choosing Better Auth database storage, add its required schema and validate its atomic behavior on D1. Test requests across multiple instances. Better Auth explicitly cautions about in-memory storage in serverless environments: https://better-auth.com/docs/concepts/rate-limit.
 
@@ -48,7 +48,7 @@ Fix: enforce server-side fresh-session or stronger step-up authentication before
 
 Locations: src/components/account/PasskeySettings.tsx:43-57,76; src/components/account/use-account-settings.ts:84-99,133-138; src/components/account/AccountMenu.tsx:70-74.
 
-Better Auth rejects passkey registration and Google unlinking once the session exceeds its freshness window. The UI displays the error but does not offer reauthentication or resume the operation. Sign-in actions are hidden while already signed in. Users can recover by signing out and back in, but must discover this themselves; repeatedly retrying the requested action cannot succeed.
+Status: FIXED. Triage confirmed: Better Auth rejects passkey registration, passkey deletion, and Google unlinking when the session freshness window expires (HTTP 403 SESSION_NOT_FRESH). Previously, the UI displayed a dead-end error with no option to reauthenticate while signed in. Fixed by adding ReauthDialog (with isFreshSessionError recognizer) in src/components/account/ReauthDialog.tsx, and integrating recovery into PasskeySettings, useAccountSettings, and AccountSettingsDialog. When a fresh-session error is intercepted, the dialog prompts reauthentication via passkey or Google, verifies that the resulting session user ID matches the current user, and automatically resumes the pending operation. Cancelled or mismatched reauthentication is cleanly reported without executing the pending mutation. Validated with integration tests in src/components/account/AccountManager.test.tsx covering passkey registration recovery, Google unlinking recovery, prompt cancellation, and mismatched user ID rejection.
 
 Fix: recognize SESSION_NOT_FRESH, offer Google/passkey reauthentication while signed in, verify the resulting user identity, then allow the pending operation to be retried. Test fresh versus stale sessions and cancelled reauthentication.
 

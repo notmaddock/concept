@@ -51,6 +51,7 @@ const {
       signOut: vi.fn(),
       linkSocial: vi.fn(),
       unlinkAccount: vi.fn(),
+      getSession: vi.fn(),
     },
     theme: { theme: 'system', setTheme: vi.fn() },
   }
@@ -101,6 +102,13 @@ beforeEach(async () => {
   })
   client.signOut.mockResolvedValue({ error: null })
   client.linkSocial.mockResolvedValue({ error: null })
+  client.getSession.mockImplementation(async () => ({
+    data: sessionState.current,
+    error: null,
+  }))
+  client.passkey.addPasskey.mockResolvedValue({ error: null })
+  client.passkey.deletePasskey.mockResolvedValue({ error: null })
+  client.unlinkAccount.mockResolvedValue({ error: null })
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -433,4 +441,89 @@ it('does not offer to retry loaded connections after a connection action fails',
   expect(
     document.querySelector('[aria-label="Storage connections"]')?.textContent,
   ).not.toContain('Retry connections')
+})
+
+it('opens reauthentication dialog on stale session during passkey registration and allows recovery', async () => {
+  client.passkey.addPasskey
+    .mockResolvedValueOnce({
+      error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+    })
+    .mockResolvedValueOnce({ error: null })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Add')
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 10))
+  })
+  expect(document.body.textContent).toContain('Confirm your identity')
+
+  await click('button', 'Confirm with passkey')
+  expect(client.signIn.passkey).toHaveBeenCalled()
+  expect(client.passkey.addPasskey).toHaveBeenCalledTimes(2)
+})
+
+it('cancels reauthentication on stale session when user dismisses reauth prompt', async () => {
+  client.passkey.addPasskey.mockResolvedValueOnce({
+    error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+  })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Add')
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 10))
+  })
+  expect(document.body.textContent).toContain('Confirm your identity')
+
+  await click('button', 'Cancel')
+  expect(toastError).toHaveBeenCalledWith('Authentication cancelled')
+  expect(client.passkey.addPasskey).toHaveBeenCalledTimes(1)
+})
+
+it('rejects retrying sensitive action if reauthenticated under a different user', async () => {
+  client.passkey.addPasskey.mockResolvedValueOnce({
+    error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+  })
+  client.getSession.mockResolvedValueOnce({
+    data: { user: { id: 'different-user-id' } },
+    error: null,
+  })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Add')
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 10))
+  })
+  expect(document.body.textContent).toContain('Confirm your identity')
+
+  await click('button', 'Confirm with passkey')
+  expect(toastError).toHaveBeenCalledWith(
+    'Reauthenticated with a different account.',
+  )
+  expect(client.passkey.addPasskey).toHaveBeenCalledTimes(1)
+})
+
+it('opens reauthentication dialog on stale session during Google unlinking and allows recovery', async () => {
+  passkeyState.data = [
+    {
+      id: 'key-1',
+      name: 'Key',
+      aaguid: 'ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4',
+    },
+  ]
+  client.unlinkAccount
+    .mockResolvedValueOnce({
+      error: { code: 'SESSION_NOT_FRESH', message: 'Session is not fresh' },
+    })
+    .mockResolvedValueOnce({ error: null })
+  await menu()
+  await click('[role="menuitem"]', 'Account settings')
+  await click('button', 'Unlink')
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 10))
+  })
+  expect(document.body.textContent).toContain('Confirm your identity')
+
+  await click('button', 'Confirm with passkey')
+  expect(client.signIn.passkey).toHaveBeenCalled()
+  expect(client.unlinkAccount).toHaveBeenCalledTimes(2)
 })

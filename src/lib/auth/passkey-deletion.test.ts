@@ -60,29 +60,27 @@ describe('passkey deletion session freshness', () => {
     })
 
     const ctx = await auth.$context
-    const user = await ctx.internalAdapter.createUser({
-      name: 'Example User',
-      email: 'user@example.com',
-      emailVerified: true,
-    })
-    const session = await ctx.internalAdapter.createSession(user.id)
-    const signature = await makeSignature(session.token, secret)
-    const cookieName = ctx.authCookies.sessionToken.name
-    const cookieHeader = `${cookieName}=${session.token}.${signature}`
-
-    // Insert Google account and passkey
+    const userId = 'user-1'
+    const sessionToken = 'session-token-123'
     const now = Date.now()
     database.exec(`
+      INSERT INTO user (id, name, email, createdAt, updatedAt)
+      VALUES ('${userId}', 'Example User', 'user@example.com', 0, 0);
+      INSERT INTO session (id, token, userId, expiresAt, createdAt, updatedAt)
+      VALUES ('sess-1', '${sessionToken}', '${userId}', ${now + 7 * 86400000}, ${now}, ${now});
       INSERT INTO account (id, accountId, providerId, userId, createdAt, updatedAt)
-      VALUES ('acc-1', 'sub-1', 'google', '${user.id}', 0, 0);
+      VALUES ('acc-1', 'sub-1', 'google', '${userId}', 0, 0);
       INSERT INTO passkey (id, name, publicKey, userId, credentialID, counter, deviceType, backedUp, createdAt)
-      VALUES ('key-1', 'Security Key', 'public-key', '${user.id}', 'cred-1', 0, 'singleDevice', 0, 0);
+      VALUES ('key-1', 'Security Key', 'public-key', '${userId}', 'cred-1', 0, 'singleDevice', 0, 0);
     `)
+    const signature = await makeSignature(sessionToken, secret)
+    const cookieName = ctx.authCookies.sessionToken.name
+    const cookieHeader = `${cookieName}=${sessionToken}.${signature}`
 
     // Age session so it is stale (> 5 minutes)
     database
       .prepare('UPDATE session SET createdAt = ? WHERE id = ?')
-      .run(now - 600_000, session.id)
+      .run(now - 600_000, 'sess-1')
 
     // Attempt delete with stale session
     const staleReq = new Request(`${baseURL}/api/auth/passkey/delete-passkey`, {
@@ -97,7 +95,7 @@ describe('passkey deletion session freshness', () => {
 
     const staleRes = await auth.handler(staleReq)
     expect(staleRes.status).toBe(403)
-    const staleBody = (await staleRes.json()) as { code: string }
+    const staleBody: { code?: string } = await staleRes.json()
     expect(staleBody.code).toBe('SESSION_NOT_FRESH')
 
     // Verify credential was NOT deleted
@@ -109,7 +107,7 @@ describe('passkey deletion session freshness', () => {
     // Refresh session createdAt to current time (< 5 minutes)
     database
       .prepare('UPDATE session SET createdAt = ? WHERE id = ?')
-      .run(Date.now(), session.id)
+      .run(Date.now(), 'sess-1')
 
     // Attempt delete with fresh session
     const freshReq = new Request(`${baseURL}/api/auth/passkey/delete-passkey`, {
@@ -124,7 +122,7 @@ describe('passkey deletion session freshness', () => {
 
     const freshRes = await auth.handler(freshReq)
     expect(freshRes.status).toBe(200)
-    const freshBody = (await freshRes.json()) as { status: boolean }
+    const freshBody: { status?: boolean } = await freshRes.json()
     expect(freshBody.status).toBe(true)
 
     // Verify credential was deleted

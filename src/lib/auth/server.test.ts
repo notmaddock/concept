@@ -362,10 +362,13 @@ describe('passkey configuration', () => {
     const plugins = options.current.plugins as Array<{
       id: string
       options?: {
-        authenticatorSelection?: { residentKey?: string; userVerification?: string }
+        authenticatorSelection?: {
+          residentKey?: string
+          userVerification?: string
+        }
       }
     }>
-    const passkeyPlugin = plugins?.find((plugin) => plugin.id === 'passkey')
+    const passkeyPlugin = plugins.find((plugin) => plugin.id === 'passkey')
     expect(passkeyPlugin).toBeDefined()
     expect(passkeyPlugin?.options?.authenticatorSelection).toEqual({
       residentKey: 'required',

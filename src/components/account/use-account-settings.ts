@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { authClient } from '#/lib/auth/client'
 import { disconnectStorage } from '#/lib/auth/functions'
 import type { LinkedAccount } from './StorageConnections'
+import { isFreshSessionError } from './ReauthDialog'
 
 export function useAccountSettings() {
   const { data: session, isPending } = authClient.useSession()
@@ -18,6 +19,10 @@ export function useAccountSettings() {
   const [error, setError] = useState('')
   const [accountsError, setAccountsError] = useState('')
   const [revision, setRevision] = useState(0)
+  const [reauthOpen, setReauthOpen] = useState(false)
+  const [reauthAction, setReauthAction] = useState<
+    (() => Promise<unknown>) | null
+  >(null)
 
   function reportError(message: string) {
     setError(message)
@@ -81,14 +86,22 @@ export function useAccountSettings() {
   }, [open, session, revision])
 
   async function run(
-    action: () => Promise<{ error?: { message?: string } | null }>,
+    action: () => Promise<{
+      error?: { message?: string; code?: string } | null
+    }>,
   ) {
     setBusy(true)
     setError('')
     try {
       const result = await action()
-      if (result.error)
+      if (result.error) {
+        if (isFreshSessionError(result.error)) {
+          setReauthAction(() => () => run(action))
+          setReauthOpen(true)
+          return
+        }
         reportError(result.error.message ?? 'Could not update your account.')
+      }
     } catch {
       reportError(
         'Could not reach the server. Check your connection and try again.',
@@ -165,5 +178,9 @@ export function useAccountSettings() {
     unlinkGoogle,
     disconnectDrive,
     setAccounts,
+    reauthOpen,
+    setReauthOpen,
+    reauthAction,
+    setReauthAction,
   }
 }

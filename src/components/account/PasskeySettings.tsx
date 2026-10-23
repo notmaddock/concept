@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getAuthenticatorName } from '@better-auth/passkey'
 import { toast } from 'sonner'
 import { RenamePasskeyDialog } from './RenamePasskeyDialog'
+import { ReauthDialog, isFreshSessionError } from './ReauthDialog'
 import { FingerprintIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { authClient } from '#/lib/auth/client'
 import { Button } from '#/components/ui/button'
@@ -35,20 +36,33 @@ export function PasskeySettings({
     if (loadError)
       toast.error('Could not load passkeys.', { id: 'passkey-load-error' })
   }, [loadError])
+  const { data: session } = authClient.useSession()
+  const [reauthOpen, setReauthOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<
+    | (() => Promise<{ error?: { message?: string; code?: string } | null }>)
+    | null
+  >(null)
   const [removing, setRemoving] = useState<{
     id: string
     name?: string | null
   } | null>(null)
 
   async function update(
-    action: () => Promise<{ error?: { message?: string } | null }>,
+    action: () => Promise<{
+      error?: { message?: string; code?: string } | null
+    }>,
   ) {
     setBusy(true)
     try {
       const result = await action()
-      if (result.error)
+      if (result.error) {
+        if (isFreshSessionError(result.error)) {
+          setPendingAction(() => action)
+          setReauthOpen(true)
+          return
+        }
         toast.error(result.error.message ?? 'Could not update passkeys.')
-      else {
+      } else {
         setRemoving(null)
         setRenaming(null)
         void refetch()
@@ -171,6 +185,25 @@ export function PasskeySettings({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {reauthOpen && (
+        <ReauthDialog
+          open={reauthOpen}
+          onClose={() => {
+            setReauthOpen(false)
+            setPendingAction(null)
+          }}
+          onSuccess={async () => {
+            if (pendingAction) {
+              const act = pendingAction
+              setPendingAction(null)
+              await update(act)
+            }
+          }}
+          userId={session?.user.id}
+          hasGoogle={otherSignInAvailable}
+          hasPasskey={true}
+        />
+      )}
     </section>
   )
 }
