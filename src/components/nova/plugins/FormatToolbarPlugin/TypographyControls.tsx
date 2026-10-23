@@ -95,10 +95,20 @@ function useTypography(editor: LexicalEditor, active: boolean) {
           setValue({ family: '', size: '' })
           return
         }
+        const backward = selection.isBackward()
+        const start = backward ? selection.focus : selection.anchor
+        const end = backward ? selection.anchor : selection.focus
         const nodes = selection
           .getNodes()
           .filter(
-            (node) => $isTextNode(node) && node.getTextContent().length > 0,
+            (node) =>
+              $isTextNode(node) &&
+              node.getTextContent().length > 0 &&
+              !(
+                node.is(start.getNode()) &&
+                start.offset === node.getTextContentSize()
+              ) &&
+              !(node.is(end.getNode()) && end.offset === 0),
           )
         if (!nodes.length) {
           setValue({ family: '', size: '' })
@@ -130,20 +140,32 @@ function useTypography(editor: LexicalEditor, active: boolean) {
             ? ''
             : String(Math.round(inlinePoints * 100) / 100)
         if (!family || !size) {
-          const firstElement = editor.getElementByKey(nodes[0].getKey())
-          if (firstElement) {
-            const computed = getComputedStyle(firstElement)
-            if (!family) {
-              family = computed.fontFamily
-                .split(',')[0]
-                .replace(/["']/g, '')
-                .replace(' Variable', '')
-            }
-            if (!size) {
-              size = String(
-                Math.round(parseFloat(computed.fontSize) * 0.75 * 100) / 100,
-              )
-            }
+          const styles = nodes
+            .map((node) => editor.getElementByKey(node.getKey()))
+            .filter((element): element is HTMLElement => element !== null)
+            .map((element) => getComputedStyle(element))
+          if (!family) {
+            const families = new Set(styles.map((style) => style.fontFamily))
+            family =
+              families.size > 1
+                ? 'Mixed fonts'
+                : (styles[0]?.fontFamily ?? '')
+                    .split(',')[0]
+                    .replace(/["']/g, '')
+                    .replace(' Variable', '')
+          }
+          if (!size) {
+            const sizes = new Set(
+              styles.map((style) => {
+                const points =
+                  parseFloat(style.fontSize) *
+                  (style.fontSize.endsWith('pt') ? 1 : 0.75)
+                return Number.isFinite(points)
+                  ? String(Math.round(points * 100) / 100)
+                  : ''
+              }),
+            )
+            size = sizes.size === 1 ? [...sizes][0] : ''
           }
         }
         const nextValue = { family, size }

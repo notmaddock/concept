@@ -148,3 +148,104 @@ describe('TypographyControls font-size units', () => {
     ).toBe('18')
   })
 })
+
+describe('TypographyControls mixed selection', () => {
+  function selectRuns(
+    styles: string[],
+    start = 0,
+    end?: number,
+    backward = false,
+  ) {
+    editor.update(
+      () => {
+        $getRoot().clear()
+        const nodes = styles.map((style, index) => {
+          const text = $createTextNode(`Run ${index}`).setStyle(style)
+          $getRoot().append($createParagraphNode().append(text))
+          return text
+        })
+        const first = nodes[0]
+        const last = nodes[nodes.length - 1]
+        const selection = first.select(start, start)
+        selection.setTextNodeRange(
+          first,
+          start,
+          last,
+          end ?? last.getTextContentSize(),
+        )
+        if (backward)
+          selection.setTextNodeRange(
+            last,
+            end ?? last.getTextContentSize(),
+            first,
+            start,
+          )
+      },
+      { discrete: true },
+    )
+  }
+  async function renderTypography() {
+    await act(() =>
+      root.render(
+        <TypographyControls editor={editor} run={vi.fn()} checked={vi.fn()} />,
+      ),
+    )
+    return container.querySelector<HTMLInputElement>(
+      'input[aria-label="Font size (pt)"]',
+    )!
+  }
+  it('shows Mixed for different selected sizes', async () => {
+    selectRuns(['font-size: 12pt', 'font-size: 24pt'])
+    expect((await renderTypography()).value).toBe('')
+  })
+  it('shows Mixed fonts for different selected families', async () => {
+    selectRuns(['font-family: Arial', 'font-family: Georgia'])
+    await renderTypography()
+    expect(container.textContent).toContain('Mixed fonts')
+  })
+  it('checks inherited styles on every selected element', async () => {
+    selectRuns(['', ''])
+    vi.spyOn(window, 'getComputedStyle').mockImplementation(
+      (element) =>
+        ({
+          fontFamily: element.textContent === 'Run 0' ? 'Arial' : 'Georgia',
+          fontSize: element.textContent === 'Run 0' ? '16px' : '24px',
+        }) as CSSStyleDeclaration,
+    )
+    expect((await renderTypography()).value).toBe('')
+    expect(container.textContent).toContain('Mixed fonts')
+  })
+  it('keeps a uniform inherited value', async () => {
+    selectRuns(['', ''])
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+      fontFamily: 'Arial',
+      fontSize: '16px',
+    } as CSSStyleDeclaration)
+    expect((await renderTypography()).value).toBe('12')
+    expect(container.textContent).toContain('Arial')
+  })
+  it.each([false, true])(
+    'ignores untouched start and end text boundaries (backward=%s)',
+    async (backward) => {
+      selectRuns(
+        [
+          'font-size: 12pt; font-family: Arial',
+          '',
+          'font-size: 24pt; font-family: Georgia',
+        ],
+        5,
+        0,
+        backward,
+      )
+      vi.spyOn(window, 'getComputedStyle').mockImplementation(
+        (element) =>
+          ({
+            fontFamily: element.textContent === 'Run 1' ? 'Verdana' : 'wrong',
+            fontSize: element.textContent === 'Run 1' ? '20px' : '99px',
+          }) as CSSStyleDeclaration,
+      )
+      expect((await renderTypography()).value).toBe('15')
+      expect(container.textContent).toContain('Verdana')
+    },
+  )
+})
