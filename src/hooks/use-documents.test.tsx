@@ -277,3 +277,16 @@ it('sorts newly created document by updatedAt order', async () => {
     'older-created',
   ])
 })
+
+it('fetches direct document via storage.get when missing from initial list', async () => {
+  const directDoc = { id: 'unlisted', name: 'Direct Doc', updatedAt: 50 }
+  vi.mocked(storage.get).mockResolvedValueOnce(directDoc)
+  function Harness() {
+    actions = useDocuments('unlisted', storage)
+    return null
+  }
+  await act(() => root.render(<Harness />))
+  expect(storage.get).toHaveBeenCalledWith('unlisted')
+  expect(actions.document).toEqual(directDoc)
+  expect(actions.documents).toContainEqual(directDoc)
+})

@@ -33,17 +33,29 @@ export function useDocuments(
       const startedAt = performance.now()
       void storage
         .list()
-        .then((items) => {
+        .then(async (items) => {
           performance.measure('concept:library-read', { start: startedAt })
           if (!active) return
-          const reconciled = new Map(items.map((item) => [item.id, item]))
+          let initialItems = items
+          if (id && !items.some((item) => item.id === id)) {
+            try {
+              const direct = await storage.get(id)
+              if (direct && active) {
+                initialItems = [direct, ...items]
+              }
+            } catch {
+              // ignore fallback error
+            }
+          }
+          if (!active) return
+          const reconciled = new Map(initialItems.map((item) => [item.id, item]))
           for (const change of changesDuringRead.values()) {
             if (change.type === 'upsert')
               reconciled.set(change.document.id, change.document)
             else reconciled.delete(change.id)
           }
           setDocuments(
-            changesDuringRead.size
+            changesDuringRead.size || initialItems !== items
               ? [...reconciled.values()].sort(
                   (a, b) => b.updatedAt - a.updatedAt,
                 )
