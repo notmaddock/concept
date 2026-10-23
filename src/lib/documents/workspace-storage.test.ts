@@ -109,6 +109,26 @@ it('stops scheduled uploads when a document is closed', async () => {
   expect(save).not.toHaveBeenCalled()
 })
 
+it('refreshes already-mounted documents when the same Drive file is explicitly reopened', async () => {
+  await seed()
+  const { doc } = await open(target.id)
+  const remote = new Doc()
+  docs.push(remote)
+  const source = parseConcept(serializeConcept(target.name, doc))
+  const { applyUpdate } = await import('yjs')
+  applyUpdate(
+    remote,
+    Uint8Array.from(atob(source.update), (c) => c.charCodeAt(0)),
+  )
+  remote.getMap('metadata').set('remote', 'downloaded change')
+  await importConcept(
+    parseConcept(serializeConcept(target.name, remote)),
+    target.name,
+    target,
+  )
+  expect(doc.getMap('metadata').get('remote')).toBe('downloaded change')
+})
+
 it('does not recreate content or metadata when deletion wins a concurrent import', async () => {
   const file = await seed()
   let deletion: Promise<void> | undefined
@@ -134,5 +154,38 @@ it('does not recreate content or metadata when deletion wins a concurrent import
     )
   } finally {
     stop()
+  }
+})
+
+it('broadcasts imported changes to a document provider in another tab', async () => {
+  const { TestBroadcastChannel, flushBroadcasts } =
+    await import('#/test/broadcast-channel')
+  const { LocalProvider } = await import('./local-provider')
+  vi.stubGlobal('BroadcastChannel', TestBroadcastChannel)
+  await seed()
+  const peer = new Doc()
+  docs.push(peer)
+  const provider = new LocalProvider(target.id, peer, {
+    whenSynced: Promise.resolve(),
+    destroy: async () => {},
+  })
+  provider.connect()
+  await flushBroadcasts()
+  const remote = new Doc()
+  docs.push(remote)
+  initializeDocument(remote)
+  remote.getMap('metadata').set('remote', 'other tab receives import')
+  try {
+    await importConcept(
+      parseConcept(serializeConcept(target.name, remote)),
+      target.name,
+      target,
+    )
+    await flushBroadcasts()
+    expect(peer.getMap('metadata').get('remote')).toBe(
+      'other tab receives import',
+    )
+  } finally {
+    provider.destroy()
   }
 })

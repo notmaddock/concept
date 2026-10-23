@@ -1,6 +1,6 @@
 import { publishDocumentChange, subscribeToLibrary } from '../library-channel'
-import type { IndexeddbPersistence } from 'y-indexeddb'
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
+import type { IndexeddbPersistence } from 'y-indexeddb'
 import type {
   DocumentInfo,
   DocumentPersistence,
@@ -59,6 +59,7 @@ async function query<T>(
 }
 
 const activeSessions = new Map<string, Set<DocumentPersistence>>()
+const activeDocuments = new Map<string, Map<DocumentPersistence, Doc>>()
 
 function documentDatabaseName(id: string) {
   return `concept-document:${id}`
@@ -137,6 +138,8 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
       )
         .then(() => {})
         .finally(() => {
+          activeDocuments.get(id)?.delete(session)
+          if (!activeDocuments.get(id)?.size) activeDocuments.delete(id)
           sessions.delete(session)
           if (sessions.size === 0 && activeSessions.get(id) === sessions)
             activeSessions.delete(id)
@@ -145,6 +148,10 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
     },
   }
   sessions.add(session)
+  const documents =
+    activeDocuments.get(id) ?? new Map<DocumentPersistence, Doc>()
+  activeDocuments.set(id, documents)
+  documents.set(session, doc)
   return session
 }
 
@@ -222,6 +229,17 @@ export async function storeDocumentInfo(document: DocumentInfo) {
   return document
 }
 
+// y-indexeddb does not observe writes from another persistence instance.
+export function publishDocumentUpdate(id: string, update: Uint8Array) {
+  for (const doc of new Set(activeDocuments.get(id)?.values()))
+    applyUpdate(doc, update)
+  if (typeof BroadcastChannel !== 'undefined') {
+    const channel = new BroadcastChannel(`concept-document-sync:${id}`)
+    channel.postMessage({ type: 'update', update })
+    channel.close()
+  }
+}
+
 // Imports share the lifecycle lock with opening/deleting document content.
 export function persistDocumentUpdate(id: string, update: Uint8Array) {
   return withDocumentLock(id, async () => {
@@ -246,6 +264,7 @@ export function persistDocumentUpdate(id: string, update: Uint8Array) {
           )
         transaction.onerror = () => reject(transaction.error)
       })
+      publishDocumentUpdate(id, merged)
     } finally {
       await persistence.destroy()
       doc.destroy()

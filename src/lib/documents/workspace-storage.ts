@@ -1,7 +1,7 @@
 import { applyUpdate } from 'yjs'
 import { localDocumentStorage } from './storage'
 import type { DocumentStorage, DocumentSyncStatus } from './storage'
-import { storeDocumentInfo } from './storages/local'
+import { publishDocumentUpdate, storeDocumentInfo } from './storages/local'
 import { serializeConcept } from './serialization'
 
 // The editor opens a storage session without knowing its backing provider.
@@ -62,13 +62,11 @@ export const workspaceDocumentStorage: DocumentStorage = {
           },
         })
         if (isClosed()) return
-        applyUpdate(
-          doc,
-          Uint8Array.from(atob(remote.file.update), (character) =>
-            character.charCodeAt(0),
-          ),
-          remoteOrigin,
+        const update = Uint8Array.from(atob(remote.file.update), (character) =>
+          character.charCodeAt(0),
         )
+        applyUpdate(doc, update, remoteOrigin)
+        publishDocumentUpdate(id, update)
         const current = await localDocumentStorage.get(id)
         if (current && !isClosed()) {
           await storeDocumentInfo({
