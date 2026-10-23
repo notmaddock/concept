@@ -314,6 +314,8 @@ This review covers the core Nova editor components (`Nova.tsx`, `NovaContentEdit
 
 ### 3.4 Mobile Touch Incompatibility in `DragPlugin`
 
+- **Status**: FIXED
+- **Evidence & Validation**: Confirmed HTML5 drag-and-drop handles fail on touch devices and cause unwanted focus / keyboard loss. Added coarse pointer media query guard (`pointer: coarse`) to suppress DragPlugin on mobile/touch interfaces. Verified via unit test in `src/components/nova/plugins/DragPlugin/DragPlugin.test.tsx`.
 - **File & Line**: [`src/components/nova/plugins/DragPlugin/DragPlugin.tsx#L10-L36`](file:///home/maddock/concept/src/components/nova/plugins/DragPlugin/DragPlugin.tsx#L10-L36)
 - **Root Cause**:
   `DragPlugin` wraps `@lexical/react/LexicalDraggableBlockPlugin`, which relies exclusively on HTML5 Drag and Drop (`draggable="true"`, `dragstart`, `dragover`) and desktop `mousemove` / `mouseleave` events. Mobile browsers (iOS Safari and Android Chrome) do not support the HTML5 Drag and Drop API or mousemove emulation for drag handles.

@@ -75,3 +75,11 @@ describe('DragPlugin', () => {
     expect(capturedPluginProps!.isOnMenu(outsideElement)).toBe(false)
   })
 })
+
+
+it('does not mount desktop drag handlers for a coarse pointer', async () => {
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(pointer: coarse)' }))
+  await act(() => root.render(<DragPlugin anchorElement={anchor} />))
+  expect(capturedPluginProps).toBeNull()
+  expect(container.childElementCount).toBe(0)
+})

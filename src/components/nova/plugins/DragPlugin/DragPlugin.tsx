@@ -11,6 +11,14 @@ export function DragPlugin({ anchorElement }: DragPluginProps) {
   const menuComponentRef = useRef<HTMLDivElement>(null)
   const targetLineRef = useRef<HTMLDivElement>(null)
 
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: coarse)').matches
+  ) {
+    return null
+  }
+
   const isOnMenu = (element: HTMLElement) =>
     menuComponentRef.current?.contains(element) ?? false
 
