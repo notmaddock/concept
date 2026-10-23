@@ -131,13 +131,15 @@ export function persistDocumentUpdate(id: string, update: Uint8Array) {
     const persistence = new IndexeddbPersistence(documentDatabaseName(id), doc)
     try {
       await persistence.whenSynced
-      applyUpdate(doc, update)
+      applyUpdate(doc, update, persistence)
       const merged = encodeStateAsUpdate(doc)
       const db = persistence.db
       if (!db) throw new Error('Local storage is unavailable.')
       await new Promise<void>((resolve, reject) => {
         const transaction = db.transaction('updates', 'readwrite')
-        transaction.objectStore('updates').add(merged)
+        const store = transaction.objectStore('updates')
+        store.clear()
+        store.add(merged)
         transaction.oncomplete = () => resolve()
         transaction.onabort = () =>
           reject(

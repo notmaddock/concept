@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
-import { Doc } from 'yjs'
+import { Doc, encodeStateAsUpdate } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { localDocumentStorage } from './storages/local'
 import type { DocumentPersistence } from './storage'
@@ -157,4 +157,37 @@ it('reuses its metadata connection and releases it for database upgrades', async
       reject(new Error('Metadata connection blocked upgrade'))
   })
   openDatabase.mockRestore()
+})
+
+it("compacts the updates store during persistDocumentUpdate to prevent unbounded growth (STOR-01)", async () => {
+  const document = await localDocumentStorage.create()
+  const { persistDocumentUpdate } = await import("./storages/local")
+  const doc = new Doc()
+  doc.getText("content").insert(0, "Initial")
+  const update1 = encodeStateAsUpdate(doc)
+  await persistDocumentUpdate(document.id, update1)
+
+  doc.getText("content").insert(7, " and More")
+  const update2 = encodeStateAsUpdate(doc)
+  await persistDocumentUpdate(document.id, update2)
+
+  const count = await new Promise<number>((resolve, reject) => {
+    const request = indexedDB.open(`concept-document:${document.id}`)
+    request.onerror = () => reject(request.error)
+    request.onsuccess = () => {
+      const db = request.result
+      const transaction = db.transaction("updates", "readonly")
+      const countReq = transaction.objectStore("updates").count()
+      countReq.onsuccess = () => {
+        db.close()
+        resolve(countReq.result)
+      }
+      countReq.onerror = () => {
+        db.close()
+        reject(countReq.error)
+      }
+    }
+  })
+  expect(count).toBe(1)
+  doc.destroy()
 })
