@@ -63,3 +63,29 @@ it('restores the persisted name on Escape', async () => {
   expect(input.value).toBe('Original')
   expect(onSave).not.toHaveBeenCalled()
 })
+
+it('updates local value when name prop changes', async () => {
+  await act(() => root.render(<DocumentName name="Version 1" />))
+  const input = container.querySelector('input')!
+  expect(input.value).toBe('Version 1')
+  await act(() => root.render(<DocumentName name="Version 2" />))
+  expect(input.value).toBe('Version 2')
+})
+
+it('reverts value and handles onSave rejection cleanly', async () => {
+  const onSave = vi.fn().mockRejectedValue(new Error('Save failed'))
+  await act(() => root.render(<DocumentName name="Initial" onSave={onSave} />))
+  const input = container.querySelector('input')!
+  await act(() => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      'value',
+    )!.set!.call(input, 'Failed Save')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await act(() =>
+    input.dispatchEvent(new FocusEvent('focusout', { bubbles: true })),
+  )
+  expect(onSave).toHaveBeenCalledWith('Failed Save')
+  expect(input.value).toBe('Initial')
+})

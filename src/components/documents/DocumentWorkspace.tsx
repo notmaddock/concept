@@ -103,7 +103,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
             <div className="flex items-center gap-3">
               <SidebarTrigger />
               <DocumentName
-                key={document ? `${document.id}:${document.name}` : 'library'}
+                key={document ? document.id : 'library'}
                 name={document?.name ?? 'Documents'}
                 onSave={document ? renameDocument : undefined}
               />

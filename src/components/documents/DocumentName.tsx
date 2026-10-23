@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Input } from '#/components/ui/input'
 
 export function DocumentName({
@@ -9,6 +9,11 @@ export function DocumentName({
   onSave?: (name: string) => Promise<boolean>
 }) {
   const [value, setValue] = useState(name)
+
+  useEffect(() => {
+    setValue(name)
+  }, [name])
+
   return (
     <Input
       aria-label={onSave ? 'Document name' : 'Workspace name'}
@@ -19,11 +24,15 @@ export function DocumentName({
       onBlur={() => {
         if (!onSave) return
         const draft = value
-        void onSave(draft).then((saved) => {
-          setValue((current) =>
-            current === draft ? (saved ? draft.trim() : name) : current,
-          )
-        })
+        void onSave(draft)
+          .then((saved) => {
+            setValue((current) =>
+              current === draft ? (saved ? draft.trim() : name) : current,
+            )
+          })
+          .catch(() => {
+            setValue(name)
+          })
       }}
       onKeyDown={(event) => {
         if (!onSave) return
