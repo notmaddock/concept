@@ -127,8 +127,15 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
   }, [pendingFocus])
 
   function focus(index: number) {
-    setPendingFocus(index)
     reveal(index)
+    const target = listRef.current?.querySelector<HTMLElement>(
+      `[data-document-index="${index}"] a`,
+    )
+    if (target) {
+      target.focus({ preventScroll: true })
+      return
+    }
+    setPendingFocus(index)
   }
 
   return {
