@@ -6,9 +6,10 @@ import {
 } from '@lexical/list'
 import { MenuOption } from '@lexical/react/LexicalMenuOption'
 import { $createHeadingNode, $createQuoteNode } from '@lexical/rich-text'
-import { $setBlocksType } from '@lexical/selection'
+import { $copyBlockFormatIndent, $setBlocksType } from '@lexical/selection'
 import { $createParagraphNode, $getSelection, $isRangeSelection } from 'lexical'
-import type { LexicalEditor } from 'lexical'
+import type { ElementNode, LexicalEditor } from 'lexical'
+import { $getParagraphStyle, $setParagraphStyle } from '../../paragraph-format'
 import {
   Heading1Icon,
   Heading2Icon,
@@ -55,6 +56,12 @@ const categories = {
   OTHER: 'Other',
 }
 
+function $copyParagraphFormat(previous: ElementNode, next: ElementNode) {
+  $copyBlockFormatIndent(previous, next)
+  next.setDirection(previous.getDirection())
+  $setParagraphStyle(next, $getParagraphStyle(previous))
+}
+
 export function getBlockOptions(editor: LexicalEditor): BlockOption[] {
   return [
     new BlockOption('text', {
@@ -66,7 +73,11 @@ export function getBlockOptions(editor: LexicalEditor): BlockOption[] {
         editor.update(() => {
           const selection = $getSelection()
           if ($isRangeSelection(selection)) {
-            $setBlocksType(selection, () => $createParagraphNode())
+            $setBlocksType(
+              selection,
+              () => $createParagraphNode(),
+              $copyParagraphFormat,
+            )
           }
         }),
     }),
@@ -79,7 +90,11 @@ export function getBlockOptions(editor: LexicalEditor): BlockOption[] {
         editor.update(() => {
           const selection = $getSelection()
           if ($isRangeSelection(selection)) {
-            $setBlocksType(selection, () => $createHeadingNode('h1'))
+            $setBlocksType(
+              selection,
+              () => $createHeadingNode('h1'),
+              $copyParagraphFormat,
+            )
           }
         }),
     }),
@@ -92,7 +107,11 @@ export function getBlockOptions(editor: LexicalEditor): BlockOption[] {
         editor.update(() => {
           const selection = $getSelection()
           if ($isRangeSelection(selection)) {
-            $setBlocksType(selection, () => $createHeadingNode('h2'))
+            $setBlocksType(
+              selection,
+              () => $createHeadingNode('h2'),
+              $copyParagraphFormat,
+            )
           }
         }),
     }),
@@ -105,7 +124,11 @@ export function getBlockOptions(editor: LexicalEditor): BlockOption[] {
         editor.update(() => {
           const selection = $getSelection()
           if ($isRangeSelection(selection)) {
-            $setBlocksType(selection, () => $createHeadingNode('h3'))
+            $setBlocksType(
+              selection,
+              () => $createHeadingNode('h3'),
+              $copyParagraphFormat,
+            )
           }
         }),
     }),
@@ -143,7 +166,11 @@ export function getBlockOptions(editor: LexicalEditor): BlockOption[] {
         editor.update(() => {
           const selection = $getSelection()
           if ($isRangeSelection(selection)) {
-            $setBlocksType(selection, () => $createQuoteNode())
+            $setBlocksType(
+              selection,
+              () => $createQuoteNode(),
+              $copyParagraphFormat,
+            )
           }
         }),
     }),
