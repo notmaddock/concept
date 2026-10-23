@@ -8,10 +8,19 @@ function notify() {
   for (const listener of listeners) listener()
 }
 
-function subscribe(listener: () => void) {
-  if (!mediaQuery) {
+function getSnapshot() {
+  if (!mediaQuery && typeof window !== 'undefined') {
     mediaQuery = window.matchMedia(MOBILE_QUERY)
-    mediaQuery.addEventListener('change', notify)
+  }
+  return mediaQuery?.matches ?? false
+}
+
+function subscribe(listener: () => void) {
+  if (!mediaQuery && typeof window !== 'undefined') {
+    mediaQuery = window.matchMedia(MOBILE_QUERY)
+  }
+  if (listeners.size === 0) {
+    mediaQuery?.addEventListener('change', notify)
   }
   listeners.add(listener)
   return () => {
@@ -24,9 +33,5 @@ function subscribe(listener: () => void) {
 }
 
 export function useIsMobile() {
-  return useSyncExternalStore(
-    subscribe,
-    () => mediaQuery?.matches ?? false,
-    () => false,
-  )
+  return useSyncExternalStore(subscribe, getSnapshot, () => false)
 }
