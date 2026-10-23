@@ -30,9 +30,11 @@ const CustomColor = lazy(() =>
 export function ColorSelect({
   sectionId,
   editor,
+  active = true,
 }: {
   sectionId: 'text-color' | 'highlight'
   editor: LexicalEditor
+  active?: boolean
 }) {
   const section = formatSections.find((item) => item.id === sectionId)!
   const [open, setOpen] = useState(false)
@@ -45,17 +47,24 @@ export function ColorSelect({
   ]
   const [currentColor, setCurrentColor] = useState<string | null>(null)
   useEffect(() => {
+    if (!active) return
     const update = () =>
       editor.getEditorState().read(() => {
         const selection = $getSelection()
-        if (!$isRangeSelection(selection)) return
+        if (!$isRangeSelection(selection)) {
+          setCurrentColor(null)
+          return
+        }
         const elements = selection
           .getNodes()
           .filter($isTextNode)
           .map((node) => editor.getElementByKey(node.getKey()))
           .filter((element): element is HTMLElement => element !== null)
         const root = editor.getRootElement()
-        if (!elements.length || !root) return
+        if (!elements.length || !root) {
+          setCurrentColor(null)
+          return
+        }
         const current = elements.map((element) =>
           sectionId === 'highlight'
             ? element.style.backgroundColor
@@ -69,7 +78,7 @@ export function ColorSelect({
       })
     update()
     return editor.registerUpdateListener(update)
-  }, [editor, palette, sectionId])
+  }, [editor, palette, sectionId, active])
   const Icon = sectionId === 'text-color' ? Baseline : Highlighter
   const apply = (value: string) => {
     // Focus before committing: restoring the DOM selection can synchronously fire focus events.

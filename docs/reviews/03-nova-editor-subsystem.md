@@ -154,6 +154,8 @@ This review covers the core Nova editor components (`Nova.tsx`, `NovaContentEdit
 
 ### 2.2 Layout Thrashing & Persistent Update Listeners in `ColorSelect` and `TypographyControls`
 
+- **Status**: FIXED
+- **Evidence & Validation**: Confirmed persistent update listeners were registered while toolbar was closed, and `getComputedStyle` was invoked in a loop across all selected DOM nodes. Added `active` gating prop to `ColorSelect` (wired to `isOpen` in `FloatingTextFormatToolbar`), reset `currentColor` and typography state on empty/collapsed selections, and read inline styling via `$getSelectionStyleValueForProperty` with single-element fallback. Verified with unit tests in `src/components/nova/plugins/FormatToolbarPlugin/FormatToolbarControls.test.tsx`.
 - **Files & Lines**:
   - [`src/components/nova/plugins/FormatToolbarPlugin/ColorSelect.tsx#L40-L60`](file:///home/maddock/concept/src/components/nova/plugins/FormatToolbarPlugin/ColorSelect.tsx#L40-L60)
   - [`src/components/nova/plugins/FormatToolbarPlugin/TypographyControls.tsx#L61-L93`](file:///home/maddock/concept/src/components/nova/plugins/FormatToolbarPlugin/TypographyControls.tsx#L61-L93)
