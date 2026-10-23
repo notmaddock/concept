@@ -33,7 +33,10 @@ if (typeof window !== 'undefined') {
   }
 }
 
-if (typeof navigator !== 'undefined' && !navigator.clipboard) {
+if (
+  typeof navigator !== 'undefined' &&
+  typeof navigator.clipboard === 'undefined'
+) {
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
     writable: true,
