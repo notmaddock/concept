@@ -1,6 +1,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Doc, XmlText } from 'yjs'
+import { Doc } from 'yjs'
+import { initializeDocument } from '#/lib/documents/initial-document'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type * as ConceptFileModule from '#/lib/documents/concept-file'
 import type { Root } from 'react-dom/client'
@@ -29,7 +30,7 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
   doc = new Doc()
-  doc.get('root', XmlText).insert(0, 'Document content')
+  initializeDocument(doc)
 })
 afterEach(async () => {
   await act(() => root.unmount())

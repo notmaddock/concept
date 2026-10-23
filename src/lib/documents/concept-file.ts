@@ -2,6 +2,7 @@ import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
 import { IndexeddbPersistence } from 'y-indexeddb'
 import { localDocumentStorage } from './storage'
 import { serializeConcept } from './serialization'
+import { validateDocumentContent } from './validate-content'
 
 export { serializeConcept } from './serialization'
 
@@ -43,13 +44,7 @@ function parseFile(value: unknown): ConceptFile {
 export function parseConcept(text: string): ConceptFile {
   try {
     const file = parseFile(JSON.parse(text))
-    const doc = new Doc()
-    try {
-      applyUpdate(doc, decodeUpdate(file))
-      if (!doc.share.has('root')) throw new Error('Missing document content')
-    } finally {
-      doc.destroy()
-    }
+    validateDocumentContent(decodeUpdate(file))
     return file
   } catch {
     throw new Error(
@@ -65,6 +60,7 @@ function decodeUpdate(file: ConceptFile) {
 }
 
 export async function importConcept(file: ConceptFile, name = file.name) {
+  validateDocumentContent(decodeUpdate(file))
   const created = await localDocumentStorage.create()
   const doc = new Doc()
   let persistence: IndexeddbPersistence | undefined

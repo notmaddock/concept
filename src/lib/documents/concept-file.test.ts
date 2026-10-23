@@ -4,13 +4,26 @@ import { applyUpdate, Doc, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { importConcept, parseConcept, serializeConcept } from './concept-file'
 import { localDocumentStorage } from './storage'
+import { convertImport } from './import'
+
+async function contentDocument(content: string) {
+  const file = await convertImport(
+    { name: 'Text.txt', text: async () => content } as File,
+    'text',
+  )
+  const doc = new Doc()
+  applyUpdate(
+    doc,
+    Uint8Array.from(atob(file.update), (character) => character.charCodeAt(0)),
+  )
+  return doc
+}
 
 beforeEach(() => vi.stubGlobal('indexedDB', new IDBFactory()))
 afterEach(() => vi.unstubAllGlobals())
 
 it('round trips Unicode content and document settings into independent, persisted copies', async () => {
-  const source = new Doc()
-  source.get('root', XmlText).insert(0, 'Hello 🌎 — café')
+  const source = await contentDocument('Hello 🌎 — café')
   source.getMap('settings').set('pageSetup', { mode: 'paper', width: 210 })
   const file = parseConcept(serializeConcept('Résumé', source))
   const first = await importConcept(file)
@@ -21,17 +34,21 @@ it('round trips Unicode content and document settings into independent, persiste
   const restored = new Doc()
   const session = localDocumentStorage.open(first.id, restored)
   await session.whenSynced
-  expect(restored.get('root', XmlText).toString()).toBe('Hello 🌎 — café')
+  expect(restored.get('root', XmlText).toJSON()).toEqual(
+    source.get('root', XmlText).toJSON(),
+  )
   expect(restored.getMap('settings').get('pageSetup')).toEqual({
     mode: 'paper',
     width: 210,
   })
   restored.get('root', XmlText).insert(0, 'Changed ')
-  expect(source.get('root', XmlText).toString()).toBe('Hello 🌎 — café')
+  expect(source.get('root', XmlText).toString()).not.toContain('Changed ')
   const copy = new Doc()
   const copySession = localDocumentStorage.open(second.id, copy)
   await copySession.whenSynced
-  expect(copy.get('root', XmlText).toString()).toBe('Hello 🌎 — café')
+  expect(copy.get('root', XmlText).toJSON()).toEqual(
+    source.get('root', XmlText).toJSON(),
+  )
   await session.destroy()
   await copySession.destroy()
   source.destroy()
@@ -67,18 +84,16 @@ it.each([
   },
 )
 
-it('can reopen downloaded documents whose names exceed the copy field limit', () => {
-  const doc = new Doc()
-  doc.get('root', XmlText).insert(0, 'Content')
+it('can reopen downloaded documents whose names exceed the copy field limit', async () => {
+  const doc = await contentDocument('Content')
   const name = 'Long document name '.repeat(100)
   expect(parseConcept(serializeConcept(name, doc)).name).toBe(name.trim())
   doc.destroy()
 })
 
-it('round trips content larger than the base64 encoding chunk size', () => {
-  const source = new Doc()
+it('round trips content larger than the base64 encoding chunk size', async () => {
   const content = 'Large unicode text 🌎 café '.repeat(12000)
-  source.get('root', XmlText).insert(0, content)
+  const source = await contentDocument(content)
   const file = parseConcept(serializeConcept('Large', source))
   expect(file.update.length).toBeGreaterThan(8192)
   const restored = new Doc()
@@ -86,7 +101,9 @@ it('round trips content larger than the base64 encoding chunk size', () => {
     character.charCodeAt(0),
   )
   applyUpdate(restored, binary)
-  expect(restored.get('root', XmlText).toString()).toBe(content)
+  expect(restored.get('root', XmlText).toJSON()).toEqual(
+    source.get('root', XmlText).toJSON(),
+  )
   source.destroy()
   restored.destroy()
 })
@@ -126,4 +143,32 @@ it.each([
   expect(() => parseConcept(JSON.stringify(value))).toThrow(
     'not a supported .concept document',
   )
+})
+
+it.each(['text', 'map', 'unknown-node'])(
+  'rejects malformed %s roots before import',
+  async (kind) => {
+    const doc = new Doc()
+    if (kind === 'map') doc.getMap('root').set('unrelated', 'content')
+    else if (kind === 'text')
+      doc.get('root', XmlText).insert(0, 'invalid root text')
+    else {
+      const child = new XmlText()
+      child.setAttribute('__type', 'unsupported-node')
+      doc.get('root', XmlText).insertEmbed(0, child)
+    }
+    const text = serializeConcept('Invalid', doc)
+    expect(() => parseConcept(text)).toThrow(
+      'not a supported .concept document',
+    )
+    await expect(importConcept(JSON.parse(text))).rejects.toThrow()
+    expect(await localDocumentStorage.list()).toEqual([])
+    doc.destroy()
+  },
+)
+
+it('accepts an empty editable document', async () => {
+  const doc = await contentDocument('')
+  expect(parseConcept(serializeConcept('Empty', doc)).name).toBe('Empty')
+  doc.destroy()
 })
