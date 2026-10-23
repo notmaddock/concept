@@ -2,7 +2,12 @@ import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { applyUpdate, Doc, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { importConcept, parseConcept, serializeConcept } from './concept-file'
+import {
+  downloadConcept,
+  importConcept,
+  parseConcept,
+  serializeConcept,
+} from './concept-file'
 import { localDocumentStorage } from './storages/local'
 import { conceptFileSize } from './serialization'
 import { convertImport } from './import'
@@ -24,7 +29,7 @@ beforeEach(() => vi.stubGlobal('indexedDB', new IDBFactory()))
 afterEach(() => vi.unstubAllGlobals())
 
 it('round trips Unicode content and document settings into independent, persisted copies', async () => {
-  const source = await contentDocument('Hello 🌎 — café')
+  const source = await contentDocument('Hello 🌍 — café')
   source.getMap('settings').set('pageSetup', { mode: 'paper', width: 210 })
   const file = parseConcept(serializeConcept('Résumé', source))
   const first = await importConcept(file)
@@ -93,7 +98,7 @@ it('can reopen downloaded documents whose names exceed the copy field limit', as
 })
 
 it('round trips content larger than the base64 encoding chunk size', async () => {
-  const content = 'Large unicode text 🌎 café '.repeat(12000)
+  const content = 'Large unicode text 🌍 café '.repeat(12000)
   const source = await contentDocument(content)
   const file = parseConcept(serializeConcept('Large', source))
   expect(file.update.length).toBeGreaterThan(8192)
@@ -176,12 +181,38 @@ it('accepts an empty editable document', async () => {
 
 it('measures exported UTF-8 file size including Unicode metadata and Base64 padding', () => {
   const doc = new Doc()
-  for (const text of ['a', 'ab', 'café 🌎']) {
+  for (const text of ['a', 'ab', 'café 🌍']) {
     doc.getText('content').insert(0, text)
-    const name = 'Résumé "quoted" 🌎'
+    const name = 'Résumé "quoted" 🌍'
     expect(conceptFileSize(name, doc)).toBe(
       new Blob([serializeConcept(name, doc)]).size,
     )
   }
+  doc.destroy()
+})
+
+it('attaches download link to DOM, clicks it, and cleans it up', () => {
+  const doc = new Doc()
+  const appendChildSpy = vi.spyOn(document.body, 'appendChild')
+  const removeChildSpy = vi.spyOn(document.body, 'removeChild')
+  let clicked = false
+  const originalCreateElement = document.createElement.bind(document)
+  vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+    const el = originalCreateElement(tagName)
+    if (tagName === 'a') {
+      el.click = () => {
+        clicked = true
+        // Verify link is currently connected to DOM when clicked
+        expect(document.body.contains(el)).toBe(true)
+      }
+    }
+    return el
+  })
+
+  downloadConcept('My Document', doc)
+
+  expect(clicked).toBe(true)
+  expect(appendChildSpy).toHaveBeenCalled()
+  expect(removeChildSpy).toHaveBeenCalled()
   doc.destroy()
 })
