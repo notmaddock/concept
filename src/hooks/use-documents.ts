@@ -20,9 +20,7 @@ export function useDocuments(
   const deletePending = useRef(new Set<string>())
   const document = documents.find((item) => item.id === id)
   const activeId = useRef(id)
-  useEffect(() => {
-    activeId.current = id
-  }, [id])
+  activeId.current = id
 
   useEffect(() => {
     let active = true
@@ -146,7 +144,7 @@ export function useDocuments(
       await storage.delete(documentId)
       setDocuments((items) => items.filter((item) => item.id !== documentId))
       setError('')
-      if (documentId === id) await navigate({ to: '/d' })
+      if (documentId === activeId.current) await navigate({ to: '/d' })
     } catch {
       setError('Could not delete the document. Please try again.')
     } finally {

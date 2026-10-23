@@ -79,6 +79,51 @@ it('keeps the current editor open when deleting another document', async () => {
   expect(navigate).not.toHaveBeenCalled()
 })
 
+it('does not navigate away when switching to another document while deleting the previous one', async () => {
+  let resolveDelete!: () => void
+  vi.mocked(storage.delete).mockReturnValue(
+    new Promise((resolve) => {
+      resolveDelete = resolve
+    }),
+  )
+  function Harness({ id }: { id: string }) {
+    actions = useDocuments(id, storage)
+    return null
+  }
+  await act(() => root.render(<Harness id="first" />))
+  const deletion = actions.deleteDocument('first')
+  await act(() => root.render(<Harness id="second" />))
+  await act(async () => {
+    resolveDelete()
+    await deletion
+  })
+  expect(actions.documents).toEqual([second])
+  expect(actions.document).toEqual(second)
+  expect(navigate).not.toHaveBeenCalled()
+})
+
+it('returns to the library when navigating into a document whose deletion is in flight', async () => {
+  let resolveDelete!: () => void
+  vi.mocked(storage.delete).mockReturnValue(
+    new Promise((resolve) => {
+      resolveDelete = resolve
+    }),
+  )
+  function Harness({ id }: { id: string }) {
+    actions = useDocuments(id, storage)
+    return null
+  }
+  await act(() => root.render(<Harness id="first" />))
+  const deletion = actions.deleteDocument('second')
+  await act(() => root.render(<Harness id="second" />))
+  await act(async () => {
+    resolveDelete()
+    await deletion
+  })
+  expect(actions.documents).toEqual([first])
+  expect(navigate).toHaveBeenCalledWith({ to: '/d' })
+})
+
 it('preserves documents and reports a storage deletion failure', async () => {
   vi.mocked(storage.delete).mockRejectedValue(new Error('Storage unavailable'))
   await mount()
