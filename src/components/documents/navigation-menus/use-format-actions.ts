@@ -244,7 +244,7 @@ export function useFormatActions(
     const selection = editor
       .getEditorState()
       .read(() => $getSelection()?.clone())
-        // Focus before committing: restoring the DOM selection can synchronously fire focus events.
+    // Focus before committing: restoring the DOM selection can synchronously fire focus events.
     editor.getRootElement()?.focus({ preventScroll: true })
     editor.update(
       () => {

@@ -25,7 +25,15 @@ export function validateDocumentContent(update: Uint8Array) {
   const root = doc.get('root', XmlText)
   const editor = createEditor({
     namespace: 'document-validation',
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, HorizontalRuleNode, CodeNode, CodeHighlightNode],
+    nodes: [
+      HeadingNode,
+      QuoteNode,
+      ListNode,
+      ListItemNode,
+      HorizontalRuleNode,
+      CodeNode,
+      CodeHighlightNode,
+    ],
     onError: (error) => {
       throw error
     },
