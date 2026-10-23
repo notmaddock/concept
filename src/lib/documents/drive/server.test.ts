@@ -311,6 +311,7 @@ it('validates the final upload before issuing any mutating request', async () =>
 })
 
 it('serializes overlapping no-ETag saves from separate accounts by backing file identity', async () => {
+  const coordinatorRequests = vi.spyOn(DriveSaveCoordinator.prototype, 'fetch')
   let remoteText = content()
   let version = 1
   let releaseFirstUpload!: () => void
@@ -372,7 +373,7 @@ it('serializes overlapping no-ETag saves from separate accounts by backing file 
     text: serializeConcept('Remote', docs[1]),
   })
   // Let the second authorized request reach the object while the first PATCH waits.
-  await vi.waitFor(() => expect(mocks.token).toHaveBeenCalledTimes(2))
+  await vi.waitFor(() => expect(coordinatorRequests).toHaveBeenCalledTimes(2))
   expect(metadataReads).toBe(1)
   releaseFirstUpload()
   await Promise.all([first, second])
