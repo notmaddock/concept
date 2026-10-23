@@ -216,3 +216,22 @@ it('attaches download link to DOM, clicks it, and cleans it up', () => {
   expect(removeChildSpy).toHaveBeenCalled()
   doc.destroy()
 })
+
+it("preserves the latest updatedAt timestamp when importing an existing target document", async () => {
+  const source = await contentDocument("Content")
+  const file = parseConcept(serializeConcept("Timestamp Test", source))
+  const initial = await importConcept(file)
+  const initialUpdatedAt = initial.updatedAt
+
+  // Simulate re-importing with a stale target.updatedAt from remote
+  const staleTarget = {
+    ...initial,
+    updatedAt: 1000,
+  }
+
+  const updated = await importConcept(file, "Timestamp Test", staleTarget)
+  expect(updated.updatedAt).toBeGreaterThanOrEqual(initialUpdatedAt)
+  expect(updated.updatedAt).toBeGreaterThan(1000)
+
+  source.destroy()
+})

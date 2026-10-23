@@ -98,6 +98,11 @@ export async function importConcept(
                     current.name !== current.backing.syncedName)
                     ? current.name
                     : name,
+                updatedAt: Math.max(
+                  current.updatedAt,
+                  target.updatedAt,
+                  Date.now(),
+                ),
               }
             : undefined,
         )
