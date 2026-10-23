@@ -54,8 +54,9 @@ async function open(id: string) {
 it('never requests remote credentials for local documents', async () => {
   const document = await localDocumentStorage.create()
   const { doc } = await open(document.id)
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   doc.getMap('metadata').set('test', true)
-  await new Promise((resolve) => setTimeout(resolve, 10))
+  await vi.advanceTimersByTimeAsync(1500)
   expect(save).not.toHaveBeenCalled()
 })
 it('keeps a stable Concept ID and merges cached content when reopening from Drive', async () => {
