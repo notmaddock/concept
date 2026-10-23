@@ -92,6 +92,8 @@ This review covers the core Nova editor components (`Nova.tsx`, `NovaContentEdit
 
 ### 2.1 Stale Cloned Selection and Race Conditions via `await Promise.resolve()` in `useFormatActions`
 
+- **Status**: FIXED
+- **Evidence & Validation**: Confirmed asynchronous microtask tick via `await Promise.resolve()` introduced race conditions on consecutive clicks and remote state updates. Removed `await Promise.resolve()` so selection reading and application execute synchronously without stale cloned selection interleaving. Added regression test in `src/components/documents/navigation-menus/use-format-actions.test.tsx` verifying rapid successive actions apply without stale selection races.
 - **File & Line**: [`src/components/documents/navigation-menus/use-format-actions.ts#L180-L195`](file:///home/maddock/concept/src/components/documents/navigation-menus/use-format-actions.ts#L180-L195)
 - **Root Cause**:
   ```tsx

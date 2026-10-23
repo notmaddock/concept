@@ -238,14 +238,13 @@ export function useFormatActions(
     }
   }, [editorRef, documentId, actions, active])
 
-  async function run(action: FormatAction) {
+  function run(action: FormatAction) {
     const editor = editorRef.current
     if (!editor || !state.enabled) return
     const selection = editor
       .getEditorState()
       .read(() => $getSelection()?.clone())
-    await Promise.resolve()
-    // Focus before committing: restoring the DOM selection can synchronously fire focus events.
+        // Focus before committing: restoring the DOM selection can synchronously fire focus events.
     editor.getRootElement()?.focus({ preventScroll: true })
     editor.update(
       () => {
