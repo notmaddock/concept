@@ -5,6 +5,7 @@ import type { Root } from 'react-dom/client'
 import {
   ColorPicker,
   ColorPickerArea,
+  ColorPickerEyeDropper,
   ColorPickerSlider,
 } from './color-picker'
 
@@ -21,6 +22,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(() => root.unmount())
   container.remove()
+  vi.unstubAllGlobals()
 })
 
 describe('ColorPickerArea and ColorPickerSlider pointer callbacks', () => {
@@ -43,7 +45,6 @@ describe('ColorPickerArea and ColorPickerSlider pointer callbacks', () => {
     const area = container.querySelector<HTMLElement>('[data-slot="color-picker-area"]')!
     expect(area).not.toBeNull()
 
-    // Mock getBoundingClientRect and setPointerCapture
     vi.spyOn(area, 'getBoundingClientRect').mockReturnValue({
       left: 0,
       top: 0,
@@ -215,5 +216,146 @@ describe('ColorPickerArea and ColorPickerSlider pointer callbacks', () => {
 
     expect(onPointerDown).toHaveBeenCalledOnce()
     expect(slider.getAttribute('data-dragging')).toBeNull()
+  })
+})
+
+describe('ColorPickerEyeDropper editable state and abortion guards', () => {
+  it('passes AbortSignal to EyeDropper.open and commits picked color when active and editable', async () => {
+    let capturedSignal: AbortSignal | undefined
+    const openMock = vi.fn(({ signal }: { signal?: AbortSignal } = {}) => {
+      capturedSignal = signal
+      return Promise.resolve({ sRGBHex: '#00ff00' })
+    })
+
+    class MockEyeDropper {
+      open = openMock
+    }
+    vi.stubGlobal('EyeDropper', MockEyeDropper)
+
+    const onValueChange = vi.fn()
+    await act(() =>
+      root.render(
+        <ColorPicker value="#ff0000" onValueChange={onValueChange}>
+          <ColorPickerEyeDropper />
+        </ColorPicker>,
+      ),
+    )
+
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-slot="color-picker-eye-dropper"]',
+    )!
+    expect(button).not.toBeNull()
+
+    await act(async () => {
+      button.click()
+    })
+
+    expect(openMock).toHaveBeenCalledOnce()
+    expect(capturedSignal).toBeDefined()
+    expect(capturedSignal?.aborted).toBe(false)
+    expect(onValueChange).toHaveBeenCalledWith('#00ff00')
+  })
+
+  it('aborts sampler on teardown and ignores late completion', async () => {
+    let capturedSignal: AbortSignal | undefined
+    let finishOpen: (res: { sRGBHex: string }) => void = () => {}
+    const openPromise = new Promise<{ sRGBHex: string }>((resolve) => {
+      finishOpen = resolve
+    })
+
+    const openMock = vi.fn(({ signal }: { signal?: AbortSignal } = {}) => {
+      capturedSignal = signal
+      return openPromise
+    })
+
+    class MockEyeDropper {
+      open = openMock
+    }
+    vi.stubGlobal('EyeDropper', MockEyeDropper)
+
+    const onValueChange = vi.fn()
+    await act(() =>
+      root.render(
+        <ColorPicker value="#ff0000" onValueChange={onValueChange}>
+          <ColorPickerEyeDropper />
+        </ColorPicker>,
+      ),
+    )
+
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-slot="color-picker-eye-dropper"]',
+    )!
+    await act(() => {
+      button.click()
+    })
+
+    expect(openMock).toHaveBeenCalledOnce()
+    expect(capturedSignal?.aborted).toBe(false)
+
+    // Unmount before sample resolves
+    await act(() => root.unmount())
+    expect(capturedSignal?.aborted).toBe(true)
+
+    // Late resolution
+    await act(async () => {
+      finishOpen({ sRGBHex: '#00ff00' })
+    })
+
+    expect(onValueChange).not.toHaveBeenCalled()
+  })
+
+  it('aborts sampler when editable state changes to false and ignores late result', async () => {
+    let capturedSignal: AbortSignal | undefined
+    let finishOpen: (res: { sRGBHex: string }) => void = () => {}
+    const openPromise = new Promise<{ sRGBHex: string }>((resolve) => {
+      finishOpen = resolve
+    })
+
+    const openMock = vi.fn(({ signal }: { signal?: AbortSignal } = {}) => {
+      capturedSignal = signal
+      return openPromise
+    })
+
+    class MockEyeDropper {
+      open = openMock
+    }
+    vi.stubGlobal('EyeDropper', MockEyeDropper)
+
+    const onValueChange = vi.fn()
+    await act(() =>
+      root.render(
+        <ColorPicker value="#ff0000" onValueChange={onValueChange} disabled={false}>
+          <ColorPickerEyeDropper />
+        </ColorPicker>,
+      ),
+    )
+
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-slot="color-picker-eye-dropper"]',
+    )!
+    await act(() => {
+      button.click()
+    })
+
+    expect(openMock).toHaveBeenCalledOnce()
+    expect(capturedSignal?.aborted).toBe(false)
+
+    // Change disabled state to true
+    await act(() =>
+      root.render(
+        <ColorPicker value="#ff0000" onValueChange={onValueChange} disabled={true}>
+          <ColorPickerEyeDropper />
+        </ColorPicker>,
+      ),
+    )
+
+    expect(capturedSignal?.aborted).toBe(true)
+
+    // Late resolution
+    await act(async () => {
+      finishOpen({ sRGBHex: '#00ff00' })
+    })
+
+    expect(onValueChange).not.toHaveBeenCalled()
   })
 })

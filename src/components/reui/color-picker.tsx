@@ -2306,6 +2306,25 @@ export function ColorPickerEyeDropper({
   ...props
 }: ColorPickerActionProps) {
   const context = useColorPickerContext('ColorPickerEyeDropper')
+  const controllerRef = useRef<AbortController | null>(null)
+  const generationRef = useRef(0)
+  const contextRef = useRef(context)
+  contextRef.current = context
+
+  useEffect(() => {
+    if (!context.editable) {
+      controllerRef.current?.abort()
+      controllerRef.current = null
+    }
+  }, [context.editable])
+
+  useEffect(() => {
+    return () => {
+      controllerRef.current?.abort()
+      controllerRef.current = null
+    }
+  }, [])
+
   /* False on the server and in the first client render, so markup matches. */
   const supported = useSyncExternalStore(
     noSubscribe,
@@ -2324,15 +2343,35 @@ export function ColorPickerEyeDropper({
       onClick={async (event) => {
         onClick?.(event)
         const EyeDropper = getEyeDropper()
-        if (event.defaultPrevented || !EyeDropper) return
+        if (event.defaultPrevented || !EyeDropper || !context.editable) return
+        controllerRef.current?.abort()
+        const controller = new AbortController()
+        controllerRef.current = controller
+        const generation = ++generationRef.current
         try {
-          const { sRGBHex } = await new EyeDropper().open()
+          const { sRGBHex } = await new EyeDropper().open({
+            signal: controller.signal,
+          })
+          if (
+            controller.signal.aborted ||
+            generation !== generationRef.current ||
+            !contextRef.current.editable
+          ) {
+            return
+          }
           const picked = parseColor(sRGBHex)
           if (picked) {
-            context.change({ ...picked, alpha: context.getColor().alpha })
+            contextRef.current.change({
+              ...picked,
+              alpha: contextRef.current.getColor().alpha,
+            })
           }
         } catch {
           /* Escape cancels the sampler with an AbortError. */
+        } finally {
+          if (controllerRef.current === controller) {
+            controllerRef.current = null
+          }
         }
       }}
       {...props}
