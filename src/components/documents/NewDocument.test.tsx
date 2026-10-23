@@ -37,6 +37,7 @@ it('creates one persistent document and opens its stable route under StrictMode'
   expect(navigate).toHaveBeenCalledWith({
     to: '/d/$id',
     params: { id: saved.id },
+    replace: true,
   })
   const original = new Doc()
   const session = localDocumentStorage.open(saved.id, original)
@@ -65,4 +66,10 @@ it('offers retry when creation fails', async () => {
   )
   await act(async () => container.querySelector('button')!.click())
   await vi.waitFor(() => expect(navigate).toHaveBeenCalledOnce())
+  expect(navigate).toHaveBeenCalledWith(
+    expect.objectContaining({
+      to: '/d/$id',
+      replace: true,
+    }),
+  )
 })

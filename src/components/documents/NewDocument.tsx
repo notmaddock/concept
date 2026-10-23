@@ -10,14 +10,17 @@ export function NewDocument() {
   useEffect(() => {
     if (started.current) return
     started.current = true
-    void createDocument()
+    void createDocument({ replace: true })
   }, [createDocument])
 
   if (error) {
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
         <p role="alert">{error}</p>
-        <Button onClick={createDocument} disabled={creating}>
+        <Button
+          onClick={() => void createDocument({ replace: true })}
+          disabled={creating}
+        >
           Try again
         </Button>
       </main>

@@ -96,7 +96,7 @@ export function useDocuments(
     }
   }, [storage, navigate])
 
-  async function createDocument() {
+  async function createDocument(options?: { replace?: boolean }) {
     if (createPending.current) return
     createPending.current = true
     setCreating(true)
@@ -107,7 +107,11 @@ export function useDocuments(
         ...items.filter((item) => item.id !== created.id),
       ])
       setError('')
-      await navigate({ to: '/d/$id', params: { id: created.id } })
+      await navigate({
+        to: '/d/$id',
+        params: { id: created.id },
+        ...(options?.replace ? { replace: true } : {}),
+      })
     } catch {
       setError('Could not create the document. Please try again.')
     } finally {
