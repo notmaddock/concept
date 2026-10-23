@@ -1,4 +1,4 @@
-import { documentChannelName } from './document-channel'
+import { documentChannelName, remoteDocumentOrigin } from './document-channel'
 import type { DocumentChannelMessage } from './document-channel'
 import { ObservableV2 } from 'lib0/observable'
 import {
@@ -60,7 +60,8 @@ export class LocalProvider
   }
 
   private onDocumentUpdate = (update: Uint8Array, origin: unknown) => {
-    if (origin !== this) this.send({ type: 'update', update })
+    if (origin !== this && origin !== remoteDocumentOrigin)
+      this.send({ type: 'update', update })
   }
 
   private onAwarenessUpdate = (
@@ -103,7 +104,11 @@ export class LocalProvider
         update: encodeStateAsUpdate(this.doc, data.vector),
       })
     } else if (data.type === 'update') {
-      applyUpdate(this.doc, data.update, this)
+      applyUpdate(
+        this.doc,
+        data.update,
+        data.synced ? remoteDocumentOrigin : this,
+      )
     } else {
       applyAwarenessUpdate(this.localAwareness, data.update, this)
     }

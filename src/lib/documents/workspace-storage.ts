@@ -1,4 +1,6 @@
 import { applyUpdate, Doc } from 'yjs'
+import { remoteDocumentOrigin } from './document-channel'
+import { LocalProvider } from './local-provider'
 import {
   localDocumentStorage,
   publishDocumentUpdate,
@@ -44,7 +46,6 @@ export const workspaceDocumentStorage: DocumentStorage = {
     const isClosed = () => closed
     const hasChanges = () => dirty
     let unsubscribe: (() => void) | undefined
-    const remoteOrigin = {}
     function report(next: DocumentSyncStatus) {
       status = next
       listeners.forEach((listener) => listener(status))
@@ -62,7 +63,8 @@ export const workspaceDocumentStorage: DocumentStorage = {
       timer = setTimeout(() => void sync(), 1000)
     }
     function changed(_update: Uint8Array, origin: unknown) {
-      if (origin !== remoteOrigin) schedule()
+      if (origin !== remoteDocumentOrigin && !(origin instanceof LocalProvider))
+        schedule()
     }
     async function sync() {
       if (isClosed() || running || !hasChanges()) return
@@ -87,8 +89,8 @@ export const workspaceDocumentStorage: DocumentStorage = {
         const update = Uint8Array.from(atob(remote.file.update), (character) =>
           character.charCodeAt(0),
         )
-        applyUpdate(doc, update, remoteOrigin)
-        publishDocumentUpdate(id, update)
+        applyUpdate(doc, update, remoteDocumentOrigin)
+        publishDocumentUpdate(id, update, remoteDocumentOrigin)
         await updateDocumentInfo(id, (current) =>
           current && !isClosed()
             ? {

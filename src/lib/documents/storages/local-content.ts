@@ -1,7 +1,7 @@
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
 import type { IndexeddbPersistence } from 'y-indexeddb'
 import type { DocumentPersistence } from '../storage'
-import { documentChannelName } from '../document-channel'
+import { documentChannelName, remoteDocumentOrigin } from '../document-channel'
 import type { DocumentChannelMessage } from '../document-channel'
 import { localMetadata } from './local-metadata'
 
@@ -103,12 +103,20 @@ export function openDocument(id: string, doc: Doc): DocumentPersistence {
 }
 
 // y-indexeddb does not observe writes from another persistence instance.
-export function publishDocumentUpdate(id: string, update: Uint8Array) {
+export function publishDocumentUpdate(
+  id: string,
+  update: Uint8Array,
+  origin: unknown = remoteDocumentOrigin,
+) {
   for (const doc of new Set(activeDocuments.get(id)?.values()))
-    applyUpdate(doc, update)
+    applyUpdate(doc, update, origin)
   if (typeof BroadcastChannel !== 'undefined') {
     const channel = new BroadcastChannel(documentChannelName(id))
-    const message: DocumentChannelMessage = { type: 'update', update }
+    const message: DocumentChannelMessage = {
+      type: 'update',
+      update,
+      ...(origin === remoteDocumentOrigin ? { synced: true } : {}),
+    }
     channel.postMessage(message)
     channel.close()
   }
