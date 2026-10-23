@@ -19,7 +19,7 @@ describe('useFormatActions polling bounds', () => {
   })
 
   afterEach(async () => {
-    await act(() => root.unmount())
+    await act(async () => root.unmount())
     container.remove()
     vi.unstubAllGlobals()
   })
@@ -38,7 +38,7 @@ describe('useFormatActions polling bounds', () => {
       return null
     }
 
-    await act(() => root.render(<Harness />))
+    await act(async () => root.render(<Harness />))
 
     expect(requestSpy).toHaveBeenCalledTimes(1)
 

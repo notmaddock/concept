@@ -39,7 +39,7 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
   container.remove()
   doc.destroy()
   vi.useRealTimers()
@@ -62,7 +62,7 @@ it('shows metadata, live word counts, and the serialized download size', async (
     },
     { discrete: true },
   )
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentDetailsDialog
         document={info}
@@ -82,7 +82,7 @@ it('shows metadata, live word counts, and the serialized download size', async (
   expect(value('File size (.concept)')).toContain(
     `${new Blob([serializeConcept(info.name, doc)]).size} bytes`,
   )
-  await act(() =>
+  await act(async () =>
     editor.update(
       () => {
         $getRoot()
@@ -103,7 +103,7 @@ it('waits for the existing editor session instead of opening another document', 
   const editorRef: { current: ReturnType<typeof createEditor> | null } = {
     current: null,
   }
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentDetailsDialog
         document={info}
@@ -118,7 +118,9 @@ it('waits for the existing editor session instead of opening another document', 
   )
   documentRef.current = doc
   editorRef.current = createEditor()
-  await act(() => vi.advanceTimersByTime(100))
+  await act(async () => {
+    vi.advanceTimersByTime(100)
+  })
   expect(value('Words')).toBe('0')
   expect(document.querySelector('[role="status"]')).toBeNull()
 })
@@ -126,7 +128,7 @@ it('waits for the existing editor session instead of opening another document', 
 it('opens sidebar metadata only after a second without loading document content', async () => {
   vi.useFakeTimers()
   const openDocument = vi.spyOn(localDocumentStorage, 'open')
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentDetailsPopover document={info}>
         <a href="#document">My notes</a>
@@ -134,16 +136,20 @@ it('opens sidebar metadata only after a second without loading document content'
     ),
   )
   const trigger = container.querySelector('a')!
-  await act(() => {
+  await act(async () => {
     const pointer = new MouseEvent('pointerover', { bubbles: true })
     Object.defineProperty(pointer, 'pointerType', { value: 'mouse' })
     trigger.dispatchEvent(pointer)
     trigger.dispatchEvent(new MouseEvent('mouseenter'))
     trigger.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
   })
-  await act(() => vi.advanceTimersByTime(999))
+  await act(async () => {
+    vi.advanceTimersByTime(999)
+  })
   expect(document.querySelector('[data-slot="popover-content"]')).toBeNull()
-  await act(() => vi.advanceTimersByTime(1))
+  await act(async () => {
+    vi.advanceTimersByTime(1)
+  })
   expect(
     document.querySelector('[data-slot="popover-content"]')?.textContent,
   ).toContain('This browser')
@@ -164,7 +170,7 @@ it('coalesces document updates and skips serialization for selection-only change
     },
     { discrete: true },
   )
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentDetailsDialog
         document={info}
@@ -175,7 +181,7 @@ it('coalesces document updates and skips serialization for selection-only change
     ),
   )
   serialize.mockClear()
-  await act(() => {
+  await act(async () => {
     editor.update(
       () => {
         $getRoot().getFirstChild()?.selectEnd()
@@ -184,7 +190,7 @@ it('coalesces document updates and skips serialization for selection-only change
     )
   })
   expect(serialize).not.toHaveBeenCalled()
-  await act(() => {
+  await act(async () => {
     editor.update(
       () => {
         $getRoot().append(

@@ -20,7 +20,7 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
-  if (root) await act(() => root?.unmount())
+  if (root) await act(async () => root?.unmount())
   root = undefined
   container?.remove()
   container = undefined
@@ -88,9 +88,9 @@ it('closes the rename dialog and unmounts cleanly without post-unmount state upd
     ) : null
   }
 
-  await act(() => root!.render(<Harness />))
+  await act(async () => root!.render(<Harness />))
   const trigger = container.querySelector('button')!
-  await act(() => {
+  await act(async () => {
     trigger.dispatchEvent(
       new MouseEvent('contextmenu', {
         bubbles: true,
@@ -103,11 +103,11 @@ it('closes the rename dialog and unmounts cleanly without post-unmount state upd
     document.querySelectorAll('[role="menuitem"]'),
   ).find((item) => item.textContent.includes('Rename')) as HTMLElement
   expect(renameItem).toBeDefined()
-  await act(() => renameItem.click())
+  await act(async () => renameItem.click())
 
   const input = document.querySelector<HTMLInputElement>('input')!
   expect(input.value).toBe('Original')
-  await act(() => {
+  await act(async () => {
     const setter = Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,
       'value',
@@ -122,7 +122,7 @@ it('closes the rename dialog and unmounts cleanly without post-unmount state upd
   expect(onRename).toHaveBeenCalledWith('Renamed')
   expect(document.querySelector('form')).toBeNull()
 
-  await act(() => {
+  await act(async () => {
     trigger.dispatchEvent(
       new MouseEvent('contextmenu', {
         bubbles: true,
@@ -135,7 +135,7 @@ it('closes the rename dialog and unmounts cleanly without post-unmount state upd
     document.querySelectorAll('[role="menuitem"]'),
   ).find((item) => item.textContent.includes('Delete document')) as HTMLElement
   expect(deleteItem).toBeDefined()
-  await act(() => deleteItem.click())
+  await act(async () => deleteItem.click())
 
   const confirmButton = Array.from(document.querySelectorAll('button')).find(
     (item) => item.textContent === 'Delete document',

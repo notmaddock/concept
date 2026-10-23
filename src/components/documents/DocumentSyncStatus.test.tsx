@@ -86,6 +86,7 @@ it('offers retry for a failed upload and updates to saved while the popover stay
 it.each([false, true])(
   'shows storage and live exported file size (Drive: %s)',
   async (drive) => {
+    vi.useFakeTimers()
     const doc = new Doc()
     docs.push(doc)
     const documentRef = createRef<Doc>()
@@ -138,13 +139,12 @@ it.each([false, true])(
       doc.getText('content').insert(0, 'More content 🌎'.repeat(1000)),
     )
     const updatedBytes = new Blob([serializeConcept(info.name, doc)]).size
-    await vi.waitFor(async () => {
-      await act(async () => {})
-      expect(
-        document.querySelector(
-          `[title="${updatedBytes.toLocaleString()} bytes"]`,
-        )?.textContent,
-      ).toContain('KB')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
     })
+    expect(
+      document.querySelector(`[title="${updatedBytes.toLocaleString()} bytes"]`)
+        ?.textContent,
+    ).toContain('KB')
   },
 )

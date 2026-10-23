@@ -31,7 +31,9 @@ it('creates one persistent document and opens its stable route under StrictMode'
       </StrictMode>,
     ),
   )
-  await vi.waitFor(() => expect(navigate).toHaveBeenCalledOnce())
+  await act(async () => {
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledOnce())
+  })
   const [saved] = await localDocumentStorage.list()
   expect(saved).toBeDefined()
   expect(navigate).toHaveBeenCalledWith({
@@ -65,7 +67,9 @@ it('offers retry when creation fails', async () => {
     expect(container.querySelector('[role="alert"]')).not.toBeNull(),
   )
   await act(async () => container.querySelector('button')!.click())
-  await vi.waitFor(() => expect(navigate).toHaveBeenCalledOnce())
+  await act(async () => {
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledOnce())
+  })
   expect(navigate).toHaveBeenCalledWith(
     expect.objectContaining({
       to: '/d/$id',

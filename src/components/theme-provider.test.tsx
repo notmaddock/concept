@@ -24,7 +24,7 @@ beforeEach(() => {
   root = createRoot(container)
 })
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
   container.remove()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
@@ -35,7 +35,7 @@ it('opens the app using the default theme when preference reads are blocked', as
   vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
     throw new DOMException('Storage denied', 'SecurityError')
   })
-  await act(() =>
+  await act(async () =>
     root.render(
       <ThemeProvider defaultTheme="light">
         <Harness />
@@ -51,14 +51,14 @@ it('applies a theme even when saving the preference fails', async () => {
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
     throw new DOMException('Storage full', 'QuotaExceededError')
   })
-  await act(() =>
+  await act(async () =>
     root.render(
       <ThemeProvider>
         <Harness />
       </ThemeProvider>,
     ),
   )
-  await act(() => container.querySelector('button')!.click())
+  await act(async () => container.querySelector('button')!.click())
   expect(container.textContent).toBe('dark')
   expect(document.documentElement.classList.contains('dark')).toBe(true)
 })
@@ -74,7 +74,7 @@ it('applies fallback theme during bootstrap script execution when storage access
 })
 
 it('synchronizes theme changes across tabs via storage events', async () => {
-  await act(() =>
+  await act(async () =>
     root.render(
       <ThemeProvider defaultTheme="light" storageKey="theme">
         <Harness />
@@ -84,7 +84,7 @@ it('synchronizes theme changes across tabs via storage events', async () => {
   expect(container.textContent).toBe('light')
 
   // Receive storage event from another tab updating to 'dark'
-  await act(() => {
+  await act(async () => {
     window.dispatchEvent(
       new StorageEvent('storage', {
         key: 'theme',
@@ -96,7 +96,7 @@ it('synchronizes theme changes across tabs via storage events', async () => {
   expect(document.documentElement.classList.contains('dark')).toBe(true)
 
   // Unrelated storage event is ignored
-  await act(() => {
+  await act(async () => {
     window.dispatchEvent(
       new StorageEvent('storage', {
         key: 'other-key',
@@ -107,7 +107,7 @@ it('synchronizes theme changes across tabs via storage events', async () => {
   expect(container.textContent).toBe('dark')
 
   // Storage event with null resets to defaultTheme
-  await act(() => {
+  await act(async () => {
     window.dispatchEvent(
       new StorageEvent('storage', {
         key: 'theme',
@@ -119,7 +119,7 @@ it('synchronizes theme changes across tabs via storage events', async () => {
   expect(document.documentElement.classList.contains('light')).toBe(true)
 
   // Invalid storage value is ignored
-  await act(() => {
+  await act(async () => {
     window.dispatchEvent(
       new StorageEvent('storage', {
         key: 'theme',

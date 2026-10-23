@@ -13,7 +13,7 @@ beforeEach(() => {
   root = createRoot(container)
 })
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
   container.remove()
 })
 
@@ -27,18 +27,18 @@ it.each([
   'reconciles the draft %j after save',
   async (draft, saved, expected) => {
     const onSave = vi.fn().mockResolvedValue(saved)
-    await act(() =>
+    await act(async () =>
       root.render(<DocumentName name="Original" onSave={onSave} />),
     )
     const input = container.querySelector('input')!
-    await act(() => {
+    await act(async () => {
       Object.getOwnPropertyDescriptor(
         HTMLInputElement.prototype,
         'value',
       )!.set!.call(input, draft)
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    await act(() =>
+    await act(async () =>
       input.dispatchEvent(new FocusEvent('focusout', { bubbles: true })),
     )
     expect(onSave).toHaveBeenCalledWith(draft)
@@ -48,9 +48,11 @@ it.each([
 
 it('restores the persisted name on Escape', async () => {
   const onSave = vi.fn().mockResolvedValue(true)
-  await act(() => root.render(<DocumentName name="Original" onSave={onSave} />))
+  await act(async () =>
+    root.render(<DocumentName name="Original" onSave={onSave} />),
+  )
   const input = container.querySelector('input')!
-  await act(() => {
+  await act(async () => {
     Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,
       'value',
@@ -65,15 +67,15 @@ it('restores the persisted name on Escape', async () => {
 })
 
 it('updates local value when name prop changes', async () => {
-  await act(() => root.render(<DocumentName name="Version 1" />))
+  await act(async () => root.render(<DocumentName name="Version 1" />))
   const input = container.querySelector('input')!
   expect(input.value).toBe('Version 1')
-  await act(() => root.render(<DocumentName name="Version 2" />))
+  await act(async () => root.render(<DocumentName name="Version 2" />))
   expect(input.value).toBe('Version 2')
 })
 
 it('limits header renames to the supported document name length', async () => {
-  await act(() =>
+  await act(async () =>
     root.render(<DocumentName name="Original" onSave={vi.fn()} />),
   )
   expect(container.querySelector('input')!.maxLength).toBe(1000)
@@ -81,16 +83,18 @@ it('limits header renames to the supported document name length', async () => {
 
 it('reverts value and handles onSave rejection cleanly', async () => {
   const onSave = vi.fn().mockRejectedValue(new Error('Save failed'))
-  await act(() => root.render(<DocumentName name="Initial" onSave={onSave} />))
+  await act(async () =>
+    root.render(<DocumentName name="Initial" onSave={onSave} />),
+  )
   const input = container.querySelector('input')!
-  await act(() => {
+  await act(async () => {
     Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,
       'value',
     )!.set!.call(input, 'Failed Save')
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
-  await act(() =>
+  await act(async () =>
     input.dispatchEvent(new FocusEvent('focusout', { bubbles: true })),
   )
   expect(onSave).toHaveBeenCalledWith('Failed Save')

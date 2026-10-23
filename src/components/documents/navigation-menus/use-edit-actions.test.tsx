@@ -47,18 +47,18 @@ beforeEach(async () => {
     },
     { discrete: true },
   )
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
 })
 
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
   container.remove()
   onError.mockReset()
   vi.unstubAllGlobals()
 })
 
 it('clears formatting only from the selected text', async () => {
-  await act(() => actions.run('clear-formatting'))
+  await act(async () => actions.run('clear-formatting'))
   editor.getEditorState().read(() => {
     const nodes = $getRoot().getAllTextNodes()
     expect(
@@ -71,11 +71,11 @@ it('clears formatting only from the selected text', async () => {
 })
 
 it('selects the whole document and deletes the selection', async () => {
-  await act(() => actions.run('select-all'))
+  await act(async () => actions.run('select-all'))
   editor.getEditorState().read(() => {
     expect($getSelection()?.getTextContent()).toBe('hello world')
   })
-  await act(() => actions.run('delete-selection'))
+  await act(async () => actions.run('delete-selection'))
   editor
     .getEditorState()
     .read(() => expect($getRoot().getTextContent()).toBe(''))
@@ -97,7 +97,7 @@ it('pastes plain text without inheriting formatting', async () => {
   )
   vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Linux')
   vi.spyOn(navigator.clipboard, 'readText').mockResolvedValue('pasted')
-  await act(() => actions.run('paste-plain'))
+  await act(async () => actions.run('paste-plain'))
   editor.getEditorState().read(() => {
     expect($getRoot().getTextContent()).toBe('pasted world')
     const selection = $getSelection()
@@ -108,7 +108,7 @@ it('pastes plain text without inheriting formatting', async () => {
 it('preserves text and reports denied clipboard access', async () => {
   vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Linux')
   vi.spyOn(navigator.clipboard, 'read').mockRejectedValue(new Error('denied'))
-  await act(() => actions.run('paste'))
+  await act(async () => actions.run('paste'))
   expect(onError).toHaveBeenCalledWith(expect.stringContaining('Ctrl+V'))
   editor
     .getEditorState()
@@ -121,7 +121,7 @@ it('clears formatting with the displayed keyboard shortcut', async () => {
     ctrlKey: true,
     cancelable: true,
   })
-  await act(() => {
+  await act(async () => {
     editor.dispatchCommand(KEY_DOWN_COMMAND, event)
   })
   expect(event.defaultPrevented).toBe(true)
@@ -136,7 +136,7 @@ it('leaves the bold shortcut available to the editor', async () => {
     ctrlKey: true,
     cancelable: true,
   })
-  await act(() => {
+  await act(async () => {
     editor.dispatchCommand(KEY_DOWN_COMMAND, event)
   })
   editor.getEditorState().read(() => {
@@ -157,7 +157,7 @@ it('shows clipboard failures as Sonner toasts', async () => {
   onError.mockImplementation((message: string) => {
     toast.error(message)
   })
-  await act(() =>
+  await act(async () =>
     root.render(
       <>
         <Harness />

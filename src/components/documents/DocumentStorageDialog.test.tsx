@@ -33,7 +33,7 @@ beforeEach(() => {
   initializeDocument(doc)
 })
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
   container.remove()
   doc.destroy()
 })
@@ -44,11 +44,11 @@ async function click(label: string) {
       item.textContent === label || item.textContent.trim().startsWith(label),
   )
   expect(button).toBeDefined()
-  await act(() => button?.click())
+  await act(async () => button?.click())
 }
 
 it('requires device selection and confirmation showing file size and origin before opening', async () => {
-  await act(() =>
+  await act(async () =>
     root.render(<DocumentStorageDialog mode="open" onClose={onClose} />),
   )
   expect(document.querySelector('input[type="file"]')).toBeNull()
@@ -101,7 +101,7 @@ it('uses the same provider selection to save an independently named copy', async
       />
     ) : null
   }
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
   expect(document.querySelector('input')?.value).toBe('Copy of Original')
   await click('Save copy')
   expect(mocks.importConcept).toHaveBeenCalledWith(
@@ -114,7 +114,7 @@ it('uses the same provider selection to save an independently named copy', async
 })
 
 it('keeps invalid files out of storage and displays the error', async () => {
-  await act(() =>
+  await act(async () =>
     root.render(<DocumentStorageDialog mode="open" onClose={onClose} />),
   )
   await click('This device')
@@ -150,7 +150,7 @@ it('opens a library document in place without saving a duplicate', async () => {
     origin: 'Local library',
     existingId: 'existing-id',
   })
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentStorageDialog
         mode="open"
@@ -189,7 +189,7 @@ it('saves an imported document to the selected provider independently of its sou
   const file = JSON.parse(
     serializeConcept('External document', doc),
   ) as ConceptFileModule.ConceptFile
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentStorageDialog
         mode="open"
@@ -248,8 +248,10 @@ it('saves an imported document to the selected provider independently of its sou
 })
 
 it('converts an import before saving and reuses destination selection', async () => {
+  const conversion = await import('#/lib/documents/import')
+  const convert = vi.spyOn(conversion, 'convertImport')
   const save = vi.fn().mockResolvedValue({ id: 'destination' })
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentStorageDialog
         mode="import"
@@ -269,12 +271,7 @@ it('converts an import before saving and reuses destination selection', async ()
   })
   await act(async () => {
     input.dispatchEvent(new Event('change', { bubbles: true }))
-  })
-  await vi.waitFor(async () => {
-    await act(async () => {
-      await Promise.resolve()
-    })
-    expect(document.body.textContent).toContain('Save to')
+    await vi.waitFor(() => expect(convert).toHaveResolved())
   })
   expect(save).not.toHaveBeenCalled()
   expect(mocks.importConcept).not.toHaveBeenCalled()
@@ -299,7 +296,7 @@ it('caches a Drive selection only on confirmation and navigates with its Concept
   const file = JSON.parse(
     serializeConcept('Drive document', doc),
   ) as ConceptFileModule.ConceptFile
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentStorageDialog
         mode="open"

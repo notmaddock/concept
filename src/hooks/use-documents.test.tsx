@@ -38,7 +38,7 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
   container.remove()
   vi.restoreAllMocks()
 })
@@ -48,7 +48,7 @@ async function mount(id = 'first') {
     actions = useDocuments(id, storage)
     return null
   }
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
 }
 
 it('uses one creation action and suppresses duplicate concurrent requests', async () => {
@@ -64,7 +64,7 @@ it('uses one creation action and suppresses duplicate concurrent requests', asyn
 
 it('returns to the library when deleting the open document', async () => {
   await mount()
-  await act(() => actions.deleteDocument('first'))
+  await act(async () => actions.deleteDocument('first'))
   expect(storage.delete).toHaveBeenCalledWith('first')
   expect(actions.documents).toEqual([second])
   expect(navigate).toHaveBeenCalledWith({ to: '/d' })
@@ -72,7 +72,7 @@ it('returns to the library when deleting the open document', async () => {
 
 it('keeps the current editor open when deleting another document', async () => {
   await mount()
-  await act(() => actions.deleteDocument('second'))
+  await act(async () => actions.deleteDocument('second'))
   expect(actions.document).toEqual(first)
   expect(navigate).not.toHaveBeenCalled()
 })
@@ -88,9 +88,9 @@ it('does not navigate away when switching to another document while deleting the
     actions = useDocuments(id, storage)
     return null
   }
-  await act(() => root.render(<Harness id="first" />))
+  await act(async () => root.render(<Harness id="first" />))
   const deletion = actions.deleteDocument('first')
-  await act(() => root.render(<Harness id="second" />))
+  await act(async () => root.render(<Harness id="second" />))
   await act(async () => {
     resolveDelete()
     await deletion
@@ -111,9 +111,9 @@ it('returns to the library when navigating into a document whose deletion is in 
     actions = useDocuments(id, storage)
     return null
   }
-  await act(() => root.render(<Harness id="first" />))
+  await act(async () => root.render(<Harness id="first" />))
   const deletion = actions.deleteDocument('second')
-  await act(() => root.render(<Harness id="second" />))
+  await act(async () => root.render(<Harness id="second" />))
   await act(async () => {
     resolveDelete()
     await deletion
@@ -125,7 +125,7 @@ it('returns to the library when navigating into a document whose deletion is in 
 it('preserves documents and reports a storage deletion failure', async () => {
   vi.mocked(storage.delete).mockRejectedValue(new Error('Storage unavailable'))
   await mount()
-  await act(() => actions.deleteDocument('first'))
+  await act(async () => actions.deleteDocument('first'))
   expect(actions.documents).toEqual([first, second])
   expect(actions.error).toContain('Could not delete')
   expect(navigate).not.toHaveBeenCalled()
@@ -136,10 +136,10 @@ it('updates document titles and closes a remotely deleted document without windo
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
   const renamed = { ...first, name: 'Renamed in another tab' }
   vi.mocked(storage.list).mockResolvedValue([renamed, second])
-  await act(() => listener({ type: 'upsert', document: renamed }))
+  await act(async () => listener({ type: 'upsert', document: renamed }))
   expect(actions.document?.name).toBe(renamed.name)
   vi.mocked(storage.list).mockResolvedValue([second])
-  await act(() => listener({ type: 'delete', id: first.id }))
+  await act(async () => listener({ type: 'delete', id: first.id }))
   expect(actions.document).toBeUndefined()
   expect(navigate).toHaveBeenCalledWith({ to: '/d' })
 })
@@ -181,7 +181,7 @@ it('rejects blank names and reports failed renames without changing documents', 
 it('uses change payloads without rereading the library', async () => {
   await mount()
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
-  await act(() => {
+  await act(async () => {
     listener({ type: 'upsert', document: { ...first, name: 'Updated' } })
     listener({ type: 'delete', id: second.id })
   })
@@ -199,7 +199,7 @@ it('preserves changes received while a library reconciliation is in flight', asy
   await mount()
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
   const renamed = { ...first, name: 'Changed during read' }
-  await act(() => {
+  await act(async () => {
     listener({ type: 'upsert', document: renamed })
     listener({ type: 'delete', id: second.id })
     resolveRead([first, second])
@@ -214,12 +214,12 @@ it('retains its library subscription across document navigation', async () => {
     actions = useDocuments(id, storage)
     return null
   }
-  await act(() => root.render(<Harness id="first" />))
-  await act(() => root.render(<Harness id="second" />))
+  await act(async () => root.render(<Harness id="first" />))
+  await act(async () => root.render(<Harness id="second" />))
   expect(storage.subscribe).toHaveBeenCalledTimes(1)
   expect(storage.list).toHaveBeenCalledTimes(1)
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
-  await act(() => listener({ type: 'delete', id: second.id }))
+  await act(async () => listener({ type: 'delete', id: second.id }))
   expect(navigate).toHaveBeenCalledWith({ to: '/d' })
 })
 
@@ -246,7 +246,7 @@ it.each(['first', undefined])(
       actions = useDocuments(active)
       return null
     }
-    await act(() => root.render(<Harness />))
+    await act(async () => root.render(<Harness />))
     await act(async () => {
       expect(await actions.renameDocumentById('second', renamed.name)).toBe(
         true,
@@ -284,7 +284,7 @@ it('fetches direct document via storage.get when missing from initial list', asy
     actions = useDocuments('unlisted', storage)
     return null
   }
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
   expect(storage.get).toHaveBeenCalledWith('unlisted')
   expect(actions.document).toEqual(directDoc)
   expect(actions.documents).toContainEqual(directDoc)
@@ -300,7 +300,7 @@ it('replays focus invalidation received during an in-flight library read', async
     )
     .mockResolvedValueOnce([second])
   await mount('second')
-  await act(() => {
+  await act(async () => {
     window.dispatchEvent(new Event('focus'))
     window.dispatchEvent(new Event('focus'))
     resolveRead([first, second])

@@ -62,15 +62,15 @@ beforeEach(async () => {
     },
     { discrete: true },
   )
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
 })
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
   vi.unstubAllGlobals()
 })
 
 async function apply(action: FormatAction) {
-  await act(() =>
+  await act(async () =>
     editor.update(() => $applyFormatAction(action), { discrete: true }),
   )
 }
@@ -131,9 +131,9 @@ it('exposes multiple active styles and updates their state', async () => {
   expect(actions.checked(italic)).toBe(true)
 })
 it('disables formatting in read-only editors', async () => {
-  await act(() => editor.setEditable(false))
+  await act(async () => editor.setEditable(false))
   expect(actions.disabled).toBe(true)
-  await act(() =>
+  await act(async () =>
     actions.run({ kind: 'style', property: 'color', value: '#dc2626' }),
   )
   editor
@@ -145,7 +145,7 @@ it('persists paragraph formatting through JSON reload and renders it', async () 
   await apply({ kind: 'paragraph', property: 'line-height', value: '2' })
   await apply({ kind: 'block', value: 'h2' })
   const saved = JSON.stringify(editor.getEditorState().toJSON())
-  await act(() => editor.setEditorState(editor.parseEditorState(saved)))
+  await act(async () => editor.setEditorState(editor.parseEditorState(saved)))
   editor.getEditorState().read(() => {
     const node = $getRoot().getFirstChildOrThrow()
     expect($getParagraphStyle(node)).toContain('line-height: 2')
@@ -155,17 +155,17 @@ it('persists paragraph formatting through JSON reload and renders it', async () 
   })
 })
 it('runs list, alignment, and indentation commands through menu actions', async () => {
-  await act(() => actions.run({ kind: 'align', value: 'center' }))
+  await act(async () => actions.run({ kind: 'align', value: 'center' }))
   editor.getEditorState().read(() => {
     const node = $getRoot().getFirstChildOrThrow()
     expect($isElementNode(node) && node.getFormatType()).toBe('center')
   })
-  await act(() => actions.run({ kind: 'list', value: 'bullet' }))
+  await act(async () => actions.run({ kind: 'list', value: 'bullet' }))
   editor
     .getEditorState()
     .read(() => expect($getRoot().getFirstChild()?.getType()).toBe('list'))
-  await act(() => actions.run({ kind: 'list', value: 'none' }))
-  await act(() => actions.run({ kind: 'indent', value: 'increase' }))
+  await act(async () => actions.run({ kind: 'list', value: 'none' }))
+  await act(async () => actions.run({ kind: 'indent', value: 'increase' }))
   editor.getEditorState().read(() => {
     const node = $getRoot().getFirstChildOrThrow()
     expect($isElementNode(node) && node.getIndent()).toBe(1)
@@ -204,7 +204,7 @@ it('renders spacing with the application extension configuration', async () => {
 it('keeps formatting subscribers stable when text changes without format changes', async () => {
   // Prime React's state bailout after the initial enabled-state update.
   async function changeText(value: string) {
-    await act(() =>
+    await act(async () =>
       editor.update(
         () => {
           $getRoot().getAllTextNodes()[0].setTextContent(value)
@@ -221,14 +221,14 @@ it('keeps formatting subscribers stable when text changes without format changes
 })
 
 it('pauses hidden formatting controls and refreshes when they become active', async () => {
-  await act(() => root.render(<Harness active={false} />))
+  await act(async () => root.render(<Harness active={false} />))
   expect(actions.disabled).toBe(true)
   await apply({ kind: 'text', value: 'italic' })
   const italic = choices.find(
     (action) => action.kind === 'text' && action.value === 'italic',
   )!
   expect(actions.checked(italic)).toBeUndefined()
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
   expect(actions.disabled).toBe(false)
   expect(actions.checked(italic)).toBe(true)
 })
@@ -240,7 +240,7 @@ it('returns focus from a menu before committing formatting and preserves the sel
   const menu = document.createElement('button')
   document.body.appendChild(editable)
   document.body.appendChild(menu)
-  editor.setRootElement(editable)
+  await act(async () => editor.setRootElement(editable))
   menu.focus()
   const warn = vi.spyOn(console, 'warn')
   const focusOnCommit: boolean[] = []
@@ -249,7 +249,7 @@ it('returns focus from a menu before committing formatting and preserves the sel
       focusOnCommit.push(document.activeElement === editable)
   })
   try {
-    await act(() =>
+    await act(async () =>
       actions.run({ kind: 'style', property: 'font-family', value: 'Georgia' }),
     )
     expect(focusOnCommit).toEqual([true])
@@ -263,7 +263,7 @@ it('returns focus from a menu before committing formatting and preserves the sel
   } finally {
     unregister()
     warn.mockRestore()
-    editor.setRootElement(null)
+    await act(async () => editor.setRootElement(null))
     editable.remove()
     menu.remove()
   }
@@ -277,7 +277,7 @@ it('applies rapid successive formatting actions synchronously without stale sele
     (action) => action.kind === 'text' && action.value === 'italic',
   )!
 
-  await act(() => {
+  await act(async () => {
     actions.run(bold)
     actions.run(italic)
   })

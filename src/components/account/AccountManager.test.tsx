@@ -112,10 +112,10 @@ beforeEach(async () => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  await act(() => root.render(<AccountManager />))
+  await act(async () => root.render(<AccountManager />))
 })
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
   container.remove()
   vi.unstubAllGlobals()
 })
@@ -125,7 +125,7 @@ async function click(selector: string, text?: string) {
     document.querySelectorAll<HTMLElement>(selector),
   ).find((element) => text === undefined || element.textContent.trim() === text)
   expect(target).toBeDefined()
-  await act(() => target!.click())
+  await act(async () => target!.click())
 }
 async function menu() {
   await click('[aria-label="Account menu"]')
@@ -195,7 +195,7 @@ it('offers all three themes and applies the selected value', async () => {
     document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
   ).find((element) => element.textContent.includes('Theme'))
   expect(trigger).toBeDefined()
-  await act(() => trigger!.click())
+  await act(async () => trigger!.click())
   const choices = Array.from(
     document.querySelectorAll('[role="menuitemradio"]'),
   ).map((item) => item.textContent)
@@ -206,7 +206,7 @@ it('offers all three themes and applies the selected value', async () => {
 
 it('keeps login actions in the signed-out profile menu and hides settings', async () => {
   sessionState.current = null
-  await act(() => root.render(<AccountManager />))
+  await act(async () => root.render(<AccountManager />))
   await menu()
   const content = document.querySelector('[role="menu"]')?.textContent
   expect(content).toContain('Sign in with Google')
@@ -228,7 +228,7 @@ it('reports cancelled authentication with a toast instead of inline menu text', 
   client.signIn.passkey.mockResolvedValueOnce({
     error: { message: 'Authentication cancelled' },
   })
-  await act(() => root.render(<AccountManager />))
+  await act(async () => root.render(<AccountManager />))
   await menu()
   await click('[role="menuitem"]', 'Sign in with passkey')
   expect(toastError).toHaveBeenCalledWith('Authentication cancelled')
@@ -251,7 +251,7 @@ it('defaults unnamed passkeys to their authenticator and saves a custom name', a
   const input = document.querySelector<HTMLInputElement>(
     '[role="dialog"] input',
   )!
-  await act(() => {
+  await act(async () => {
     Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,
       'value',
@@ -367,7 +367,7 @@ it.each(['google', 'passkey'] as const)(
     })
     if (method === 'google') client.signIn.social.mockReturnValueOnce(pending)
     else client.signIn.passkey.mockReturnValueOnce(pending)
-    await act(() => root.render(<AccountManager />))
+    await act(async () => root.render(<AccountManager />))
     await menu()
     const label =
       method === 'google' ? 'Sign in with Google' : 'Sign in with passkey'
@@ -386,7 +386,7 @@ it.each(['google', 'passkey'] as const)(
         (element) => element.getAttribute('aria-disabled') === 'true',
       ),
     ).toBe(true)
-    await act(() => finish({ error: { message: 'Cancelled' } }))
+    await act(async () => finish({ error: { message: 'Cancelled' } }))
     expect(active.querySelector('.animate-spin')).toBeNull()
     expect(active.getAttribute('aria-busy')).toBe('false')
   },
@@ -566,12 +566,12 @@ it('resets dialog open state on session loss so it does not auto-open on next lo
 
   // Session expires / is lost
   sessionState.current = null
-  await act(() => root.render(<AccountManager />))
+  await act(async () => root.render(<AccountManager />))
   expect(document.querySelector('[role="dialog"]')).toBeNull()
 
   // Next login
   sessionState.current = defaultSession
-  await act(() => root.render(<AccountManager />))
+  await act(async () => root.render(<AccountManager />))
   expect(document.querySelector('[role="dialog"]')).toBeNull()
 })
 
@@ -611,7 +611,7 @@ it('clears previous user accounts when user changes and handles failed loads cle
     error: { message: 'Could not load connections.' },
   })
 
-  await act(() => root.render(<AccountManager />))
+  await act(async () => root.render(<AccountManager />))
   // Open dialog for user 2
   await menu()
   await click('[role="menuitem"]', 'Account settings')
@@ -644,10 +644,10 @@ it('ignores stale action completion when session changes before action finishes'
 
   // While action is pending, session is lost
   sessionState.current = null
-  await act(() => root.render(<AccountManager />))
+  await act(async () => root.render(<AccountManager />))
 
   // Action now resolves with error
-  await act(() => resolveAction({ error: { message: 'Stale error' } }))
+  await act(async () => resolveAction({ error: { message: 'Stale error' } }))
 
   // Error toast should NOT have been shown for stale user action
   expect(toastError).not.toHaveBeenCalledWith('Stale error')
@@ -664,7 +664,7 @@ it('clears pending passkey reauthentication when the signed-in user changes', as
   sessionState.current = {
     user: { ...defaultSession.user, id: 'user-2', name: 'Second user' },
   }
-  await act(() => root.render(<AccountManager />))
+  await act(async () => root.render(<AccountManager />))
   expect(document.body.textContent).not.toContain('Confirm your identity')
   expect(client.passkey.addPasskey).toHaveBeenCalledTimes(1)
 })

@@ -42,7 +42,7 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
 })
 
 async function render(creating = false, enabled = true) {
@@ -52,7 +52,7 @@ async function render(creating = false, enabled = true) {
     navigation = useDocumentNavigationOptions()
     return null
   }
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
 }
 
 function leaves(items: NavigationMenuItem[]): NavigationMenuItem[] {
@@ -193,7 +193,7 @@ it('binds editor actions supplied by the lazy editor navigation', async () => {
     navigation = useDocumentNavigationOptions({ edit, format })
     return null
   }
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
   const undo = navigation.options.find((option) => option.id === 'undo')!
   expect(undo.disabled).toBe(false)
   await undo.onSelect()
