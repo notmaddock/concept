@@ -2,6 +2,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
+import type * as RouterModule from '@tanstack/react-router'
 
 import { Route } from './index'
 
@@ -9,7 +10,7 @@ vi.mock('#/components/account/AccountManager', () => ({
   AccountManager: () => <div data-testid="account-manager" />,
 }))
 vi.mock('@tanstack/react-router', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@tanstack/react-router')>()
+  const actual = await importOriginal<typeof RouterModule>()
   return {
     ...actual,
     Link: ({
