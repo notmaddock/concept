@@ -22,6 +22,7 @@ let root: Root
 let container: HTMLDivElement
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.stubGlobal('matchMedia', () => ({
     matches: false,
@@ -65,7 +66,7 @@ it('keeps the destination menu open when hover skips a menu', async () => {
       triggers[index].dispatchEvent(
         new MouseEvent('mousemove', { bubbles: true }),
       )
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await vi.runOnlyPendingTimersAsync()
     })
     expect(triggers[index].getAttribute('aria-expanded')).toBe('true')
   }
