@@ -46,7 +46,12 @@ export function ThemeProvider({
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const stored = localStorage.getItem(storageKey)
+    let stored: string | null = null
+    try {
+      stored = localStorage.getItem(storageKey)
+    } catch {
+      // Theme preferences remain usable when browser storage is blocked.
+    }
     setThemeState(
       stored === 'light' || stored === 'dark' || stored === 'system'
         ? stored
@@ -69,7 +74,11 @@ export function ThemeProvider({
   }, [theme, mounted])
 
   const setTheme = (next: Theme) => {
-    localStorage.setItem(storageKey, next)
+    try {
+      localStorage.setItem(storageKey, next)
+    } catch {
+      // A full or unavailable store must not prevent changing the theme.
+    }
     setThemeState(next)
   }
 
