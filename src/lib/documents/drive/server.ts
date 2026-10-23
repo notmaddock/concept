@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers'
 import { applyUpdate, Doc } from 'yjs'
 import { getAuth, getProviderAccessToken } from '#/lib/auth/server'
 import { googlePermissions } from '#/lib/auth/connections'
@@ -143,6 +144,36 @@ export async function saveDriveDocument(
   data: SaveDriveInput,
 ) {
   const { accountId, accessToken } = await connection(headers, data.accountId)
+  if (data.fileId) {
+    // File identity (not user or account identity) coordinates different devices
+    // and different accounts that can access the same backing file.
+    // HTTP bodies keep large snapshots outside Workers RPC's 32 MiB value cap.
+    const response = await env.DRIVE_SAVES.getByName(data.fileId).fetch(
+      new Request('https://drive-save.internal/', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ accountId, data }),
+      }),
+    )
+    if (!response.ok) {
+      const failure = await response.json<{ error: string }>()
+      throw new Error(failure.error)
+    }
+    return response.json<{
+      document: DocumentInfo
+      file: ReturnType<typeof parseConcept>
+    }>()
+  }
+  return saveDriveFile(accessToken, accountId, data)
+}
+
+// Called only after authorization, either here for creation or by the per-file
+// Durable Object for the entire read/merge/write sequence of existing files.
+export async function saveDriveFile(
+  accessToken: string,
+  accountId: string,
+  data: SaveDriveInput,
+) {
   const file = parseConcept(data.text)
   let text = JSON.stringify({ ...file, name: data.name })
   let etag: string | undefined

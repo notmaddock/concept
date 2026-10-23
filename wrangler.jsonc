@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "concept",
-  "main": "@tanstack/react-start/server-entry",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-09-11",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
@@ -24,6 +24,14 @@
       "database_id": "2b007185-6a01-45fc-942a-85b51af23837",
       "migrations_dir": "migrations",
     },
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "DRIVE_SAVES", "class_name": "DriveSaveCoordinator" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1-drive-saves", "new_sqlite_classes": ["DriveSaveCoordinator"] },
   ],
   "placement": {
     "mode": "smart",

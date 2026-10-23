@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeEach, expect, it, vi } from 'vitest'
 import { applyUpdate, Doc } from 'yjs'
+import { DriveSaveCoordinator } from './coordinator'
 import { initializeDocument } from '../initial-document'
 import { parseConcept, serializeConcept } from '../concept-file'
 import {
@@ -14,6 +15,25 @@ const mocks = vi.hoisted(() => ({
   session: vi.fn(),
   accounts: vi.fn(),
   fetch: vi.fn(),
+}))
+const coordinators = new Map<string, DriveSaveCoordinator>()
+vi.mock('cloudflare:workers', () => ({
+  DurableObject: class {},
+  env: {
+    DRIVE_SAVES: {
+      getByName(fileId: string) {
+        let coordinator = coordinators.get(fileId)
+        if (!coordinator) {
+          coordinator = new DriveSaveCoordinator(
+            {} as DurableObjectState,
+            {} as Env,
+          )
+          coordinators.set(fileId, coordinator)
+        }
+        return coordinator
+      },
+    },
+  },
 }))
 vi.mock('#/lib/auth/server', () => ({
   getProviderAccessToken: mocks.token,
@@ -41,6 +61,7 @@ function content(name = 'Remote') {
 }
 beforeEach(() => {
   vi.resetAllMocks()
+  coordinators.clear()
   vi.stubGlobal('fetch', mocks.fetch)
   mocks.session.mockResolvedValue({ user: { id: 'user' } })
   mocks.accounts.mockResolvedValue([
@@ -247,4 +268,107 @@ it('authorizes uploads before decoding and hydrating the supplied document', asy
     }),
   ).rejects.toThrow('Sign in')
   expect(mocks.fetch).not.toHaveBeenCalled()
+})
+
+it('serializes overlapping no-ETag saves from separate accounts by backing file identity', async () => {
+  let remoteText = content()
+  let version = 1
+  let releaseFirstUpload!: () => void
+  let signalFirstUpload!: () => void
+  const firstUpload = new Promise<void>((resolve) => {
+    signalFirstUpload = resolve
+  })
+  const release = new Promise<void>((resolve) => {
+    releaseFirstUpload = resolve
+  })
+  let patchCount = 0
+  let metadataReads = 0
+  mocks.fetch.mockImplementation(async (url: string, init: RequestInit) => {
+    if (init.method === 'PATCH') {
+      patchCount++
+      if (patchCount === 1) {
+        signalFirstUpload()
+        await release
+      }
+      remoteText = (init.body as string)
+        .split('Content-Type: application/vnd.concept+json\r\n\r\n')[1]
+        .split('\r\n--')[0]
+      version++
+      return new Response(
+        JSON.stringify({ ...metadata, version: String(version) }),
+      )
+    }
+    if (url.includes('alt=media')) return new Response(remoteText)
+    if (url.endsWith('fields=version'))
+      return new Response(JSON.stringify({ version: String(version) }))
+    metadataReads++
+    return new Response(
+      JSON.stringify({ ...metadata, version: String(version) }),
+    )
+  })
+  const docs = [new Doc(), new Doc()]
+  for (const [index, doc] of docs.entries()) {
+    applyUpdate(
+      doc,
+      Uint8Array.from(atob(parseConcept(remoteText).update), (character) =>
+        character.charCodeAt(0),
+      ),
+    )
+    doc.getMap('metadata').set(`writer-${index}`, 'kept')
+  }
+  const first = saveDriveDocument(headers, {
+    id,
+    accountId: 'account',
+    fileId: 'drive-file',
+    name: 'Remote',
+    text: serializeConcept('Remote', docs[0]),
+  })
+  await firstUpload
+  const second = saveDriveDocument(headers, {
+    id,
+    accountId: 'another-owned-account',
+    fileId: 'drive-file',
+    name: 'Remote',
+    text: serializeConcept('Remote', docs[1]),
+  })
+  // Let the second authorized request reach the object while the first PATCH waits.
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(metadataReads).toBe(1)
+  releaseFirstUpload()
+  await Promise.all([first, second])
+  const merged = new Doc()
+  applyUpdate(
+    merged,
+    Uint8Array.from(atob(parseConcept(remoteText).update), (character) =>
+      character.charCodeAt(0),
+    ),
+  )
+  expect(merged.getMap('metadata').toJSON()).toMatchObject({
+    'writer-0': 'kept',
+    'writer-1': 'kept',
+  })
+  expect(patchCount).toBe(2)
+  docs.forEach((doc) => doc.destroy())
+  merged.destroy()
+})
+
+it('allows a later queued save after the prior save fails', async () => {
+  mocks.fetch
+    .mockResolvedValueOnce(new Response('', { status: 403 }))
+    .mockResolvedValueOnce(json(metadata))
+    .mockResolvedValueOnce(new Response(content()))
+    .mockResolvedValueOnce(json(metadata))
+  const data = {
+    id,
+    accountId: 'account',
+    fileId: 'drive-file',
+    name: 'Remote',
+    text: content(),
+  }
+  const saves = await Promise.allSettled([
+    saveDriveDocument(headers, data),
+    saveDriveDocument(headers, data),
+  ])
+  expect(saves[0].status).toBe('rejected')
+  expect(saves[1].status).toBe('fulfilled')
 })
