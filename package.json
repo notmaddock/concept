@@ -18,6 +18,10 @@
     "wrangler": "wrangler",
     "deploy": "pnpm run build && wrangler deploy",
     "cf-typegen": "wrangler types --strict-vars=false",
+    "db:migrate:local": "wrangler d1 migrations apply AUTH_DB --local",
+    "db:migrate:production": "wrangler d1 migrations apply AUTH_DB --remote",
+    "db:migrate:preview": "wrangler d1 migrations apply AUTH_DB --remote --config wrangler.preview-migrations.jsonc",
+    "deploy:preview": "pnpm exec vite build --mode staging && wrangler preview --worker-name concept --name staging",
     "test": "vitest run",
     "validate": "pnpm run check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },

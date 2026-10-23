@@ -4,14 +4,45 @@
   "main": "@tanstack/react-start/server-entry",
   "compatibility_date": "2026-09-11",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "routes": [
+    {
+      "pattern": "concept.maddock.world",
+      "custom_domain": true,
+      "previews_enabled": true,
+    },
+  ],
+  "vars": {
+    "BETTER_AUTH_URL": "https://concept.maddock.world",
+    "GOOGLE_CLIENT_ID": "819574860574-2pfteub2q3vuct13dpkm2vs7mug04rd1.apps.googleusercontent.com",
+  },
   "d1_databases": [
     {
       "binding": "AUTH_DB",
+      "database_name": "auth_db_prod",
+      "database_id": "2b007185-6a01-45fc-942a-85b51af23837",
       "migrations_dir": "migrations",
     },
   ],
   "observability": {
     "enabled": true,
   },
-  "previews": {},
+  "secrets": {
+    "required": ["BETTER_AUTH_SECRET", "GOOGLE_CLIENT_SECRET"],
+  },
+  "previews": {
+    "vars": {
+      "BETTER_AUTH_URL": "https://staging.concept.maddock.world",
+      "GOOGLE_CLIENT_ID": "819574860574-3e68a16ekd85g25uj9jliejt4l2qaamp.apps.googleusercontent.com",
+    },
+    "d1_databases": [
+      {
+        "binding": "AUTH_DB",
+        "database_name": "auth_db_preview",
+        "database_id": "6ebb8d62-bf58-4ff1-8c3e-98a8c4d14455",
+        "migrations_dir": "migrations",
+      },
+    ],
+  },
 }

@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "d1_databases": [
+    {
+      "binding": "AUTH_DB",
+      "database_name": "auth_db_preview",
+      "database_id": "6ebb8d62-bf58-4ff1-8c3e-98a8c4d14455",
+      "migrations_dir": "migrations",
+    },
+  ],
+}
