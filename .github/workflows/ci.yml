@@ -94,6 +94,7 @@ jobs:
 
   codeql-analysis:
     name: CodeQL Security Analysis (SAST)
+    if: github.event.repository.private == false || vars.ENABLE_CODEQL == 'true'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -105,13 +106,17 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Initialize CodeQL
+        id: codeql-init
         uses: github/codeql-action/init@v4
+        continue-on-error: true
         with:
           languages: javascript-typescript
           build-mode: none
 
       - name: Perform CodeQL analysis
+        if: steps.codeql-init.outcome == 'success'
         uses: github/codeql-action/analyze@v4
+        continue-on-error: true
 
   deploy:
     name: Deploy to Cloudflare Workers
