@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { localDocumentStorage } from '#/lib/documents/storage'
 import type {
@@ -18,7 +18,8 @@ export function useDocuments(
   const [creating, setCreating] = useState(false)
   const createPending = useRef(false)
   const deletePending = useRef(new Set<string>())
-  const document = documents.find((item) => item.id === id)
+  const [defaultId, setDefaultId] = useState<string>()
+  const document = documents.find((item) => item.id === (id ?? defaultId))
   const activeId = useRef(id)
   useEffect(() => {
     activeId.current = id
@@ -86,7 +87,7 @@ export function useDocuments(
           change.id === activeId.current &&
           !deletePending.current.has(change.id)
         )
-          void navigate({ to: '/d' })
+          void navigate({ to: '/' })
       }
     })
     refresh()
@@ -98,24 +99,44 @@ export function useDocuments(
     }
   }, [storage, navigate])
 
+  const openNewDocument = useCallback(
+    async (navigateToDocument: boolean) => {
+      if (createPending.current) return
+      createPending.current = true
+      setCreating(true)
+      try {
+        const created = await storage.create()
+        setDocuments((items) => [
+          created,
+          ...items.filter((item) => item.id !== created.id),
+        ])
+        setError('')
+        if (navigateToDocument)
+          await navigate({ to: '/d/$id', params: { id: created.id } })
+        else setDefaultId(created.id)
+      } catch {
+        setError('Could not create the document. Please try again.')
+      } finally {
+        createPending.current = false
+        setCreating(false)
+      }
+    },
+    [storage, navigate],
+  )
+
+  useEffect(() => {
+    if (id || !loaded || error || document) return
+    const latest = documents.reduce<DocumentInfo | undefined>(
+      (current, item) =>
+        !current || item.updatedAt > current.updatedAt ? item : current,
+      undefined,
+    )
+    if (latest) setDefaultId(latest.id)
+    else void openNewDocument(false)
+  }, [id, loaded, error, document, documents, openNewDocument])
+
   async function createDocument() {
-    if (createPending.current) return
-    createPending.current = true
-    setCreating(true)
-    try {
-      const created = await storage.create()
-      setDocuments((items) => [
-        created,
-        ...items.filter((item) => item.id !== created.id),
-      ])
-      setError('')
-      await navigate({ to: '/d/$id', params: { id: created.id } })
-    } catch {
-      setError('Could not create the document. Please try again.')
-    } finally {
-      createPending.current = false
-      setCreating(false)
-    }
+    await openNewDocument(true)
   }
 
   async function renameDocumentById(documentId: string, name: string) {
@@ -146,7 +167,7 @@ export function useDocuments(
       await storage.delete(documentId)
       setDocuments((items) => items.filter((item) => item.id !== documentId))
       setError('')
-      if (documentId === id) await navigate({ to: '/d' })
+      if (documentId === id) await navigate({ to: '/' })
     } catch {
       setError('Could not delete the document. Please try again.')
     } finally {

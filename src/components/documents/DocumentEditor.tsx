@@ -71,6 +71,11 @@ export function DocumentEditor({
     }
   }, [id, documentRef])
 
+  useEffect(() => {
+    if (ready && window.document.activeElement === window.document.body)
+      editorRef?.current?.focus()
+  }, [ready, editorRef])
+
   if (error)
     return (
       <p role="alert" className="p-8 text-destructive">

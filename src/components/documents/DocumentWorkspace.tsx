@@ -29,8 +29,8 @@ const DocumentEditor = lazy(() =>
 
 export function DocumentWorkspace({ id }: { id?: string }) {
   useEffect(() => {
-    if (id) void loadEditor().catch(() => {})
-  }, [id])
+    void loadEditor().catch(() => {})
+  }, [])
   return (
     <DocumentWorkspaceProvider id={id}>
       <AppToaster />
@@ -58,11 +58,11 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
 
   return (
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
-      <CloseSidebarOnNavigation id={id} />
+      <CloseSidebarOnNavigation id={document?.id} />
       <Sidebar variant="inset">
         <SidebarHeader className="gap-4 p-4">
           <Link
-            to="/d"
+            to="/"
             className="flex items-center gap-2 px-2 py-1 font-semibold"
           >
             <FileTextIcon className="size-5" /> Concept
@@ -76,7 +76,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
             <SidebarGroupLabel>Documents</SidebarGroupLabel>
             <DocumentList
               documents={documents}
-              activeId={id}
+              activeId={document?.id}
               loading={!loaded && !error}
               onRename={renameDocumentById}
               onDelete={deleteDocument}
@@ -121,7 +121,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 />
               </Suspense>
             </div>
-          ) : !loaded && !error ? (
+          ) : (!loaded || !id) && !error ? (
             <DocumentLoading
               label={id ? 'Opening document…' : 'Loading documents…'}
             />
