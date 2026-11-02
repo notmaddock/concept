@@ -2,7 +2,7 @@ import {
   DocumentWorkspaceProvider,
   useDocumentWorkspace,
 } from './document-workspace-context'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { FileTextIcon, PlusIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -20,17 +20,10 @@ import {
 import { DocumentNavigation } from './DocumentNavigation'
 import { DocumentList } from './DocumentList'
 import { DocumentLoading } from './DocumentLoading'
+import { DocumentEditor } from './DocumentEditor'
 import { AppToaster } from '#/components/app-toaster'
 
-const loadEditor = () => import('./DocumentEditor')
-const DocumentEditor = lazy(() =>
-  loadEditor().then((module) => ({ default: module.DocumentEditor })),
-)
-
 export function DocumentWorkspace({ id }: { id?: string }) {
-  useEffect(() => {
-    void loadEditor().catch(() => {})
-  }, [])
   return (
     <DocumentWorkspaceProvider id={id}>
       <AppToaster />
@@ -110,16 +103,14 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               data-document-sheet
               className="mx-auto flex min-h-full w-full shrink-0 grow flex-col max-w-[960px] rounded-lg bg-card shadow-sm"
             >
-              <Suspense fallback={<DocumentLoading />}>
-                <DocumentEditor
-                  key={document.id}
-                  documentRef={documentRef}
-                  id={document.id}
-                  editorRef={editorRef}
-                  pageSetupOpen={pageSetupOpen}
-                  onPageSetupOpenChange={onPageSetupOpenChange}
-                />
-              </Suspense>
+              <DocumentEditor
+                key={document.id}
+                documentRef={documentRef}
+                id={document.id}
+                editorRef={editorRef}
+                pageSetupOpen={pageSetupOpen}
+                onPageSetupOpenChange={onPageSetupOpenChange}
+              />
             </div>
           ) : (!loaded || !id) && !error ? (
             <DocumentLoading

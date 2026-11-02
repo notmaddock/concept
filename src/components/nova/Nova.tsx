@@ -9,7 +9,7 @@ import { NovaContentEditable } from './NovaContentEditable'
 import { useState } from 'react'
 import { DragPlugin } from './plugins/DragPlugin/DragPlugin'
 import { SlashMenuPlugin } from './plugins/SlashMenuPlugin/SlashMenuPlugin'
-import { FloatingTextFormatToolbarPlugin } from './plugins/FormatToolbarPlugin'
+import { FloatingTextFormatToolbarPlugin } from './plugins/FormatToolbarPlugin/FloatingTextFormatToolbarPlugin'
 
 export function Nova({
   collaboration,

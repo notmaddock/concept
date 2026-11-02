@@ -15,11 +15,15 @@ import {
   registerEventListeners,
   SELECTION_CHANGE_COMMAND,
 } from 'lexical'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { getDOMRangeRect, getSelectedNode } from '../../utils'
-import { FloatingTextFormatToolbar } from './FloatingTextFormatToolbar'
 import type { FormatState, PositionRect } from './types'
 
+const FloatingTextFormatToolbar = lazy(() =>
+  import('./FloatingTextFormatToolbar').then((module) => ({
+    default: module.FloatingTextFormatToolbar,
+  })),
+)
 const INITIAL_FORMAT_STATE: FormatState = {
   isBold: false,
   isItalic: false,
@@ -256,17 +260,21 @@ export function FloatingTextFormatToolbarPlugin() {
     }
   }, [editor, updatePopup, scheduleUpdate])
 
+  if (!isOpen) return null
+
   return (
-    <FloatingTextFormatToolbar
-      editor={editor}
-      isOpen={isOpen}
-      rangeRect={rangeRect}
-      formatState={formatState}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) {
-          setIsOpen(false)
-        }
-      }}
-    />
+    <Suspense fallback={null}>
+      <FloatingTextFormatToolbar
+        editor={editor}
+        isOpen={isOpen}
+        rangeRect={rangeRect}
+        formatState={formatState}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setIsOpen(false)
+          }
+        }}
+      />
+    </Suspense>
   )
 }
