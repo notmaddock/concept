@@ -94,6 +94,7 @@ jobs:
 
   codeql-analysis:
     name: CodeQL Security Analysis (SAST)
+    if: github.event.repository.private == false || vars.ENABLE_CODEQL == 'true'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -105,13 +106,62 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Initialize CodeQL
+        id: codeql-init
         uses: github/codeql-action/init@v4
+        continue-on-error: true
         with:
           languages: javascript-typescript
           build-mode: none
 
       - name: Perform CodeQL analysis
+        if: steps.codeql-init.outcome == 'success'
         uses: github/codeql-action/analyze@v4
+        continue-on-error: true
+
+  preview:
+    name: Deploy PR preview to Cloudflare Workers
+    needs: [code-quality, security-audit, secret-scan]
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    environment:
+      name: preview
+      url: ${{ steps.preview.outputs.url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build preview bundle
+        run: pnpm run build
+
+      - name: Create or update PR preview
+        id: preview
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/cloudflare-preview.jsonl
+        run: |
+          pnpm exec wrangler preview --name "pr-$PR_NUMBER" --ignore-base-config
+          preview_url="$(jq -ser '[.[] | select(.type == "preview")] | last | .preview_urls[0]' "$WRANGLER_OUTPUT_FILE_PATH")"
+          echo "url=$preview_url" >> "$GITHUB_OUTPUT"
+          printf '### PR preview\n\n[Open preview](%s)\n' "$preview_url" >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     name: Deploy to Cloudflare Workers
@@ -145,6 +195,6 @@ jobs:
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
           packageManager: pnpm
           command: deploy

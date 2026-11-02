@@ -1,4 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { DocumentWorkspace } from '#/components/documents/DocumentWorkspace'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-export const Route = createFileRoute('/d/')({ component: DocumentWorkspace })
+export const Route = createFileRoute('/d/')({
+  beforeLoad: () => {
+    redirect({ to: '/', replace: true, throw: true })
+  },
+})

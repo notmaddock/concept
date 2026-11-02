@@ -8,6 +8,7 @@ export function NovaContentEditable() {
 
   return (
     <ContentEditable
+      aria-label="Document content"
       data-document-content
       className="min-h-full w-full outline-none"
       style={{

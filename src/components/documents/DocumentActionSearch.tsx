@@ -1,3 +1,4 @@
+import { filterDocumentAction } from './filter-document-action'
 import { ActionShortcut } from './navigation-menus/ActionShortcut'
 import { useDocumentWorkspace } from './document-workspace-context'
 import { useEffect, useRef, useState } from 'react'
@@ -30,7 +31,21 @@ export function DocumentActionSearch({
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const groups = [...new Set(options.map((option) => option.group))]
+  const matches = options
+    .map((option) => ({
+      option,
+      score: filterDocumentAction(option.id, query, [
+        option.label,
+        option.group,
+        ...option.keywords,
+        ...(option.shortcut?.keys ?? []),
+        ...(option.shortcut?.macKeys ?? []),
+      ]),
+    }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(({ option }) => option)
+  const groups = [...new Set(matches.map((option) => option.group))]
   const searchOpen = open && enabled
   const hasQuery = query.trim().length > 0
 
@@ -86,6 +101,7 @@ export function DocumentActionSearch({
       }}
     >
       <Command
+        shouldFilter={false}
         label="Search menus and actions"
         loop
         onKeyDown={(event) => {
@@ -172,7 +188,7 @@ export function DocumentActionSearch({
                   </CommandEmpty>
                   {groups.map((group) => (
                     <CommandGroup key={group} heading={group} className="p-0">
-                      {options
+                      {matches
                         .filter((option) => option.group === group)
                         .map((option) => {
                           const Icon = option.icon

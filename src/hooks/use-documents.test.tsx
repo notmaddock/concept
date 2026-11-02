@@ -42,7 +42,7 @@ afterEach(async () => {
   container.remove()
 })
 
-async function mount(id = 'first') {
+async function mount(id: string | undefined = 'first') {
   function Harness() {
     actions = useDocuments(id, storage)
     return null
@@ -66,7 +66,7 @@ it('returns to the library when deleting the open document', async () => {
   await act(() => actions.deleteDocument('first'))
   expect(storage.delete).toHaveBeenCalledWith('first')
   expect(actions.documents).toEqual([second])
-  expect(navigate).toHaveBeenCalledWith({ to: '/d' })
+  expect(navigate).toHaveBeenCalledWith({ to: '/' })
 })
 
 it('keeps the current editor open when deleting another document', async () => {
@@ -95,7 +95,7 @@ it('updates document titles and closes a remotely deleted document without windo
   vi.mocked(storage.list).mockResolvedValue([second])
   await act(() => listener({ type: 'delete', id: first.id }))
   expect(actions.document).toBeUndefined()
-  expect(navigate).toHaveBeenCalledWith({ to: '/d' })
+  expect(navigate).toHaveBeenCalledWith({ to: '/' })
 })
 
 it('finishes the loading state when the library cannot be read', async () => {
@@ -175,5 +175,45 @@ it('retains its library subscription across document navigation', async () => {
   expect(storage.list).toHaveBeenCalledTimes(1)
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
   await act(() => listener({ type: 'delete', id: second.id }))
-  expect(navigate).toHaveBeenCalledWith({ to: '/d' })
+  expect(navigate).toHaveBeenCalledWith({ to: '/' })
+})
+
+it('opens the most recent document at the root without navigating', async () => {
+  function Harness() {
+    actions = useDocuments(undefined, storage)
+    return null
+  }
+  await act(() => root.render(<Harness />))
+  expect(actions.document).toEqual(second)
+  expect(storage.create).not.toHaveBeenCalled()
+  expect(navigate).not.toHaveBeenCalled()
+  const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
+  await act(() =>
+    listener({ type: 'upsert', document: { ...first, updatedAt: 10 } }),
+  )
+  expect(actions.document).toEqual(second)
+})
+
+it('creates a document for an empty root library and retains the root URL', async () => {
+  vi.mocked(storage.list).mockResolvedValue([])
+  function Harness() {
+    actions = useDocuments(undefined, storage)
+    return null
+  }
+  await act(() => root.render(<Harness />))
+  expect(storage.create).toHaveBeenCalledTimes(1)
+  expect(actions.document?.id).toBe('new')
+  expect(navigate).not.toHaveBeenCalled()
+})
+
+it('does not retry failed automatic creation in a loop', async () => {
+  vi.mocked(storage.list).mockResolvedValue([])
+  vi.mocked(storage.create).mockRejectedValue(new Error('Storage unavailable'))
+  function Harness() {
+    actions = useDocuments(undefined, storage)
+    return null
+  }
+  await act(() => root.render(<Harness />))
+  expect(storage.create).toHaveBeenCalledTimes(1)
+  expect(actions.error).toContain('Could not create')
 })
