@@ -79,8 +79,8 @@ it('requires device selection and confirmation showing file size and origin befo
   await click('Open document')
   expect(mocks.importConcept).toHaveBeenCalledOnce()
   expect(mocks.navigate).toHaveBeenCalledWith({
-    to: '/d/$id',
-    params: { id: 'imported' },
+    to: '/',
+    hash: 'Limported',
   })
   expect(onClose).toHaveBeenCalledOnce()
 })
@@ -169,8 +169,8 @@ it('opens a library document in place without saving a duplicate', async () => {
   await click('Open document')
   expect(mocks.importConcept).not.toHaveBeenCalled()
   expect(mocks.navigate).toHaveBeenCalledWith({
-    to: '/d/$id',
-    params: { id: 'existing-id' },
+    to: '/',
+    hash: 'Lexisting-id',
   })
 })
 
@@ -233,8 +233,8 @@ it('saves an imported document to the selected provider independently of its sou
   expect(saveOther).toHaveBeenCalledWith(file, 'External document')
   expect(saveLocal).not.toHaveBeenCalled()
   expect(mocks.navigate).toHaveBeenCalledWith({
-    to: '/d/$id',
-    params: { id: 'other-copy' },
+    to: '/',
+    hash: 'Lother-copy',
   })
 })
 
@@ -261,12 +261,15 @@ it('converts an import before saving and reuses destination selection', async ()
   await act(async () => {
     input.dispatchEvent(new Event('change', { bubbles: true }))
   })
-  await vi.waitFor(async () => {
-    await act(async () => {
-      await Promise.resolve()
-    })
-    expect(document.body.textContent).toContain('Save to')
-  })
+  await vi.waitFor(
+    async () => {
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(document.body.textContent).toContain('Save to')
+    },
+    { timeout: 5000 },
+  )
   expect(save).not.toHaveBeenCalled()
   expect(mocks.importConcept).not.toHaveBeenCalled()
   expect(
@@ -279,8 +282,8 @@ it('converts an import before saving and reuses destination selection', async ()
     'Imported',
   )
   expect(mocks.navigate).toHaveBeenCalledWith({
-    to: '/d/$id',
-    params: { id: 'destination' },
+    to: '/',
+    hash: 'Ldestination',
   })
   expect(onClose).toHaveBeenCalledOnce()
 })

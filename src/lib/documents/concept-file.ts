@@ -58,7 +58,7 @@ export function parseConcept(text: string): ConceptFile {
   }
 }
 
-function decodeUpdate(file: ConceptFile) {
+export function decodeUpdate(file: ConceptFile) {
   return Uint8Array.from(atob(file.update), (character) =>
     character.charCodeAt(0),
   )

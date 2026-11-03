@@ -1,6 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import { FileTextIcon } from 'lucide-react'
+import { DriveIcon } from './DriveIcon'
 import type { DocumentInfo } from '#/lib/documents/storage'
+import { documentHash } from '#/lib/documents/document-url'
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -126,9 +128,9 @@ export function DocumentList({
                     <DocumentDetailsPopover document={item}>
                       <SidebarMenuButton
                         isActive={item.id === activeId}
-                        render={<Link to="/d/$id" params={{ id: item.id }} />}
+                        render={<Link to="/" hash={documentHash(item.id)} />}
                       >
-                        <FileTextIcon />
+                        {item.drive ? <DriveIcon /> : <FileTextIcon />}
                         <span>{item.name}</span>
                       </SidebarMenuButton>
                     </DocumentDetailsPopover>

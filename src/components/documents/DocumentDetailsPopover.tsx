@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ReactElement } from 'react'
 import type { DocumentInfo } from '#/lib/documents/storage'
 import { storageLocations } from '#/lib/documents/storage-locations'
+import { DriveIcon } from './DriveIcon'
 import { useIsMobile } from '#/hooks/use-mobile'
 import {
   Popover,
@@ -10,12 +11,16 @@ import {
   PopoverTrigger,
 } from '#/components/ui/popover'
 
-export function StorageLocation() {
+export function StorageLocation({ document }: { document?: DocumentInfo }) {
   const location = storageLocations.local
   return (
     <span className="inline-flex items-center gap-1.5">
-      <location.icon aria-hidden="true" className="size-3.5 shrink-0" />
-      {location.label}
+      {document?.drive ? (
+        <DriveIcon className="size-3.5 shrink-0" />
+      ) : (
+        <location.icon aria-hidden="true" className="size-3.5 shrink-0" />
+      )}
+      {document?.drive ? 'Google Drive' : location.label}
     </span>
   )
 }
@@ -58,7 +63,7 @@ export function DocumentDetailsPopover({
           {document.name}
         </PopoverTitle>
         <div className="text-muted-foreground">
-          <StorageLocation />
+          <StorageLocation document={document} />
         </div>
         <div className="grid gap-0.5 text-muted-foreground">
           <span>Library updated</span>

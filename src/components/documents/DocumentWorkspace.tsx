@@ -4,7 +4,14 @@ import {
 } from './document-workspace-context'
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { FileTextIcon, PlusIcon } from 'lucide-react'
+import {
+  FileTextIcon,
+  PlusIcon,
+  LoaderCircleIcon,
+  Settings2Icon,
+} from 'lucide-react'
+import { DocumentSaveStatus } from './DocumentSaveStatus'
+import { ProvidersDialog } from './ProvidersDialog'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import {
@@ -12,7 +19,12 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupLabel,
+  SidebarGroupContent,
   SidebarHeader,
+  SidebarFooter,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
@@ -47,7 +59,18 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     editorRef,
     pageSetupOpen,
     onPageSetupOpenChange,
+    saveStatus,
+    driveLoading,
+    driveError,
+    driveConnected,
+    connectDrive,
+    disconnectDrive,
+    saveToDrive,
+    syncNow,
+    setOfflineAvailable,
+    connectionRevision,
   } = useDocumentWorkspace()
+  const [providersOpen, setProvidersOpen] = useState(false)
 
   return (
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
@@ -66,17 +89,49 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel>Documents</SidebarGroupLabel>
-            <DocumentList
-              documents={documents}
-              activeId={document?.id}
-              loading={!loaded && !error}
-              onRename={renameDocumentById}
-              onDelete={deleteDocument}
-            />
+            <SidebarGroupLabel>
+              Documents
+              {(!loaded || driveLoading) && (
+                <LoaderCircleIcon
+                  aria-label="Loading document sources"
+                  className="ml-2 size-3 animate-spin"
+                />
+              )}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <DocumentList
+                documents={documents}
+                activeId={document?.id}
+                loading={!loaded && !error}
+                onRename={renameDocumentById}
+                onDelete={deleteDocument}
+              />
+            </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setProvidersOpen(true)}
+                tooltip="Manage providers"
+              >
+                <Settings2Icon />
+                <span>Manage providers</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
       </Sidebar>
+      <ProvidersDialog
+        open={providersOpen}
+        onOpenChange={setProvidersOpen}
+        connected={driveConnected}
+        loading={driveLoading}
+        error={driveError}
+        onConnect={connectDrive}
+        onDisconnect={disconnectDrive}
+      />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-sidebar">
         <header className="z-10 shrink-0 px-4 py-1.5 md:px-6">
           <div className="flex items-center gap-3">
@@ -86,6 +141,20 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               name={document?.name ?? 'Documents'}
               onSave={document ? renameDocument : undefined}
             />
+            {document && (
+              <DocumentSaveStatus
+                status={saveStatus}
+                provider={document.drive ? 'google-drive' : undefined}
+                onRetry={syncNow}
+                onConnect={() => {
+                  void connectDrive()
+                }}
+                onSaveToDrive={saveToDrive}
+                onOfflineChange={
+                  document.drive ? setOfflineAvailable : undefined
+                }
+              />
+            )}
           </div>
           <DocumentNavigation />
         </header>
@@ -104,7 +173,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               className="mx-auto flex min-h-full w-full shrink-0 grow flex-col max-w-[960px] rounded-lg bg-card shadow-sm"
             >
               <DocumentEditor
-                key={document.id}
+                key={`${document.id}:${connectionRevision}`}
                 documentRef={documentRef}
                 id={document.id}
                 editorRef={editorRef}
@@ -158,6 +227,7 @@ function DocumentName({
       readOnly={!onSave}
       tabIndex={onSave ? 0 : -1}
       value={value}
+      size={Math.max(1, value.length)}
       onChange={(event) => setValue(event.target.value)}
       onBlur={() => {
         void onSave?.(value)
@@ -170,7 +240,7 @@ function DocumentName({
           event.preventDefault()
         }
       }}
-      className="h-8 w-full max-w-md border-transparent bg-transparent text-lg! shadow-none hover:border-input focus-visible:bg-background read-only:pointer-events-none"
+      className="h-8 w-auto min-w-0 max-w-[min(28rem,calc(100vw-9rem))] [field-sizing:content] border-transparent bg-transparent text-lg! shadow-none hover:border-input focus-visible:bg-background read-only:pointer-events-none"
     />
   )
 }

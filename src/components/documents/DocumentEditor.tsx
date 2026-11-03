@@ -9,7 +9,7 @@ import { DocumentLoading } from './DocumentLoading'
 import { Nova } from '#/components/nova/Nova'
 import { initializeDocument } from '#/lib/documents/initial-document'
 import { LocalProvider } from '#/lib/documents/local-provider'
-import { localDocumentStorage } from '#/lib/documents/storage'
+import { documentStorage } from '#/lib/documents/document-storage'
 
 export function DocumentEditor({
   documentRef,
@@ -41,11 +41,13 @@ export function DocumentEditor({
       id,
       doc,
       () => {
-        persistence = localDocumentStorage.open(id, doc)
-        void persistence.whenSynced.catch(() => {
+        persistence = documentStorage.open(id, doc)
+        void persistence.whenSynced.catch((cause: unknown) => {
           if (active)
             setError(
-              'Could not open this document. It may have been deleted in another tab.',
+              cause instanceof Error
+                ? `Could not open this document. ${cause.message}`
+                : 'Could not open this document.',
             )
         })
         return persistence

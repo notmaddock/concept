@@ -1,12 +1,31 @@
 import {
-  createContext,
   lazy,
   Suspense,
-  useContext,
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { DocumentWorkspaceContext } from './document-workspace-store'
+import { documentHash } from '#/lib/documents/document-url'
+import {
+  connectGoogleDrive,
+  getGoogleDriveToken,
+  prepareGoogleDriveAuth,
+  disconnectGoogleDrive,
+  isGoogleDriveConnected,
+  subscribeGoogleDriveAuth,
+} from '#/lib/documents/drive/auth'
+import {
+  refreshDriveDocuments,
+  documentStorage,
+} from '#/lib/documents/document-storage'
+import {
+  documentSessions,
+  getSaveStatus,
+  subscribeSaveStatus,
+} from '#/lib/documents/sync'
 import type { ReactNode } from 'react'
 import type { LexicalEditor } from 'lexical'
 import type { Doc } from 'yjs'
@@ -14,6 +33,8 @@ import type { ImportFormat } from '#/lib/documents/import/formats'
 import type { ExportFormat } from '#/lib/documents/export'
 import { useDocuments } from '#/hooks/use-documents'
 import { DocumentLoading } from './DocumentLoading'
+
+export { useDocumentWorkspace } from './document-workspace-store'
 
 const loadDocumentStorageDialog = () => import('./DocumentStorageDialog')
 const DocumentStorageDialog = lazy(() =>
@@ -33,8 +54,14 @@ const DocumentShareDialog = lazy(() =>
     default: module.DocumentShareDialog,
   })),
 )
+const SaveToDriveDialog = lazy(() =>
+  import('./SaveToDriveDialog').then((module) => ({
+    default: module.SaveToDriveDialog,
+  })),
+)
 
 function useWorkspaceState(id?: string) {
+  const navigate = useNavigate()
   const library = useDocuments(id)
   const { document } = library
 
@@ -56,6 +83,77 @@ function useWorkspaceState(id?: string) {
   const [pageSetupOpen, setPageSetupOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [saveToDriveOpen, setSaveToDriveOpen] = useState(false)
+  const [driveLoading, setDriveLoading] = useState(false)
+  const [driveError, setDriveError] = useState('')
+  const [driveIds, setDriveIds] = useState<Set<string>>()
+  const driveConnectionPending = useRef(false)
+  const driveConnected = useSyncExternalStore(
+    subscribeGoogleDriveAuth,
+    isGoogleDriveConnected,
+    () => false,
+  )
+  const [connectionRevision, setConnectionRevision] = useState(0)
+  const saveStatus = useSyncExternalStore(
+    subscribeSaveStatus,
+    () => getSaveStatus(document?.id ?? ''),
+    () => getSaveStatus(''),
+  )
+  useEffect(() => {
+    void prepareGoogleDriveAuth().catch(() => {})
+  }, [])
+  useEffect(() => {
+    if (!driveConnected) {
+      setDriveLoading(false)
+      return
+    }
+    if (driveConnectionPending.current) return
+    let active = true
+    setDriveLoading(true)
+    void refreshDriveDocuments()
+      .then((ids) => {
+        if (active) setDriveIds(ids)
+      })
+      .catch((cause: unknown) => {
+        if (active)
+          setDriveError(
+            cause instanceof Error
+              ? cause.message
+              : 'Could not load Drive documents.',
+          )
+      })
+      .finally(() => {
+        if (active) setDriveLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [driveConnected])
+
+  async function connectDrive() {
+    setDriveError('')
+    setDriveLoading(true)
+    driveConnectionPending.current = true
+    try {
+      try {
+        getGoogleDriveToken()
+      } catch {
+        await connectGoogleDrive()
+      }
+      setDriveLoading(true)
+      setDriveIds(await refreshDriveDocuments())
+      if (id?.startsWith('G')) await documentStorage.get(id)
+      if (!documentRef.current) setConnectionRevision((value) => value + 1)
+      else await documentSessions.get(document?.id ?? '')?.sync(true)
+    } catch (cause) {
+      setDriveError(
+        cause instanceof Error ? cause.message : 'Could not connect to Drive.',
+      )
+    } finally {
+      driveConnectionPending.current = false
+      setDriveLoading(false)
+    }
+  }
 
   function openDocument() {
     setFileAction('open')
@@ -107,6 +205,60 @@ function useWorkspaceState(id?: string) {
 
   const workspace = {
     ...library,
+    documents: library.documents.filter(
+      (item) =>
+        !item.drive ||
+        !driveIds ||
+        driveIds.has(item.id) ||
+        item.id === document?.id ||
+        item.drive.offlineAvailable ||
+        item.drive.dirty,
+    ),
+    saveStatus,
+    driveLoading,
+    driveConnected,
+    disconnectDrive: () => {
+      disconnectGoogleDrive()
+      setDriveIds(new Set())
+      setDriveError('')
+    },
+    driveError,
+    connectionRevision,
+    connectDrive,
+    saveToDrive: () => setSaveToDriveOpen(true),
+    saveToDriveOpen,
+    onSaveToDriveOpenChange: setSaveToDriveOpen,
+    onDriveSaved: async (savedId: string) => {
+      setSaveToDriveOpen(false)
+      await navigate({ to: '/', hash: documentHash(savedId) })
+      setDriveLoading(true)
+      try {
+        setDriveIds(await refreshDriveDocuments())
+      } catch (cause) {
+        setDriveError(
+          cause instanceof Error
+            ? cause.message
+            : 'Could not load Drive documents.',
+        )
+      } finally {
+        setDriveLoading(false)
+      }
+    },
+    syncNow: () => {
+      void documentSessions.get(document?.id ?? '')?.sync(true)
+    },
+    setOfflineAvailable: (value: boolean) => {
+      void documentSessions
+        .get(document?.id ?? '')
+        ?.setOfflineAvailable(value)
+        .catch((cause: unknown) =>
+          setFileError(
+            cause instanceof Error
+              ? cause.message
+              : 'Could not change offline availability.',
+          ),
+        )
+    },
     error: library.error || fileError,
     enabled: Boolean(document),
     documentRef,
@@ -134,9 +286,9 @@ function useWorkspaceState(id?: string) {
   return { workspace, fileAction, closeFileDialog: () => setFileAction(null) }
 }
 
-const DocumentWorkspaceContext = createContext<
-  ReturnType<typeof useWorkspaceState>['workspace'] | undefined
->(undefined)
+export type DocumentWorkspaceState = ReturnType<
+  typeof useWorkspaceState
+>['workspace']
 
 export function DocumentWorkspaceProvider({
   id,
@@ -152,6 +304,15 @@ export function DocumentWorkspaceProvider({
     <DocumentWorkspaceContext value={workspace}>
       {children}
       <Suspense fallback={<DocumentLoading label="Loading dialog…" />}>
+        {workspace.saveToDriveOpen && document && documentRef.current && (
+          <SaveToDriveDialog
+            source={{ name: document.name, doc: documentRef.current }}
+            onClose={() => workspace.onSaveToDriveOpenChange(false)}
+            onSaved={(info) => {
+              void workspace.onDriveSaved(info.id)
+            }}
+          />
+        )}
         {workspace.detailsOpen && document && (
           <DocumentDetailsDialog
             key={document.id}
@@ -192,14 +353,4 @@ export function DocumentWorkspaceProvider({
       </Suspense>
     </DocumentWorkspaceContext>
   )
-}
-
-export function useDocumentWorkspace() {
-  const context = useContext(DocumentWorkspaceContext)
-  if (!context) {
-    throw new Error(
-      'useDocumentWorkspace must be used within a DocumentWorkspaceProvider',
-    )
-  }
-  return context
 }

@@ -4,10 +4,21 @@ export interface DocumentInfo {
   id: string
   name: string
   updatedAt: number
+  drive?: {
+    fileId: string
+    offlineAvailable: boolean
+    dirty?: boolean
+    etag?: string
+    revision?: string
+    lastSyncedAt?: number
+    savedRevision?: string
+    remoteFilename?: string
+  }
 }
 
 export interface DocumentPersistence {
   whenSynced: Promise<unknown>
+  flush?: () => Promise<void>
   destroy: () => Promise<void>
 }
 

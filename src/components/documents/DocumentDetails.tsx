@@ -33,7 +33,7 @@ function DetailRows({ rows }: { rows: Array<[string, ReactNode]> }) {
 function metadataRows(document: DocumentInfo): Array<[string, ReactNode]> {
   return [
     ['Name', document.name],
-    ['Location', <StorageLocation key="location" />],
+    ['Location', <StorageLocation key="location" document={document} />],
     ['Library updated', new Date(document.updatedAt).toLocaleString()],
     ['Document ID', document.id],
   ]

@@ -18,6 +18,7 @@ const workspace = vi.hoisted(() => ({
   shareDocument: vi.fn(),
   showDetails: vi.fn(),
   downloadDocument: vi.fn(),
+  saveToDrive: vi.fn(),
   exportDocument: vi.fn(),
 }))
 vi.mock('../document-workspace-context', () => ({
@@ -122,14 +123,25 @@ it('updates creation availability and selected theme in both consumers', async (
 
 it('connects file actions to their handlers and keeps Open available without a document', async () => {
   await render()
-  for (const id of ['open', 'make-copy', 'share', 'download']) {
+  for (const id of [
+    'open',
+    'save-to-drive',
+    'make-copy',
+    'share',
+    'download',
+  ]) {
     await navigation.options.find((option) => option.id === id)?.onSelect()
   }
   expect(onOpen).toHaveBeenCalledOnce()
   expect(onCopy).toHaveBeenCalledOnce()
   expect(onShare).toHaveBeenCalledOnce()
   expect(onDownload).toHaveBeenCalledOnce()
+  expect(workspace.saveToDrive).toHaveBeenCalledOnce()
   await render(false, false)
+  expect(
+    navigation.options.find((option) => option.id === 'save-to-drive')
+      ?.disabled,
+  ).toBe(true)
   expect(
     navigation.options.find((option) => option.id === 'open')?.disabled,
   ).toBe(false)

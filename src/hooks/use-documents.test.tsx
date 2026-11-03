@@ -57,7 +57,7 @@ it('uses one creation action and suppresses duplicate concurrent requests', asyn
   })
   expect(storage.create).toHaveBeenCalledTimes(1)
   expect(actions.documents[0].id).toBe('new')
-  expect(navigate).toHaveBeenCalledWith({ to: '/d/$id', params: { id: 'new' } })
+  expect(navigate).toHaveBeenCalledWith({ to: '/', hash: 'Lnew' })
   expect(actions.creating).toBe(false)
 })
 

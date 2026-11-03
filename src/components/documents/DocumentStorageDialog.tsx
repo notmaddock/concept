@@ -6,6 +6,7 @@ import { CheckIcon, FileTextIcon } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import type { Doc } from 'yjs'
 import type { DocumentInfo } from '#/lib/documents/storage'
+import { documentHash } from '#/lib/documents/document-url'
 import type {
   DocumentSaveProvider,
   DocumentSource,
@@ -148,7 +149,7 @@ export function DocumentStorageDialog({
           throw new Error('Choose a document and save location first.')
         id = (await provider.save(file, name.trim())).id
       }
-      await navigate({ to: '/d/$id', params: { id } })
+      await navigate({ to: '/', hash: documentHash(id) })
       onClose()
     } catch (cause) {
       setError(

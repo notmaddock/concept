@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { localDocumentStorage } from '#/lib/documents/storage'
+import { documentStorage } from '#/lib/documents/document-storage'
+import { documentHash } from '#/lib/documents/document-url'
 import type {
   DocumentChange,
   DocumentInfo,
@@ -9,7 +10,7 @@ import type {
 
 export function useDocuments(
   id?: string,
-  storage: DocumentStorage = localDocumentStorage,
+  storage: DocumentStorage = documentStorage,
 ) {
   const navigate = useNavigate()
   const [documents, setDocuments] = useState<Array<DocumentInfo>>([])
@@ -112,7 +113,7 @@ export function useDocuments(
         ])
         setError('')
         if (navigateToDocument)
-          await navigate({ to: '/d/$id', params: { id: created.id } })
+          await navigate({ to: '/', hash: documentHash(created.id) })
         else setDefaultId(created.id)
       } catch {
         setError('Could not create the document. Please try again.')

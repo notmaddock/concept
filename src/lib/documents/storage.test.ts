@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto'
-import { IDBFactory } from 'fake-indexeddb'
+import { IDBFactory, IDBObjectStore } from 'fake-indexeddb'
 import { Doc } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { localDocumentStorage } from './storage'
@@ -157,4 +157,45 @@ it('reuses its metadata connection and releases it for database upgrades', async
       reject(new Error('Metadata connection blocked upgrade'))
   })
   openDatabase.mockRestore()
+})
+
+it('repairs an aborted update before reporting a successful local flush', async () => {
+  const document = await localDocumentStorage.create()
+  const { doc, session } = await open(document.id)
+  await session.flush?.()
+  const originalAdd = IDBObjectStore.prototype.add
+  const failures: Array<unknown> = []
+  let aborted = false
+  const abortUpdate = vi
+    .spyOn(IDBObjectStore.prototype, 'add')
+    .mockImplementation(function (
+      this: IDBObjectStore,
+      ...args: Parameters<typeof originalAdd>
+    ) {
+      const request = originalAdd.call(this, ...args)
+      if (this.name === 'updates' && !aborted) {
+        aborted = true
+        request.addEventListener('error', (event) => {
+          failures.push(request.error)
+          // The upstream write promise is ignored; suppress only its injected rejection.
+          request.onerror = null
+          event.preventDefault()
+        })
+        this.transaction.abort()
+      }
+      return request
+    })
+  try {
+    doc.getText('content').insert(0, 'Survives the aborted transaction')
+    expect(aborted).toBe(true)
+    await session.flush?.()
+    expect(failures).toHaveLength(1)
+    await session.destroy()
+    const restored = await open(document.id)
+    expect(restored.doc.getText('content').toString()).toBe(
+      'Survives the aborted transaction',
+    )
+  } finally {
+    abortUpdate.mockRestore()
+  }
 })
