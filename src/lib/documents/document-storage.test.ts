@@ -38,6 +38,14 @@ vi.mock('./drive/api', () => ({
       super(message)
     }
   },
+  isDriveFileReadOnly: (file: {
+    capabilities?: { canEdit?: boolean; canModifyContent?: boolean }
+  }) =>
+    Boolean(
+      file.capabilities &&
+      (file.capabilities.canEdit === false ||
+        file.capabilities.canModifyContent === false),
+    ),
   getFileMetadata: vi.fn(),
   listConceptFiles: vi.fn(),
   readConceptFile: vi.fn(),
@@ -347,4 +355,99 @@ it('cancels an in-flight startup download when the document closes', async () =>
   await expect(startup).resolves.toBe('rejected')
   expect(documentSessions.has(info.id)).toBe(false)
   expect(updateConceptFile).not.toHaveBeenCalled()
+})
+
+it('marks directly opened view-only Drive files as readOnly and preserves it in storage', async () => {
+  vi.mocked(getFileMetadata).mockResolvedValueOnce({
+    etag: '"ro-version"',
+    file: {
+      id: info.drive!.fileId,
+      name: `${info.name}.concept`,
+      mimeType: 'application/vnd.concept+json',
+      modifiedTime: '2026-11-03T12:00:00.000Z',
+      version: '4',
+      capabilities: { canEdit: false, canModifyContent: false },
+    },
+  })
+  const registered = await documentStorage.get(info.id)
+  expect(registered).toMatchObject({
+    id: info.id,
+    readOnly: true,
+    drive: { fileId: info.drive!.fileId, readOnly: true },
+  })
+})
+
+it('rejects renaming read-only documents and preserves existing name', async () => {
+  await localDocumentStorage.put({
+    ...info,
+    readOnly: true,
+    drive: { ...info.drive!, readOnly: true },
+  })
+  await expect(documentStorage.rename(info.id, 'New Name')).rejects.toThrow(
+    'This document is view-only and cannot be renamed.',
+  )
+  expect(updateConceptFile).not.toHaveBeenCalled()
+  const stored = await localDocumentStorage.get(info.id)
+  expect(stored?.name).toBe(info.name)
+})
+
+it('deletes local registration without trashing remote file when document is read-only', async () => {
+  await localDocumentStorage.put({
+    ...info,
+    readOnly: true,
+    drive: { ...info.drive!, readOnly: true },
+  })
+  await documentStorage.delete(info.id)
+  expect(trashConceptFile).not.toHaveBeenCalled()
+  expect(await localDocumentStorage.get(info.id)).toBeUndefined()
+})
+
+it('does not mark read-only documents dirty when clearing content for offline eviction', async () => {
+  await localDocumentStorage.put({
+    ...info,
+    readOnly: true,
+    drive: { ...info.drive!, readOnly: true, offlineAvailable: false },
+  })
+  await localDocumentStorage.clearContent(info.id)
+  const stored = await localDocumentStorage.get(info.id)
+  expect(stored?.drive?.dirty).toBeFalsy()
+})
+
+it('preserves divergent read-only content instead of evicting unsynced edits', async () => {
+  const savedRevision = await documentRevision(
+    serializeConcept(info.name, remote),
+  )
+  remote.getMap('settings').set('unsynced-edit', 'recover me')
+  await cache({ ...info.drive!, readOnly: true, dirty: false, savedRevision })
+  allowEvictionLock()
+
+  await localDocumentStorage.clearContent(info.id)
+
+  expect(
+    (await indexedDB.databases()).map((database) => database.name),
+  ).toContain(`concept-document:${info.id}`)
+  expect(await localDocumentStorage.get(info.id)).toMatchObject({
+    drive: { readOnly: true, dirty: true, savedRevision },
+  })
+})
+
+it('rejects a rename when opening the cached document reveals read-only access', async () => {
+  await cache()
+  vi.mocked(readConceptFile).mockResolvedValueOnce({
+    etag: '"view-only"',
+    file: {
+      id: info.drive!.fileId,
+      name: `${info.name}.concept`,
+      mimeType: 'application/vnd.concept+json',
+      capabilities: { canEdit: false },
+    },
+    content: serializeConcept(info.name, remote),
+  })
+
+  await expect(
+    documentStorage.rename(info.id, 'Unauthorized rename'),
+  ).rejects.toThrow('This document is view-only and cannot be renamed.')
+
+  expect(updateConceptFile).not.toHaveBeenCalled()
+  expect((await localDocumentStorage.get(info.id))?.name).toBe(info.name)
 })

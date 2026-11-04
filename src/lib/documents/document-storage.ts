@@ -9,6 +9,7 @@ import {
 } from './sync'
 import {
   getFileMetadata,
+  isDriveFileReadOnly,
   listConceptFiles,
   trashConceptFile,
 } from './drive/api'
@@ -18,16 +19,26 @@ export async function refreshDriveDocuments() {
   await Promise.all(
     files.map(async (file) => {
       const id = `G${file.id}`
+      const isReadOnly = isDriveFileReadOnly(file)
       const initial = {
         id,
         name: file.name.replace(/\.concept$/i, ''),
         updatedAt: Date.parse(file.modifiedTime ?? '') || Date.now(),
-        drive: { fileId: file.id, offlineAvailable: false },
+        readOnly: isReadOnly,
+        drive: {
+          fileId: file.id,
+          offlineAvailable: false,
+          readOnly: isReadOnly,
+        },
       }
       await localDocumentStorage.patch(
         id,
         (current) => ({
           ...current,
+          readOnly: isReadOnly,
+          drive: current.drive
+            ? { ...current.drive, readOnly: isReadOnly }
+            : undefined,
           name: current.drive?.dirty ? current.name : initial.name,
           updatedAt: current.drive?.dirty
             ? current.updatedAt
@@ -44,11 +55,13 @@ async function ensureDocument(id: string) {
   const existing = await localDocumentStorage.get(id)
   if (existing || !id.startsWith('G')) return existing
   const { file } = await getFileMetadata(id.slice(1))
+  const isReadOnly = isDriveFileReadOnly(file)
   const info = {
     id,
     name: file.name.replace(/\.concept$/i, ''),
     updatedAt: Date.parse(file.modifiedTime ?? '') || Date.now(),
-    drive: { fileId: file.id, offlineAvailable: false },
+    readOnly: isReadOnly,
+    drive: { fileId: file.id, offlineAvailable: false, readOnly: isReadOnly },
   }
   return localDocumentStorage.patch(id, (current) => current, info)
 }
@@ -59,6 +72,9 @@ export const documentStorage: DocumentStorage = {
   async rename(id, name) {
     const info = await ensureDocument(id)
     const active = documentSessions.get(id)
+    if (info?.readOnly || info?.drive?.readOnly || active?.isReadOnly) {
+      throw new Error('This document is view-only and cannot be renamed.')
+    }
     if (active) {
       active.doc
         .getMap<string>('metadata')
@@ -70,6 +86,8 @@ export const documentStorage: DocumentStorage = {
     const session = documentStorage.open(id, doc)
     try {
       await session.whenSynced
+      if (documentSessions.get(id)?.isReadOnly)
+        throw new Error('This document is view-only and cannot be renamed.')
       doc
         .getMap<string>('metadata')
         .set('name', name.trim() || 'Untitled document')
@@ -83,7 +101,9 @@ export const documentStorage: DocumentStorage = {
   },
   async delete(id) {
     const info = await localDocumentStorage.get(id)
-    if (info?.drive) await trashConceptFile(info.drive.fileId)
+    if (info?.drive && !info.readOnly && !info.drive.readOnly) {
+      await trashConceptFile(info.drive.fileId)
+    }
     await localDocumentStorage.delete(id)
     clearSaveStatus(id)
   },
