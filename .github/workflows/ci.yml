@@ -37,6 +37,12 @@ jobs:
       - name: Check code formatting (Prettier)
         run: pnpm run check
 
+      - name: Verify route tree sync
+        run: pnpm run check:routes
+
+      - name: Verify Cloudflare Worker types sync
+        run: pnpm run check:types
+
       - name: Run linter (ESLint)
         run: pnpm run lint
 
