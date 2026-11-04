@@ -1,15 +1,32 @@
 import type { RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'
 import type { DocumentPersistence } from '#/lib/documents/storage'
-import { useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { LexicalCollaboration } from '@lexical/react/LexicalCollaborationContext'
 import { CollaborationPlugin } from '@lexical/react/LexicalCollaborationPlugin'
+import { FileTextIcon } from 'lucide-react'
+import { toast } from 'sonner'
 import { Doc } from 'yjs'
+import { Button } from '#/components/ui/button'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '#/components/ui/empty'
 import { DocumentLoading } from './DocumentLoading'
+import { DriveIcon } from './DriveIcon'
+import { DocumentWorkspaceContext } from './document-workspace-store'
 import { Nova } from '#/components/nova/Nova'
+import {
+  isGoogleDriveAuthError,
+  isGoogleDriveConnected,
+} from '#/lib/documents/drive/auth'
 import { initializeDocument } from '#/lib/documents/initial-document'
 import { LocalProvider } from '#/lib/documents/local-provider'
-import { localDocumentStorage } from '#/lib/documents/storage'
+import { documentStorage } from '#/lib/documents/document-storage'
 
 export function DocumentEditor({
   documentRef,
@@ -17,14 +34,18 @@ export function DocumentEditor({
   pageSetupOpen,
   editorRef,
   onPageSetupOpenChange,
+  onConnectDrive,
 }: {
   documentRef: RefObject<Doc | null>
   id: string
   editorRef?: RefObject<LexicalEditor | null>
   pageSetupOpen: boolean
   onPageSetupOpenChange: (open: boolean) => void
+  onConnectDrive?: () => void
 }) {
+  const workspace = useContext(DocumentWorkspaceContext)
   const [error, setError] = useState('')
+  const [authError, setAuthError] = useState(false)
   const [ready, setReady] = useState(false)
   const [session, setSession] = useState<{
     doc: Doc
@@ -41,12 +62,23 @@ export function DocumentEditor({
       id,
       doc,
       () => {
-        persistence = localDocumentStorage.open(id, doc)
-        void persistence.whenSynced.catch(() => {
-          if (active)
-            setError(
-              'Could not open this document. It may have been deleted in another tab.',
-            )
+        persistence = documentStorage.open(id, doc)
+        void persistence.whenSynced.catch((cause: unknown) => {
+          if (!active) return
+          const message =
+            cause instanceof Error
+              ? `Could not open this document. ${cause.message}`
+              : 'Could not open this document.'
+          toast.error(message, { id: `document-open:${id}` })
+          setAuthError(
+            id.startsWith('G') &&
+              (!isGoogleDriveConnected() || isGoogleDriveAuthError(cause)),
+          )
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : 'Could not open this document.',
+          )
         })
         return persistence
       },
@@ -76,12 +108,44 @@ export function DocumentEditor({
       editorRef?.current?.focus()
   }, [ready, editorRef])
 
-  if (error)
+  if (error) {
+    const connectDrive =
+      onConnectDrive ??
+      (workspace
+        ? () => {
+            void workspace.connectDrive()
+          }
+        : undefined)
+    const needsDriveConnection =
+      authError ||
+      (id.startsWith('G') &&
+        !(workspace?.driveConnected ?? isGoogleDriveConnected()))
+
     return (
-      <p role="alert" className="p-8 text-destructive">
-        {error}
-      </p>
+      <Empty className="min-h-full rounded-xl bg-card p-8">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileTextIcon />
+          </EmptyMedia>
+          <EmptyTitle>Could not open this document</EmptyTitle>
+          <EmptyDescription>{error}</EmptyDescription>
+        </EmptyHeader>
+        {needsDriveConnection && connectDrive && (
+          <EmptyContent>
+            <Button
+              disabled={workspace?.driveLoading}
+              onClick={() => {
+                connectDrive()
+              }}
+            >
+              <DriveIcon className="size-4" />
+              Connect Google Drive
+            </Button>
+          </EmptyContent>
+        )}
+      </Empty>
     )
+  }
 
   if (!session) return <DocumentLoading />
 

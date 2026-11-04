@@ -40,18 +40,35 @@ pnpm format
 pnpm check
 ```
 
-## Deploy with Nitro
+## Cloudflare and Google Drive
 
-This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
+The app runs on Cloudflare Workers. Better Auth stores sessions and encrypted Google tokens in D1; document content stays in IndexedDB and Google Drive. An HttpOnly session cookie authenticates a small token endpoint. The browser keeps the returned access token in memory and calls Drive directly; refresh tokens stay on the server.
+
+Set `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_SECRET`, and `OAUTH_PROXY_SECRET` in an ignored `.env` file for local development and in Cloudflare secrets for deployed environments. Use independent Better Auth secrets for production and staging. The OAuth proxy secret must match across the trusted environments. Public settings and D1 bindings are in `wrangler.jsonc`.
+
+Register `https://concept.maddock.world/api/auth/callback/google` as the Google OAuth redirect URI. [Better Auth OAuth Proxy](https://better-auth.com/docs/plugins/oauth-proxy) routes local and PR preview callbacks through that production origin. Preview URLs are public and share the `concept-staging` database; production uses `concept`. Only trusted repository PRs deploy previews.
+
+Apply local migrations before starting the dev server:
 
 ```bash
-npm run build
-node dist/server/index.mjs
+pnpm exec wrangler d1 migrations apply DB --local
+pnpm run dev
 ```
 
-The build output is a self-contained Node server. To deploy, push the `dist/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
+CI applies the corresponding remote migrations before deployment. For a manual production deployment:
 
-For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
+```bash
+pnpm exec wrangler d1 migrations apply DB --remote
+pnpm run deploy
+```
+
+Generate an additional auth migration after changing the Better Auth schema:
+
+```bash
+pnpm exec node scripts/generate-auth-migration.ts migrations/0002_auth.sql
+```
+
+Drive uses `drive.file` access. Conditional uploads use Drive v2 ETags and `If-Match`; a 412 response downloads and merges the remote Yjs state before retrying. Save timing is configured in `src/lib/documents/sync.ts` (3 seconds idle, 60 seconds maximum while dirty).
 
 ## Setting up PostHog
 

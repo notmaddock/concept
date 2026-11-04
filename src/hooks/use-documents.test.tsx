@@ -4,6 +4,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Root } from 'react-dom/client'
 import type { DocumentStorage } from '#/lib/documents/storage'
 import { useDocuments } from './use-documents'
+import { toast } from 'sonner'
+
+vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 
 const navigate = vi.hoisted(() => vi.fn())
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }))
@@ -19,6 +22,7 @@ let storage: DocumentStorage
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   navigate.mockReset()
+  vi.mocked(toast.error).mockClear()
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -57,7 +61,7 @@ it('uses one creation action and suppresses duplicate concurrent requests', asyn
   })
   expect(storage.create).toHaveBeenCalledTimes(1)
   expect(actions.documents[0].id).toBe('new')
-  expect(navigate).toHaveBeenCalledWith({ to: '/d/$id', params: { id: 'new' } })
+  expect(navigate).toHaveBeenCalledWith({ to: '/', hash: 'Lnew' })
   expect(actions.creating).toBe(false)
 })
 
@@ -129,7 +133,11 @@ it('rejects blank names and reports failed renames without changing documents', 
     expect(await actions.renameDocumentById('second', 'New name')).toBe(false)
   })
   expect(actions.documents).toEqual([first, second])
-  expect(actions.error).toContain('Could not save the document name')
+  expect(actions.error).toBe('')
+  expect(toast.error).toHaveBeenCalledExactlyOnceWith(
+    'Could not save the document name. Please try again.',
+    { id: 'drive-rename:second' },
+  )
 })
 
 it('uses change payloads without rereading the library', async () => {
@@ -216,4 +224,92 @@ it('does not retry failed automatic creation in a loop', async () => {
   await act(() => root.render(<Harness />))
   expect(storage.create).toHaveBeenCalledTimes(1)
   expect(actions.error).toContain('Could not create')
+})
+
+it('resolves a direct Drive identity missing from the current library', async () => {
+  const drive = {
+    id: 'Goutside-page',
+    name: 'Direct Drive file',
+    updatedAt: 3,
+    drive: { fileId: 'outside-page', offlineAvailable: false },
+  }
+  let resolveLookup!: (value: typeof drive) => void
+  vi.mocked(storage.get).mockReturnValue(
+    new Promise((resolve) => {
+      resolveLookup = resolve
+    }),
+  )
+  await mount(drive.id)
+  expect(storage.get).toHaveBeenCalledExactlyOnceWith(drive.id)
+  expect(actions.loaded).toBe(false)
+  await act(() => resolveLookup(drive))
+  expect(actions.document).toEqual(drive)
+  expect(actions.loaded).toBe(true)
+  expect(storage.create).not.toHaveBeenCalled()
+})
+
+it.each([undefined, Object.assign(new Error('Missing'), { status: 404 })])(
+  'finishes a missing direct document lookup without creating a replacement',
+  async (result) => {
+    if (result instanceof Error)
+      vi.mocked(storage.get).mockRejectedValue(result)
+    else vi.mocked(storage.get).mockResolvedValue(result)
+    await mount('Gmissing')
+    expect(actions.loaded).toBe(true)
+    expect(actions.document).toBeUndefined()
+    expect(actions.error).toBe('')
+    expect(storage.get).toHaveBeenCalledOnce()
+    expect(storage.create).not.toHaveBeenCalled()
+  },
+)
+
+it('reports a failed direct lookup without retrying in a render loop', async () => {
+  vi.mocked(storage.get).mockRejectedValue(new Error('Reconnect Google Drive'))
+  await mount('Gdisconnected')
+  expect(actions.loaded).toBe(true)
+  expect(actions.error).toBe('Reconnect Google Drive')
+  expect(storage.get).toHaveBeenCalledOnce()
+  const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
+  await act(() =>
+    listener({ type: 'upsert', document: { ...first, id: 'Gdisconnected' } }),
+  )
+  expect(actions.error).toBe('')
+  expect(actions.document?.id).toBe('Gdisconnected')
+})
+
+it('ignores a direct lookup that finishes after navigation', async () => {
+  let resolveLookup!: (value: typeof first) => void
+  vi.mocked(storage.get).mockReturnValue(
+    new Promise((resolve) => {
+      resolveLookup = resolve
+    }),
+  )
+  function Harness({ id }: { id: string }) {
+    actions = useDocuments(id, storage)
+    return null
+  }
+  await act(() => root.render(<Harness id="Gslow" />))
+  await act(() => root.render(<Harness id="second" />))
+  await act(() => resolveLookup({ ...first, id: 'Gslow' }))
+  expect(actions.document).toEqual(second)
+  expect(actions.documents.some((item) => item.id === 'Gslow')).toBe(false)
+  expect(actions.loaded).toBe(true)
+})
+
+it('selects the next document or creates a new one when the root default document is deleted', async () => {
+  function Harness() {
+    actions = useDocuments(undefined, storage)
+    return null
+  }
+  await act(() => root.render(<Harness />))
+  expect(actions.document).toEqual(second)
+
+  await act(() => actions.deleteDocument(second.id))
+  expect(actions.document).toEqual(first)
+  expect(navigate).not.toHaveBeenCalled()
+
+  const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
+  await act(() => listener({ type: 'delete', id: first.id }))
+  expect(storage.create).toHaveBeenCalledTimes(1)
+  expect(actions.document?.id).toBe('new')
 })

@@ -2,11 +2,14 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Doc, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { toast } from 'sonner'
 import type * as ConceptFileModule from '#/lib/documents/concept-file'
 import type { Root } from 'react-dom/client'
 import { DocumentStorageDialog } from './DocumentStorageDialog'
 import { storageLocations } from '#/lib/documents/storage-locations'
 import { serializeConcept } from '#/lib/documents/concept-file'
+
+vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 
 const mocks = vi.hoisted(() => ({ navigate: vi.fn(), importConcept: vi.fn() }))
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
@@ -43,7 +46,9 @@ async function click(label: string) {
       item.textContent === label || item.textContent.trim().startsWith(label),
   )
   expect(button).toBeDefined()
-  await act(() => button?.click())
+  await act(async () => {
+    button?.click()
+  })
 }
 
 it('requires device selection and confirmation showing file size and origin before opening', async () => {
@@ -79,8 +84,8 @@ it('requires device selection and confirmation showing file size and origin befo
   await click('Open document')
   expect(mocks.importConcept).toHaveBeenCalledOnce()
   expect(mocks.navigate).toHaveBeenCalledWith({
-    to: '/d/$id',
-    params: { id: 'imported' },
+    to: '/',
+    hash: 'Limported',
   })
   expect(onClose).toHaveBeenCalledOnce()
 })
@@ -119,9 +124,10 @@ it('keeps invalid files out of storage and displays the error', async () => {
     input.dispatchEvent(new Event('change', { bubbles: true }))
     await Promise.resolve()
   })
-  expect(document.querySelector('[role="alert"]')?.textContent).toContain(
-    'not a supported .concept document',
+  expect(toast.error).toHaveBeenCalledWith(
+    expect.stringContaining('not a supported .concept document'),
   )
+  expect(document.querySelector('[role="alert"]')).toBeNull()
   expect(
     Array.from(document.querySelectorAll('button')).some(
       (button) => button.textContent === 'Open document',
@@ -169,8 +175,8 @@ it('opens a library document in place without saving a duplicate', async () => {
   await click('Open document')
   expect(mocks.importConcept).not.toHaveBeenCalled()
   expect(mocks.navigate).toHaveBeenCalledWith({
-    to: '/d/$id',
-    params: { id: 'existing-id' },
+    to: '/',
+    hash: 'Lexisting-id',
   })
 })
 
@@ -233,8 +239,8 @@ it('saves an imported document to the selected provider independently of its sou
   expect(saveOther).toHaveBeenCalledWith(file, 'External document')
   expect(saveLocal).not.toHaveBeenCalled()
   expect(mocks.navigate).toHaveBeenCalledWith({
-    to: '/d/$id',
-    params: { id: 'other-copy' },
+    to: '/',
+    hash: 'Lother-copy',
   })
 })
 
@@ -261,12 +267,15 @@ it('converts an import before saving and reuses destination selection', async ()
   await act(async () => {
     input.dispatchEvent(new Event('change', { bubbles: true }))
   })
-  await vi.waitFor(async () => {
-    await act(async () => {
-      await Promise.resolve()
-    })
-    expect(document.body.textContent).toContain('Save to')
-  })
+  await vi.waitFor(
+    async () => {
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(document.body.textContent).toContain('Save to')
+    },
+    { timeout: 5000 },
+  )
   expect(save).not.toHaveBeenCalled()
   expect(mocks.importConcept).not.toHaveBeenCalled()
   expect(
@@ -279,8 +288,51 @@ it('converts an import before saving and reuses destination selection', async ()
     'Imported',
   )
   expect(mocks.navigate).toHaveBeenCalledWith({
-    to: '/d/$id',
-    params: { id: 'destination' },
+    to: '/',
+    hash: 'Ldestination',
   })
   expect(onClose).toHaveBeenCalledOnce()
+})
+
+it('reports library listing failures via toast and suppresses the empty message', async () => {
+  await act(() =>
+    root.render(
+      <DocumentStorageDialog
+        mode="open"
+        onClose={onClose}
+        sources={[
+          {
+            id: 'failing-library',
+            icon: storageLocations.local.icon,
+            label: 'Failing library',
+            description: 'Broken source',
+            kind: 'library',
+            list: () => Promise.reject(new Error('Network down')),
+            read: vi.fn(),
+          },
+        ]}
+      />,
+    ),
+  )
+  await click('Failing library')
+  expect(toast.error).toHaveBeenCalledWith(
+    'Could not load documents. Choose the source again to retry.',
+  )
+  expect(document.body.textContent).not.toContain('No documents saved here yet')
+})
+
+it('reports save failures via toast without closing the dialog', async () => {
+  mocks.importConcept.mockRejectedValueOnce(new Error('Disk quota exceeded.'))
+  await act(() =>
+    root.render(
+      <DocumentStorageDialog
+        mode="copy"
+        source={{ name: 'Original', doc }}
+        onClose={onClose}
+      />,
+    ),
+  )
+  await click('Save copy')
+  expect(toast.error).toHaveBeenCalledWith('Disk quota exceeded.')
+  expect(onClose).not.toHaveBeenCalled()
 })

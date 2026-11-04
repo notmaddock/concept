@@ -32,6 +32,8 @@ This document outlines the operational rules and standards that all AI agents mu
 
 ## 3. Code Comments & Documentation
 
+- **Use Sonner for errors**: Report action and operational failures with Sonner `toast()` notifications. Do not add standalone red error text to page layouts or duplicate a toast with inline error text. Report each failure once.
+
 - **Avoid unnecessary UI clarification text**: Do not add descriptions or explanatory footnotes that repeat what titles, labels, or values already communicate. Add clarification only when it helps users make a decision or prevents a concrete misunderstanding; prefer precise labels over extra prose.
 
 - **Comment only when code is not self-explanatory**: Code should be clean, declarative, and self-documenting through clear naming and modular structure.

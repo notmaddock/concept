@@ -1,5 +1,5 @@
-import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
-import { IndexeddbPersistence } from 'y-indexeddb'
+import { applyUpdate, Doc } from 'yjs'
+import { downloadExport } from './export'
 import { localDocumentStorage } from './storage'
 import { serializeConcept } from './serialization'
 
@@ -58,7 +58,7 @@ export function parseConcept(text: string): ConceptFile {
   }
 }
 
-function decodeUpdate(file: ConceptFile) {
+export function decodeUpdate(file: ConceptFile) {
   return Uint8Array.from(atob(file.update), (character) =>
     character.charCodeAt(0),
   )
@@ -67,46 +67,29 @@ function decodeUpdate(file: ConceptFile) {
 export async function importConcept(file: ConceptFile, name = file.name) {
   const created = await localDocumentStorage.create()
   const doc = new Doc()
-  let persistence: IndexeddbPersistence | undefined
+  const session = localDocumentStorage.open(created.id, doc)
   try {
+    await session.whenSynced
     applyUpdate(doc, decodeUpdate(file))
-    persistence = new IndexeddbPersistence(
-      `concept-document:${created.id}`,
-      doc,
-    )
-    await persistence.whenSynced
-    const db = persistence.db
-    if (!db) throw new Error('Local storage is unavailable.')
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction('updates', 'readwrite')
-      transaction.objectStore('updates').add(encodeStateAsUpdate(doc))
-      transaction.oncomplete = () => resolve()
-      transaction.onabort = () =>
-        reject(
-          transaction.error ?? new Error('Could not save document content.'),
-        )
-      transaction.onerror = () => reject(transaction.error)
-    })
+    doc
+      .getMap<string>('metadata')
+      .set('name', name.trim() || 'Untitled document')
+    await session.flush?.()
     return await localDocumentStorage.rename(created.id, name)
   } catch (error) {
-    await persistence?.destroy()
-    persistence = undefined
+    await session.destroy()
     await localDocumentStorage.delete(created.id)
     throw error
   } finally {
-    await persistence?.destroy()
+    await session.destroy()
     doc.destroy()
   }
 }
 
 export function downloadConcept(name: string, doc: Doc) {
-  const blob = new Blob([serializeConcept(name, doc)], {
-    type: 'application/vnd.concept+json',
+  downloadExport(name, {
+    content: serializeConcept(name, doc),
+    extension: 'concept',
+    mime: 'application/vnd.concept+json',
   })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `${Array.from(name, (character) => (character.charCodeAt(0) < 32 || /[<>:"/\\|?*]/.test(character) ? '_' : character)).join('') || 'Untitled document'}.concept`
-  link.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

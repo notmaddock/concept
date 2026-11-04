@@ -6,6 +6,7 @@ import type { useFormatActions } from './use-format-actions'
 
 import type { EditAction, useEditActions } from './use-edit-actions'
 import { useDocumentWorkspace } from '../document-workspace-context'
+import { DriveIcon } from '../DriveIcon'
 import {
   CopyIcon,
   Undo2Icon,
@@ -65,6 +66,7 @@ type NavigationContext = {
   onShare: () => void
   onCopy?: () => void
   onDownload?: () => void | Promise<void>
+  onSaveToDrive?: () => void | Promise<void>
   onExport: (format: ExportFormat) => Promise<void>
   onPageSetup: () => void
   onCreate: () => Promise<void>
@@ -79,7 +81,7 @@ type ActionDefinition = {
   shortcut?: ActionShortcut
   menuLabel?: string
   keywords: string[]
-  icon: typeof PlusIcon
+  icon: typeof PlusIcon | typeof DriveIcon
   focusAfterSelect: 'editor' | 'action'
   onSelect: (context: NavigationContext) => void | Promise<void>
   disabled?: (context: NavigationContext) => boolean
@@ -156,6 +158,14 @@ export const documentNavigation: MenuDefinition[] = [
           onSelect: (context: NavigationContext) =>
             context.onImport?.(format.id),
         })),
+      },
+      {
+        id: 'save-to-drive',
+        label: 'Save to Google Drive',
+        keywords: ['save', 'drive', 'cloud'],
+        icon: DriveIcon,
+        focusAfterSelect: 'action',
+        onSelect: (context) => context.onSaveToDrive?.(),
       },
       {
         id: 'make-copy',
@@ -390,6 +400,7 @@ export function useDocumentNavigationOptions({
     onShare: workspace.shareDocument,
     onDetails: workspace.showDetails,
     onDownload: workspace.downloadDocument,
+    onSaveToDrive: workspace.saveToDrive,
     onExport: workspace.exportDocument,
     onPageSetup: workspace.openPageSetup,
     onCreate: workspace.createDocument,

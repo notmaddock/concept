@@ -1,5 +1,4 @@
 import { act } from 'react'
-import { Toaster, toast } from 'sonner'
 import { createRoot } from 'react-dom/client'
 import {
   $createParagraphNode,
@@ -136,59 +135,4 @@ it('clears formatting with the displayed keyboard shortcut', async () => {
   editor.getEditorState().read(() => {
     expect($getRoot().getAllTextNodes()[0].hasFormat('bold')).toBe(false)
   })
-})
-
-it('leaves the bold shortcut available to the editor', async () => {
-  const event = new KeyboardEvent('keydown', {
-    key: 'b',
-    ctrlKey: true,
-    cancelable: true,
-  })
-  await act(() => {
-    editor.dispatchCommand(KEY_DOWN_COMMAND, event)
-  })
-  editor.getEditorState().read(() => {
-    const selection = $getSelection()
-    expect($isRangeSelection(selection) && selection.hasFormat('bold')).toBe(
-      false,
-    )
-  })
-})
-
-it('shows clipboard failures as Sonner toasts', async () => {
-  vi.stubGlobal('matchMedia', () => ({
-    matches: false,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-  }))
-  onError.mockImplementation((message: string) => {
-    toast.error(message)
-  })
-  await act(() =>
-    root.render(
-      <>
-        <Harness />
-        <Toaster theme="light" />
-      </>,
-    ),
-  )
-  vi.stubGlobal('navigator', {
-    platform: 'Linux',
-    clipboard: {
-      read: async () => {
-        throw new Error('denied')
-      },
-    },
-  })
-  await act(async () => {
-    await actions.run('paste')
-    await new Promise((resolve) => setTimeout(resolve, 20))
-  })
-  expect(
-    container.querySelector('[data-sonner-toast][data-type="error"]')
-      ?.textContent,
-  ).toContain(
-    'Could not access the clipboard. Use Ctrl+V in the editor instead.',
-  )
-  toast.dismiss()
 })

@@ -1,6 +1,8 @@
 import { publishDocumentChange, subscribeToLibrary } from '../library-channel'
 import type { IndexeddbPersistence } from 'y-indexeddb'
-import type { Doc } from 'yjs'
+import { Doc, encodeStateAsUpdate } from 'yjs'
+import { documentRevision } from '../revision'
+import { serializeConcept } from '../serialization'
 import type {
   DocumentInfo,
   DocumentPersistence,
@@ -106,10 +108,27 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
   let persistence: IndexeddbPersistence | undefined
   let closed = false
   let closing: Promise<void> | undefined
+  let releaseContentLock: (() => void) | undefined
+  let writeFailed = false
+  const contentLock =
+    typeof navigator !== 'undefined' && 'locks' in navigator
+      ? new Promise<void>((resolve, reject) => {
+          void navigator.locks
+            .request(`concept-content:${id}`, { mode: 'shared' }, async () => {
+              const released = new Promise<void>((release) => {
+                releaseContentLock = release
+              })
+              resolve()
+              await released
+            })
+            .catch(reject)
+        })
+      : Promise.resolve()
   const ensureOpen = () => {
     if (closed) throw new Error('Document closed')
   }
   const whenSynced = withDocumentLock(id, async () => {
+    await contentLock
     ensureOpen()
     const document = await query<DocumentInfo | undefined>(
       'readonly',
@@ -121,13 +140,40 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
     ensureOpen()
     persistence = new IndexeddbPersistence(documentDatabaseName(id), doc)
     await persistence.whenSynced
-    if (persistence.db)
+    if (persistence.db) {
+      persistence.db.addEventListener('abort', () => {
+        writeFailed = true
+      })
       persistence.db.onversionchange = () => {
         void session.destroy()
       }
+    }
   })
   const session: DocumentPersistence = {
     whenSynced,
+    async flush() {
+      await whenSynced
+      const db = persistence?.db
+      if (!db) throw new Error('Local storage is unavailable.')
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction('updates', 'readonly')
+        transaction.objectStore('updates').count()
+        transaction.oncomplete = () => resolve()
+        transaction.onabort = transaction.onerror = () =>
+          reject(transaction.error ?? new Error('Could not save locally.'))
+      })
+      if (writeFailed)
+        await new Promise<void>((resolve, reject) => {
+          const transaction = db.transaction('updates', 'readwrite')
+          transaction.objectStore('updates').add(encodeStateAsUpdate(doc))
+          transaction.oncomplete = () => {
+            writeFailed = false
+            resolve()
+          }
+          transaction.onabort = transaction.onerror = () =>
+            reject(transaction.error ?? new Error('Could not save locally.'))
+        })
+    },
     destroy() {
       closed = true
       closing ??= (
@@ -137,6 +183,7 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
       )
         .then(() => {})
         .finally(() => {
+          void contentLock.finally(() => releaseContentLock?.()).catch(() => {})
           sessions.delete(session)
           if (sessions.size === 0 && activeSessions.get(id) === sessions)
             activeSessions.delete(id)
@@ -148,7 +195,85 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
   return session
 }
 
-export const localDocumentStorage: DocumentStorage = {
+export const localDocumentStorage: DocumentStorage & {
+  put: (document: DocumentInfo) => Promise<void>
+  patch: (
+    id: string,
+    update: (document: DocumentInfo) => DocumentInfo,
+    initial?: DocumentInfo,
+  ) => Promise<DocumentInfo>
+  clearContent: (id: string) => Promise<void>
+} = {
+  async put(document) {
+    await query('readwrite', (store) => store.put(document))
+    publishDocumentChange({ type: 'upsert', document })
+  },
+  async patch(id, update, initial) {
+    const db = await database()
+    const document = await new Promise<DocumentInfo>((resolve, reject) => {
+      const transaction = db.transaction('documents', 'readwrite')
+      const store = transaction.objectStore('documents')
+      const request: IDBRequest<DocumentInfo | undefined> = store.get(id)
+      let updated: DocumentInfo | undefined
+      request.onsuccess = () => {
+        const current = request.result ?? initial
+        if (!current) {
+          transaction.abort()
+          return
+        }
+        updated = update(current)
+        store.put(updated)
+      }
+      transaction.oncomplete = () => {
+        if (updated) resolve(updated)
+      }
+      transaction.onabort = transaction.onerror = () =>
+        reject(transaction.error ?? new Error('Document not found'))
+    })
+    publishDocumentChange({ type: 'upsert', document })
+    return document
+  },
+  async clearContent(id) {
+    if (typeof navigator === 'undefined' || !('locks' in navigator)) return
+    await navigator.locks.request(
+      `concept-content:${id}`,
+      { ifAvailable: true },
+      async (lock) => {
+        if (!lock || activeSessions.get(id)?.size) return
+        const document = await localDocumentStorage.get(id)
+        if (
+          document?.drive &&
+          !document.drive.offlineAvailable &&
+          !document.drive.dirty
+        ) {
+          const doc = new Doc()
+          const { IndexeddbPersistence } = await import('y-indexeddb')
+          const cached = new IndexeddbPersistence(documentDatabaseName(id), doc)
+          let matches = false
+          try {
+            await cached.whenSynced
+            const name =
+              doc.getMap<string>('metadata').get('name') ?? document.name
+            matches =
+              encodeStateAsUpdate(doc).byteLength === 2 ||
+              (await documentRevision(serializeConcept(name, doc))) ===
+                document.drive.savedRevision
+          } finally {
+            await cached.destroy()
+            doc.destroy()
+          }
+          if (matches) await removeDocumentContent(id)
+          else
+            await localDocumentStorage.patch(id, (current) => ({
+              ...current,
+              drive: current.drive
+                ? { ...current.drive, dirty: true }
+                : undefined,
+            }))
+        }
+      },
+    )
+  },
   subscribe: subscribeToLibrary,
   async list() {
     const documents = await query<Array<DocumentInfo>>('readonly', (store) =>
@@ -168,37 +293,12 @@ export const localDocumentStorage: DocumentStorage = {
     publishDocumentChange({ type: 'upsert', document })
     return document
   },
-  async rename(id, name) {
-    const db = await database()
-    const document = await new Promise<DocumentInfo>((resolve, reject) => {
-      const transaction = db.transaction('documents', 'readwrite')
-      const store = transaction.objectStore('documents')
-      const request: IDBRequest<DocumentInfo | undefined> = store.get(id)
-      let updated: DocumentInfo | undefined
-      request.onsuccess = () => {
-        if (!request.result) {
-          transaction.abort()
-          return
-        }
-        updated = {
-          ...request.result,
-          name: name.trim() || 'Untitled document',
-          updatedAt: Date.now(),
-        }
-        store.put(updated)
-      }
-      transaction.oncomplete = () => {
-        if (updated) resolve(updated)
-      }
-      transaction.onabort = () => {
-        reject(transaction.error ?? new Error('Document not found'))
-      }
-      transaction.onerror = () => {
-        reject(transaction.error)
-      }
-    })
-    publishDocumentChange({ type: 'upsert', document })
-    return document
+  rename(id, name) {
+    return this.patch(id, (current) => ({
+      ...current,
+      name: name.trim() || 'Untitled document',
+      updatedAt: Date.now(),
+    }))
   },
   async delete(id) {
     await withDocumentLock(id, async () => {

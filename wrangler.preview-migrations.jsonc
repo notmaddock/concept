@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "d1_databases": [
+    {
+      "binding": "PREVIEW_DB",
+      "database_name": "concept-staging",
+      "database_id": "e2f41d8f-17d9-46bf-b174-ea17dfe710a6",
+      "migrations_dir": "migrations",
+    },
+  ],
+}
