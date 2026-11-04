@@ -11,6 +11,12 @@ vi.mock('#/components/theme-provider', () => ({ useTheme: () => theme }))
 const workspace = vi.hoisted(() => ({
   enabled: true,
   creating: false,
+  driveConnected: true,
+  driveLoading: false,
+  pickerLoading: false,
+  openGoogleDrivePicker: vi.fn<() => Promise<void>>(),
+  document: undefined as
+    { readOnly?: boolean; drive?: { readOnly?: boolean } } | undefined,
   createDocument: vi.fn<() => Promise<void>>(),
   openPageSetup: vi.fn(),
   openDocument: vi.fn(),
@@ -230,4 +236,49 @@ it('binds editor actions supplied by the lazy editor navigation', async () => {
   expect(bold.disabled).toBe(false)
   await bold.onSelect()
   expect(format.run).toHaveBeenCalledWith({ kind: 'text', value: 'bold' })
+})
+
+it('gates mutation actions in read-only mode while preserving copy and export', async () => {
+  workspace.enabled = true
+  workspace.document = { readOnly: true }
+  await render(false, true)
+
+  expect(
+    navigation.options.find((opt) => opt.id === 'page-setup')?.disabled,
+  ).toBe(true)
+  expect(
+    navigation.options.find((opt) => opt.id === 'save-to-drive')?.disabled,
+  ).toBe(true)
+
+  // Reading / exporting / copying remain enabled
+  expect(
+    navigation.options.find((opt) => opt.id === 'make-copy')?.disabled,
+  ).toBe(false)
+  expect(
+    navigation.options.find((opt) => opt.id === 'download')?.disabled,
+  ).toBe(false)
+  expect(
+    navigation.options.find((opt) => opt.id === 'export-pdf')?.disabled,
+  ).toBe(false)
+  expect(navigation.options.find((opt) => opt.id === 'details')?.disabled).toBe(
+    false,
+  )
+  workspace.document = undefined
+})
+
+it('opens the Drive picker from File and search without a document open', async () => {
+  await render(false, false)
+  const option = navigation.options.find((item) => item.id === 'open-drive')!
+  expect(option.disabled).toBe(false)
+  expect(
+    navigation.menus.find((menu) => menu.label === 'File')?.items,
+  ).toContain(option)
+  await option.onSelect()
+  expect(workspace.openGoogleDrivePicker).toHaveBeenCalledOnce()
+  workspace.pickerLoading = true
+  await render(false, false)
+  expect(
+    navigation.options.find((item) => item.id === 'open-drive')?.disabled,
+  ).toBe(true)
+  workspace.pickerLoading = false
 })

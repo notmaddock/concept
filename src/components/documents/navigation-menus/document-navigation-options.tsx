@@ -60,6 +60,9 @@ type NavigationContext = {
   format: ReturnType<typeof useFormatActions>
   edit: ReturnType<typeof useEditActions>
   enabled?: boolean
+  readOnly?: boolean
+  drivePickerDisabled?: boolean
+  onOpenDrive?: () => Promise<void>
   onImport?: (format: ImportFormat) => void
   onOpen?: () => void
   onDetails?: () => void
@@ -145,6 +148,15 @@ export const documentNavigation: MenuDefinition[] = [
         onSelect: (context) => context.onOpen?.(),
       },
       {
+        id: 'open-drive',
+        label: 'Open from Google Drive',
+        keywords: ['open file', 'shared', 'picker', 'cloud'],
+        icon: DriveIcon,
+        focusAfterSelect: 'action',
+        onSelect: (context) => context.onOpenDrive?.(),
+        disabled: (context) => Boolean(context.drivePickerDisabled),
+      },
+      {
         id: 'import',
         label: 'Import from…',
         icon: FolderOpenIcon,
@@ -166,6 +178,7 @@ export const documentNavigation: MenuDefinition[] = [
         icon: DriveIcon,
         focusAfterSelect: 'action',
         onSelect: (context) => context.onSaveToDrive?.(),
+        disabled: (context) => Boolean(context.readOnly),
       },
       {
         id: 'make-copy',
@@ -261,6 +274,7 @@ export const documentNavigation: MenuDefinition[] = [
         icon: Settings2Icon,
         focusAfterSelect: 'action',
         onSelect: (context) => context.onPageSetup(),
+        disabled: (context) => Boolean(context.readOnly),
       },
       {
         id: 'print',
@@ -393,8 +407,16 @@ export function useDocumentNavigationOptions({
     edit,
     format,
     enabled: workspace.enabled,
+    readOnly: Boolean(
+      workspace.document?.readOnly || workspace.document?.drive?.readOnly,
+    ),
     creating: workspace.creating,
     onOpen: workspace.openDocument,
+    onOpenDrive: workspace.openGoogleDrivePicker,
+    drivePickerDisabled:
+      !workspace.driveConnected ||
+      workspace.driveLoading ||
+      workspace.pickerLoading,
     onImport: workspace.importDocument,
     onCopy: workspace.copyDocument,
     onShare: workspace.shareDocument,
@@ -428,7 +450,7 @@ export function useDocumentNavigationOptions({
       disabled:
         item.disabled?.(context) ||
         (context.enabled === false &&
-          !['new-document', 'open'].includes(item.id) &&
+          !['new-document', 'open', 'open-drive'].includes(item.id) &&
           !item.id.startsWith('import-')),
       checked: item.checked?.(context),
     }
