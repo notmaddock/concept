@@ -262,8 +262,11 @@ export const localDocumentStorage: DocumentStorage & {
             await cached.destroy()
             doc.destroy()
           }
-          if (matches) await removeDocumentContent(id)
-          else
+          // A new open can queue behind our exclusive content lock while the
+          // checkpoint is inspected. Leave its cache and session intact.
+          if (matches) {
+            if (!activeSessions.get(id)?.size) await removeDocumentContent(id)
+          } else
             await localDocumentStorage.patch(id, (current) => ({
               ...current,
               drive: current.drive

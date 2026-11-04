@@ -451,3 +451,47 @@ it('rejects a rename when opening the cached document reveals read-only access',
   expect(updateConceptFile).not.toHaveBeenCalled()
   expect((await localDocumentStorage.get(info.id))?.name).toBe(info.name)
 })
+
+it('keeps a reopen queued behind cache eviction alive', async () => {
+  await cache()
+  let releaseEviction: () => void = () => {}
+  const evictionLock = new Promise<void>((resolve) => {
+    releaseEviction = resolve
+  })
+  vi.stubGlobal('navigator', {
+    onLine: true,
+    locks: {
+      request: async (
+        _name: string,
+        optionsOrTask: { mode?: string } | (() => Promise<unknown>),
+        task?: (lock: object) => Promise<unknown>,
+      ) => {
+        if (typeof optionsOrTask === 'function') return optionsOrTask()
+        if (optionsOrTask.mode === 'shared') {
+          await evictionLock
+          return task!({})
+        }
+        try {
+          return await task!({})
+        } finally {
+          releaseEviction()
+        }
+      },
+    },
+  })
+  let reopening: ReturnType<typeof open> | undefined
+  const get = localDocumentStorage.get.bind(localDocumentStorage)
+  vi.spyOn(localDocumentStorage, 'get').mockImplementationOnce(async (id) => {
+    const stored = await get(id)
+    reopening = open()
+    void reopening.session.whenSynced.catch(() => {})
+    return stored
+  })
+  await localDocumentStorage.clearContent(info.id)
+  expect(reopening).toBeDefined()
+  await reopening!.session.whenSynced
+  expect(encodeStateAsUpdate(reopening!.doc)).toEqual(
+    encodeStateAsUpdate(remote),
+  )
+  expect(getFileMetadata).not.toHaveBeenCalled()
+})
