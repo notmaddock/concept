@@ -244,7 +244,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
           WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/cloudflare-preview.jsonl
         run: |
-          pnpm exec wrangler preview --name "pr-$PR_NUMBER"
+          pnpm exec wrangler preview --config dist/server/wrangler.json --name "pr-$PR_NUMBER"
           preview_url="$(jq -ser '[.[] | select(.type == "preview")] | last | .preview_urls[0]' "$WRANGLER_OUTPUT_FILE_PATH")"
           echo "url=$preview_url" >> "$GITHUB_OUTPUT"
           printf '### PR preview\n\n[Open preview](%s)\n' "$preview_url" >> "$GITHUB_STEP_SUMMARY"
@@ -331,4 +331,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
           packageManager: pnpm
-          command: deploy
+          command: deploy --config dist/server/wrangler.json
