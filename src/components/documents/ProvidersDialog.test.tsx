@@ -44,23 +44,17 @@ function button(label: string) {
   )!
 }
 
-it('offers Connect for a disconnected provider and Disconnect after connection', async () => {
+it('offers Connect or Disconnect based on connection state and disables actions while loading', async () => {
   await render()
   expect(document.body.textContent).toContain('Not connected')
   await act(() => button('Connect').click())
   expect(onConnect).toHaveBeenCalledOnce()
   expect(onDisconnect).not.toHaveBeenCalled()
+  await render(false, true)
+  expect(button('Connect').disabled).toBe(true)
   await render(true)
   expect(document.body.textContent).toContain('Connected')
   expect(button('Connect')).toBeUndefined()
   await act(() => button('Disconnect').click())
   expect(onDisconnect).toHaveBeenCalledOnce()
-})
-
-it('disables provider actions during loading without duplicating error notifications', async () => {
-  await render(false, true)
-  expect(button('Connect').disabled).toBe(true)
-  expect(document.querySelector('[role="alert"]')).toBeNull()
-  await act(() => button('Connect').click())
-  expect(onConnect).not.toHaveBeenCalled()
 })

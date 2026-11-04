@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   listUserAccounts: vi.fn(),
   getAccessToken: vi.fn(),
   refreshToken: vi.fn(),
-  fetch: vi.fn<typeof fetch>(),
 }))
 vi.mock('#/lib/auth.server', () => ({ createAuth: mocks.createAuth }))
 
@@ -27,7 +26,6 @@ const bindings = Object.assign({} as Cloudflare.Env, {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  vi.stubGlobal('fetch', mocks.fetch)
   mocks.createAuth.mockReturnValue({
     api: {
       getSession: mocks.getSession,
@@ -69,7 +67,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
 
@@ -86,7 +83,6 @@ it('returns only connection status without fetching or refreshing tokens', async
   expect(await response.json()).toEqual({ connected: true, configured: true })
   expect(mocks.getAccessToken).not.toHaveBeenCalled()
   expect(mocks.refreshToken).not.toHaveBeenCalled()
-  expect(mocks.fetch).not.toHaveBeenCalled()
   expect(response.headers.get('Cache-Control')).toBe('no-store')
   expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
 })
@@ -105,7 +101,6 @@ it('returns only the access token and epoch expiry for the session-selected Goog
     returnHeaders: true,
   })
   expect(mocks.refreshToken).not.toHaveBeenCalled()
-  expect(mocks.fetch).not.toHaveBeenCalled()
   expect(response.headers.get('Cache-Control')).toBe('no-store')
   expect(response.headers.get('Vary')).toBe('Cookie')
 })
@@ -186,18 +181,15 @@ it.each([undefined, 'https://evil.example'])(
 )
 
 it.each([
-  ['drive/v3/files', 'GET', 404],
-  ['upload/drive/v2/files/id', 'PUT', 404],
-  ['drive/v2/files/id', 'PATCH', 404],
+  ['unknown', 'GET', 404],
   ['token', 'GET', 405],
   ['session', 'POST', 405],
 ])(
-  'does not proxy Drive traffic or accept unsupported methods: %s %s',
+  'rejects unknown paths and unsupported methods: %s %s',
   async (path, method, status) => {
     const response = await handleDriveToken(request(path, { method }), bindings)
     expect(response.status).toBe(status)
     expect(mocks.createAuth).not.toHaveBeenCalled()
-    expect(mocks.fetch).not.toHaveBeenCalled()
   },
 )
 

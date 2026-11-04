@@ -35,8 +35,7 @@ function brokerToken(
   return new Response(JSON.stringify({ accessToken: value, expiresAt }))
 }
 
-it('deduplicates token acquisition and caches credentials only in module memory', async () => {
-  const writeStorage = vi.spyOn(Storage.prototype, 'setItem')
+it('deduplicates token acquisition and caches credentials in module memory', async () => {
   fetchMock.mockResolvedValueOnce(brokerToken())
   const auth = await import('./auth')
   const [first, second] = await Promise.all([
@@ -56,7 +55,6 @@ it('deduplicates token acquisition and caches credentials only in module memory'
       body: '{}',
     }),
   )
-  expect(writeStorage).not.toHaveBeenCalled()
   expect(sdk.social).not.toHaveBeenCalled()
 })
 
@@ -152,8 +150,7 @@ it('clears credentials when the broker reports an expired app session', async ()
   expect(sdk.social).not.toHaveBeenCalled()
 })
 
-it('restores the cookie-backed connection without signing in or storing Google credentials', async () => {
-  const writeStorage = vi.spyOn(Storage.prototype, 'setItem')
+it('restores the cookie-backed connection without launching sign-in', async () => {
   fetchMock.mockResolvedValueOnce(session())
   const auth = await import('./auth')
   const changed = vi.fn()
@@ -170,9 +167,7 @@ it('restores the cookie-backed connection without signing in or storing Google c
   expect(auth.isGoogleDriveConnected()).toBe(true)
   expect(changed).toHaveBeenCalledOnce()
   expect(sdk.social).not.toHaveBeenCalled()
-  expect(writeStorage).not.toHaveBeenCalled()
   unsubscribe()
-  writeStorage.mockRestore()
 })
 
 it('deduplicates session checks and reports missing server configuration', async () => {

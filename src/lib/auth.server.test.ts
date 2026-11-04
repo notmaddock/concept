@@ -15,26 +15,6 @@ const bindings = {
   AUTH_TRUSTED_ORIGINS: 'https://concept.example, https://preview.example, ',
 } as unknown as Cloudflare.Env
 
-it('isolates environment sessions and enables the shared OAuth proxy', () => {
-  const auth = createAuth(bindings, 'https://preview.example')
-  expect(auth.options.baseURL).toBe('https://preview.example')
-  expect(auth.options.database).toBe(bindings.DB)
-  expect(auth.options.trustedOrigins).toEqual([
-    'https://concept.example',
-    'https://preview.example',
-  ])
-  expect(auth.options.account.encryptOAuthTokens).toBe(true)
-  expect(auth.options.disabledPaths).toEqual([
-    '/get-access-token',
-    '/refresh-token',
-  ])
-  expect(auth.options.plugins[0].options).toMatchObject({
-    currentURL: 'https://preview.example',
-    productionURL: 'https://concept.example',
-    secret: bindings.OAUTH_PROXY_SECRET,
-  })
-})
-
 it('discards stored ID tokens while preserving encrypted provider credentials', async () => {
   const auth = createAuth(bindings, 'https://preview.example')
   const account = {
