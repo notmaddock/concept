@@ -13,6 +13,14 @@ import {
 import { DocumentSaveStatus } from './DocumentSaveStatus'
 import { ProvidersDialog } from './ProvidersDialog'
 import { Button } from '#/components/ui/button'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '#/components/ui/empty'
 import { Input } from '#/components/ui/input'
 import {
   Sidebar,
@@ -33,6 +41,7 @@ import { DocumentNavigation } from './DocumentNavigation'
 import { DocumentList } from './DocumentList'
 import { DocumentLoading } from './DocumentLoading'
 import { DocumentEditor } from './DocumentEditor'
+import { DriveIcon } from './DriveIcon'
 import { AppToaster } from '#/components/app-toaster'
 
 export function DocumentWorkspace({ id }: { id?: string }) {
@@ -182,18 +191,12 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               label={id ? 'Opening document…' : 'Loading documents…'}
             />
           ) : (
-            <div
-              data-slot="empty"
-              className="flex min-h-full flex-col items-center justify-center gap-4 rounded-xl bg-card p-8 text-center"
-            >
-              <div
-                data-slot="empty-header"
-                className="flex flex-col items-center gap-2"
-              >
-                <div data-slot="empty-media">
-                  <FileTextIcon className="size-10 text-muted-foreground" />
-                </div>
-                <h2 data-slot="empty-title" className="text-2xl font-medium">
+            <Empty className="min-h-full rounded-xl bg-card p-8">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <FileTextIcon />
+                </EmptyMedia>
+                <EmptyTitle>
                   {!loaded
                     ? 'Loading documents…'
                     : id && error
@@ -201,11 +204,8 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                       : id
                         ? 'Document not found'
                         : 'What would you like to write?'}
-                </h2>
-                <p
-                  data-slot="empty-description"
-                  className="max-w-sm text-muted-foreground"
-                >
+                </EmptyTitle>
+                <EmptyDescription>
                   {!loaded
                     ? 'Opening your local library.'
                     : error
@@ -213,12 +213,9 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                       : id
                         ? 'This document is not available in this browser.'
                         : 'Choose a document from the sidebar, or start something new.'}
-                </p>
-              </div>
-              <div
-                data-slot="empty-content"
-                className="flex flex-wrap items-center justify-center gap-2"
-              >
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent className="flex-row flex-wrap justify-center gap-2">
                 {id?.startsWith('G') && !driveConnected && (
                   <Button
                     disabled={driveLoading}
@@ -226,6 +223,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                       void connectDrive()
                     }}
                   >
+                    <DriveIcon className="size-4" />
                     Connect Google Drive
                   </Button>
                 )}
@@ -240,8 +238,8 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 >
                   <PlusIcon /> New document
                 </Button>
-              </div>
-            </div>
+              </EmptyContent>
+            </Empty>
           )}
         </main>
       </div>

@@ -12,6 +12,7 @@ import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { EditorRefPlugin } from '@lexical/react/LexicalEditorRefPlugin'
 import type { ComponentProps } from 'react'
 import type { Nova } from '#/components/nova/Nova'
+import { toast } from 'sonner'
 import { localDocumentStorage } from '#/lib/documents/storage'
 import {
   importConcept,
@@ -19,6 +20,7 @@ import {
   serializeConcept,
 } from '#/lib/documents/concept-file'
 import { DocumentEditor } from './DocumentEditor'
+import { DocumentSaveStatus } from './DocumentSaveStatus'
 
 vi.mock('#/components/nova/Nova', () => ({
   Nova: ({ collaboration, editorRef }: ComponentProps<typeof Nova>) => (
@@ -54,6 +56,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(() => root.unmount())
   container.remove()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
@@ -109,7 +112,8 @@ it.each(['saved', 'imported'] as const)(
   },
 )
 
-it('replaces the loading state with an error when stored content cannot be opened', async () => {
+it('replaces the loading state with an empty error state and toast when stored content cannot be opened', async () => {
+  const toastError = vi.spyOn(toast, 'error').mockImplementation(() => '')
   await act(() =>
     root.render(
       <DocumentEditor
@@ -123,9 +127,67 @@ it('replaces the loading state with an error when stored content cannot be opene
   )
   await vi.waitFor(async () => {
     await act(async () => {})
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      'Could not open this document',
+    expect(
+      container.querySelector('[data-slot="empty"]')?.textContent,
+    ).toContain('Could not open this document')
+    expect(toastError).toHaveBeenCalledWith(
+      expect.stringContaining('Could not open this document.'),
+      { id: 'document-open:missing' },
     )
     expect(container.querySelector('[role="status"]')).toBeNull()
   })
+})
+
+it('renders a Connect Google Drive action when a Google Drive document fails while disconnected', async () => {
+  vi.spyOn(toast, 'error').mockImplementation(() => '')
+  const onConnectDrive = vi.fn()
+  await act(() =>
+    root.render(
+      <DocumentEditor
+        id="Gmissing"
+        documentRef={documentRef}
+        editorRef={editorRef}
+        pageSetupOpen={false}
+        onPageSetupOpenChange={() => {}}
+        onConnectDrive={onConnectDrive}
+      />,
+    ),
+  )
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(
+      container.querySelector('[data-slot="empty"]')?.textContent,
+    ).toContain('Could not open this document')
+  })
+  const button = Array.from(container.querySelectorAll('button')).find((el) =>
+    el.textContent.includes('Connect Google Drive'),
+  )
+  expect(button).toBeDefined()
+  await act(async () => {
+    button?.click()
+  })
+  expect(onConnectDrive).toHaveBeenCalledOnce()
+
+  await act(() =>
+    root.render(
+      <DocumentSaveStatus
+        status={{ phase: 'error', error: 'Drive sync failed' }}
+        provider="google-drive"
+      />,
+    ),
+  )
+  const statusTrigger = container.querySelector<HTMLButtonElement>(
+    'button[aria-label="Could not save to Drive"]',
+  )
+  expect(statusTrigger).not.toBeNull()
+  await act(async () => {
+    statusTrigger?.click()
+  })
+  const errorText = Array.from(document.body.querySelectorAll('p')).find(
+    (el) => el.textContent === 'Drive sync failed',
+  )
+  expect(errorText).toBeDefined()
+  expect(errorText?.getAttribute('role')).toBeNull()
+  expect(errorText?.className).toContain('text-muted-foreground')
+  expect(errorText?.className).not.toContain('text-destructive')
 })

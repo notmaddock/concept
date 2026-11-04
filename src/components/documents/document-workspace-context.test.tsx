@@ -1,7 +1,9 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import type { DocumentInfo } from '#/lib/documents/storage'
 import {
   DocumentWorkspaceProvider,
   useDocumentWorkspace,
@@ -12,18 +14,27 @@ const mocks = vi.hoisted(() => ({
   listeners: new Set<() => void>(),
   refresh: vi.fn<() => Promise<Set<string>>>(),
   prepareAuth: vi.fn(async () => {}),
+  disconnect: vi.fn(async () => {}),
+  navigate: vi.fn(async () => {}),
+  deleteLocal: vi.fn<(id: string) => Promise<void>>(async () => {}),
+  documents: [] as DocumentInfo[],
+  document: undefined as DocumentInfo | undefined,
   status: { phase: 'local' as const },
 }))
 
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
 vi.mock('#/hooks/use-documents', () => ({
-  useDocuments: () => ({ documents: [], document: undefined, error: '' }),
+  useDocuments: () => ({
+    documents: mocks.documents,
+    document: mocks.document,
+    error: '',
+  }),
 }))
 vi.mock('#/lib/documents/drive/auth', () => ({
   connectGoogleDrive: vi.fn(),
   getGoogleDriveToken: vi.fn(),
   prepareGoogleDriveAuth: () => mocks.prepareAuth(),
-  disconnectGoogleDrive: vi.fn(),
+  disconnectGoogleDrive: () => mocks.disconnect(),
   isGoogleDriveConnected: () => mocks.connected,
   subscribeGoogleDriveAuth: (listener: () => void) => {
     mocks.listeners.add(listener)
@@ -35,6 +46,11 @@ vi.mock('#/lib/documents/drive/auth', () => ({
 vi.mock('#/lib/documents/document-storage', () => ({
   refreshDriveDocuments: () => mocks.refresh(),
   documentStorage: {},
+}))
+vi.mock('#/lib/documents/storage', () => ({
+  localDocumentStorage: {
+    delete: (id: string) => mocks.deleteLocal(id),
+  },
 }))
 vi.mock('#/lib/documents/sync', () => ({
   documentSessions: new Map(),
@@ -49,8 +65,13 @@ let workspace: ReturnType<typeof useDocumentWorkspace>
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   mocks.connected = true
+  mocks.documents = []
+  mocks.document = undefined
   mocks.refresh.mockReset()
   mocks.prepareAuth.mockClear()
+  mocks.disconnect.mockReset()
+  mocks.navigate.mockClear()
+  mocks.deleteLocal.mockClear()
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -72,6 +93,7 @@ it('restores the session on mount without probing it again on focus', async () =
 afterEach(async () => {
   await act(() => root.unmount())
   container.remove()
+  vi.restoreAllMocks()
   expect(mocks.listeners.size).toBe(0)
 })
 
@@ -104,5 +126,83 @@ it('clears source loading when authentication expires before the Drive fetch com
   expect(workspace.driveLoading).toBe(false)
   await act(() => resolveFetch(new Set(['Gstale-result'])))
   expect(workspace.driveLoading).toBe(false)
-  expect(workspace.driveError).toBe('')
+})
+
+it('hides non-offline, non-dirty Drive documents when disconnected and deletes non-dirty Drive documents on disconnect', async () => {
+  const toastErrorSpy = vi.spyOn(toast, 'error').mockImplementation(() => '')
+  mocks.connected = false
+  mocks.refresh.mockResolvedValue(new Set(['Gclean', 'Gdirty', 'Goffline']))
+  mocks.disconnect.mockImplementation(async () => {
+    mocks.connected = false
+    for (const listener of mocks.listeners) listener()
+  })
+  mocks.documents = [
+    { id: 'local-1', name: 'Local Doc', updatedAt: 1 },
+    {
+      id: 'Gclean',
+      name: 'Clean Drive Doc',
+      updatedAt: 2,
+      drive: { fileId: 'clean', offlineAvailable: false, dirty: false },
+    },
+    {
+      id: 'Gdirty',
+      name: 'Dirty Drive Doc',
+      updatedAt: 3,
+      drive: { fileId: 'dirty', offlineAvailable: false, dirty: true },
+    },
+    {
+      id: 'Goffline',
+      name: 'Offline Drive Doc',
+      updatedAt: 4,
+      drive: { fileId: 'offline', offlineAvailable: true, dirty: false },
+    },
+  ]
+
+  function Harness() {
+    workspace = useDocumentWorkspace()
+    return null
+  }
+
+  await act(() =>
+    root.render(
+      <DocumentWorkspaceProvider>
+        <Harness />
+      </DocumentWorkspaceProvider>,
+    ),
+  )
+
+  expect(workspace.documents.map((item) => item.id)).toEqual([
+    'local-1',
+    'Gdirty',
+    'Goffline',
+  ])
+
+  mocks.connected = true
+  mocks.document = mocks.documents[1]
+  await act(async () => {
+    for (const listener of mocks.listeners) listener()
+  })
+  expect(workspace.documents.map((item) => item.id)).toEqual([
+    'local-1',
+    'Gclean',
+    'Gdirty',
+    'Goffline',
+  ])
+
+  act(() => {
+    workspace.copyDocument()
+  })
+  expect(toastErrorSpy).toHaveBeenCalledWith(
+    'Open a document and wait for it to load before making a copy.',
+    { id: 'document-workspace-error' },
+  )
+
+  await act(async () => {
+    workspace.disconnectDrive()
+  })
+  expect(mocks.deleteLocal).toHaveBeenCalledWith('Gclean')
+  expect(mocks.deleteLocal).toHaveBeenCalledWith('Goffline')
+  expect(mocks.deleteLocal).not.toHaveBeenCalledWith('Gdirty')
+  expect(mocks.deleteLocal).not.toHaveBeenCalledWith('local-1')
+  expect(mocks.navigate).toHaveBeenCalledWith({ to: '/' })
 })

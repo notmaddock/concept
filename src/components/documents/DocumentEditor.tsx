@@ -8,6 +8,14 @@ import { FileTextIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Doc } from 'yjs'
 import { Button } from '#/components/ui/button'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '#/components/ui/empty'
 import { DocumentLoading } from './DocumentLoading'
 import { DriveIcon } from './DriveIcon'
 import { DocumentWorkspaceContext } from './document-workspace-store'
@@ -114,32 +122,16 @@ export function DocumentEditor({
         !(workspace?.driveConnected ?? isGoogleDriveConnected()))
 
     return (
-      <div
-        data-slot="empty"
-        className="flex min-h-full flex-col items-center justify-center gap-4 rounded-xl bg-card p-8 text-center"
-      >
-        <div
-          data-slot="empty-header"
-          className="flex flex-col items-center gap-2"
-        >
-          <div data-slot="empty-media">
-            <FileTextIcon className="size-10 text-muted-foreground" />
-          </div>
-          <h2 data-slot="empty-title" className="text-2xl font-medium">
-            Could not open this document
-          </h2>
-          <p
-            data-slot="empty-description"
-            className="max-w-sm text-muted-foreground"
-          >
-            {error}
-          </p>
-        </div>
+      <Empty className="min-h-full rounded-xl bg-card p-8">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileTextIcon />
+          </EmptyMedia>
+          <EmptyTitle>Could not open this document</EmptyTitle>
+          <EmptyDescription>{error}</EmptyDescription>
+        </EmptyHeader>
         {needsDriveConnection && connectDrive && (
-          <div
-            data-slot="empty-content"
-            className="flex flex-col items-center gap-2"
-          >
+          <EmptyContent>
             <Button
               disabled={workspace?.driveLoading}
               onClick={() => {
@@ -149,9 +141,9 @@ export function DocumentEditor({
               <DriveIcon className="size-4" />
               Connect Google Drive
             </Button>
-          </div>
+          </EmptyContent>
         )}
-      </div>
+      </Empty>
     )
   }
 
