@@ -9,7 +9,12 @@ import {
   AlertDialogTitle,
 } from '#/components/ui/alert-dialog'
 import { Checkbox } from '#/components/ui/checkbox'
-import { Label } from '#/components/ui/label'
+import {
+  Field,
+  FieldContent,
+  FieldLabel,
+  FieldTitle,
+} from '#/components/ui/field'
 
 export const CANARY_WARNING_STORAGE_KEY = 'concept:canary-warning-acknowledged'
 
@@ -67,21 +72,21 @@ export function CanaryWarningDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="flex items-start gap-3 rounded-xl border border-border/80 bg-muted/40 p-3.5 text-left">
-          <Checkbox
-            id="canary-acknowledge-checkbox"
-            checked={isChecked}
-            onCheckedChange={(checked) => setIsChecked(Boolean(checked))}
-            className="mt-0.5"
-          />
-          <Label
-            htmlFor="canary-acknowledge-checkbox"
-            className="cursor-pointer leading-normal text-foreground select-none"
-          >
-            I acknowledge Concept is in very early development and I might lose
-            my documents
-          </Label>
-        </div>
+        <FieldLabel>
+          <Field orientation="horizontal">
+            <Checkbox
+              id="canary-acknowledge-checkbox"
+              checked={isChecked}
+              onCheckedChange={(checked) => setIsChecked(Boolean(checked))}
+            />
+            <FieldContent>
+              <FieldTitle className="leading-normal font-normal text-foreground">
+                I acknowledge Concept is in very early development and I might
+                lose my documents
+              </FieldTitle>
+            </FieldContent>
+          </Field>
+        </FieldLabel>
 
         <AlertDialogFooter>
           <AlertDialogAction
