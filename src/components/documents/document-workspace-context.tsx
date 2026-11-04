@@ -109,10 +109,8 @@ function useWorkspaceState(id?: string) {
       void prepareGoogleDriveAuth().catch(() => {})
     }
     refresh()
-    window.addEventListener('focus', refresh)
     window.addEventListener('online', refresh)
     return () => {
-      window.removeEventListener('focus', refresh)
       window.removeEventListener('online', refresh)
     }
   }, [])

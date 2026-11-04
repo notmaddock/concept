@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   connected: true,
   listeners: new Set<() => void>(),
   refresh: vi.fn<() => Promise<Set<string>>>(),
+  prepareAuth: vi.fn(async () => {}),
   status: { phase: 'local' as const },
 }))
 
@@ -21,7 +22,7 @@ vi.mock('#/hooks/use-documents', () => ({
 vi.mock('#/lib/documents/drive/auth', () => ({
   connectGoogleDrive: vi.fn(),
   getGoogleDriveToken: vi.fn(),
-  prepareGoogleDriveAuth: async () => {},
+  prepareGoogleDriveAuth: () => mocks.prepareAuth(),
   disconnectGoogleDrive: vi.fn(),
   isGoogleDriveConnected: () => mocks.connected,
   subscribeGoogleDriveAuth: (listener: () => void) => {
@@ -49,9 +50,23 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   mocks.connected = true
   mocks.refresh.mockReset()
+  mocks.prepareAuth.mockClear()
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
+})
+
+it('restores the session on mount without probing it again on focus', async () => {
+  mocks.refresh.mockResolvedValue(new Set())
+  await act(() =>
+    root.render(<DocumentWorkspaceProvider>{null}</DocumentWorkspaceProvider>),
+  )
+  expect(mocks.prepareAuth).toHaveBeenCalledOnce()
+  await act(() => {
+    window.dispatchEvent(new Event('focus'))
+    window.dispatchEvent(new Event('focus'))
+  })
+  expect(mocks.prepareAuth).toHaveBeenCalledOnce()
 })
 
 afterEach(async () => {
