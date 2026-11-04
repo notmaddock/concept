@@ -190,7 +190,10 @@ export class DocumentSync {
       void this.persistence
         .flush?.()
         .then(() => {
-          if (version === this.version) this.publish('local')
+          if (version === this.version) {
+            this.dirty = false
+            this.publish('local')
+          }
         })
         .catch((error: unknown) => this.fail(error))
       return
@@ -452,5 +455,6 @@ export class DocumentSync {
       await (this.info.drive
         ? this.persistMetadata()
         : this.persistence.flush?.())
+    if (!documentSessions.has(this.info.id)) clearSaveStatus(this.info.id)
   }
 }

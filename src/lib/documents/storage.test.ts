@@ -228,6 +228,12 @@ it('preserves a rename made while a local document is closed when it is reopened
   expect(documentName(secondDoc, renamedClosed.name)).toBe(
     'Renamed while closed',
   )
+  const { getSaveStatus } = await import('./sync')
+  await vi.waitFor(() => {
+    expect(getSaveStatus(created.id).phase).toBe('local')
+  })
+  await secondSession.destroy()
+  expect(getSaveStatus(created.id)).toEqual({ phase: 'loading' })
 })
 
 it('batches metadata persistence during rapid Drive edits and reports sync failures via toast', async () => {
