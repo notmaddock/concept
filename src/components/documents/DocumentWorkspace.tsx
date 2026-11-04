@@ -102,6 +102,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 render={
                   <span
                     tabIndex={0}
+                    aria-label="Pre-alpha"
                     className="font-mono text-sm font-semibold text-orange-500 select-none cursor-default focus-visible:outline-none dark:text-orange-400"
                   />
                 }
