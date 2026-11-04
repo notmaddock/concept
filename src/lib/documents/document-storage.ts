@@ -1,7 +1,12 @@
 import { Doc } from 'yjs'
 import { localDocumentStorage } from './storage'
 import type { DocumentStorage, DocumentPersistence } from './storage'
-import { DocumentSync, documentName, documentSessions } from './sync'
+import {
+  clearSaveStatus,
+  DocumentSync,
+  documentName,
+  documentSessions,
+} from './sync'
 import {
   getFileMetadata,
   listConceptFiles,
@@ -80,6 +85,7 @@ export const documentStorage: DocumentStorage = {
     const info = await localDocumentStorage.get(id)
     if (info?.drive) await trashConceptFile(info.drive.fileId)
     await localDocumentStorage.delete(id)
+    clearSaveStatus(id)
   },
   open(id, doc) {
     let local: DocumentPersistence | undefined

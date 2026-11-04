@@ -199,3 +199,96 @@ it('repairs an aborted update before reporting a successful local flush', async 
     abortUpdate.mockRestore()
   }
 })
+
+it('preserves a rename made while a local document is closed when it is reopened', async () => {
+  const { documentStorage } = await import('./document-storage')
+  const { documentName } = await import('./sync')
+  const created = await documentStorage.create()
+  const firstDoc = new Doc()
+  docs.push(firstDoc)
+  const firstSession = documentStorage.open(created.id, firstDoc)
+  sessions.push(firstSession)
+  await firstSession.whenSynced
+  await documentStorage.rename(created.id, 'First active name')
+  expect(firstDoc.getMap('metadata').get('name')).toBe('First active name')
+  await firstSession.destroy()
+
+  const renamedClosed = await documentStorage.rename(
+    created.id,
+    'Renamed while closed',
+  )
+  expect(renamedClosed.name).toBe('Renamed while closed')
+
+  const secondDoc = new Doc()
+  docs.push(secondDoc)
+  const secondSession = documentStorage.open(created.id, secondDoc)
+  sessions.push(secondSession)
+  await secondSession.whenSynced
+  expect(secondDoc.getMap('metadata').get('name')).toBe('Renamed while closed')
+  expect(documentName(secondDoc, renamedClosed.name)).toBe(
+    'Renamed while closed',
+  )
+})
+
+it('batches metadata persistence during rapid Drive edits and reports sync failures via toast', async () => {
+  const { toast } = await import('sonner')
+  const toastSpy = vi.spyOn(toast, 'error').mockImplementation(() => '')
+  const api = await import('./drive/api')
+  const updateSpy = vi
+    .spyOn(api, 'updateConceptFile')
+    .mockRejectedValueOnce(new api.DriveError(500, 'Drive unavailable'))
+  const { initializeDocument } = await import('./initial-document')
+  const { serializeConcept } = await import('./serialization')
+  const remoteDoc = new Doc()
+  docs.push(remoteDoc)
+  initializeDocument(remoteDoc)
+  remoteDoc.getMap('metadata').set('name', 'Doc')
+  const readSpy = vi.spyOn(api, 'readConceptFile').mockResolvedValueOnce({
+    etag: '"v1"',
+    file: {
+      id: 'drive-id',
+      name: 'Doc.concept',
+      mimeType: 'application/vnd.concept+json',
+    },
+    content: serializeConcept('Doc', remoteDoc),
+  })
+  const { localDocumentStorage: activeLocalStorage } = await import('./storage')
+  const patchSpy = vi.spyOn(activeLocalStorage, 'patch')
+  const { DocumentSync } = await import('./sync')
+
+  const info = {
+    id: 'Gdrive-id',
+    name: 'Doc',
+    updatedAt: 1,
+    drive: { fileId: 'drive-id', offlineAvailable: true },
+  }
+  await activeLocalStorage.put(info)
+  const doc = new Doc()
+  docs.push(doc)
+  const sync = new DocumentSync(info, doc, {
+    whenSynced: Promise.resolve(),
+    flush: async () => {},
+    destroy: async () => {},
+  })
+  try {
+    await sync.start()
+    patchSpy.mockClear()
+    doc.getMap('settings').set('a', 1)
+    doc.getMap('settings').set('b', 2)
+    doc.getMap('settings').set('c', 3)
+    await vi.waitFor(() => {
+      expect(patchSpy).toHaveBeenCalledTimes(1)
+    })
+
+    await sync.sync()
+    expect(toastSpy).toHaveBeenCalledWith('Drive unavailable', {
+      id: 'drive-sync:Gdrive-id',
+    })
+  } finally {
+    await sync.stop()
+    toastSpy.mockRestore()
+    updateSpy.mockRestore()
+    readSpy.mockRestore()
+    patchSpy.mockRestore()
+  }
+})

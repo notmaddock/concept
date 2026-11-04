@@ -295,3 +295,21 @@ it('ignores a direct lookup that finishes after navigation', async () => {
   expect(actions.documents.some((item) => item.id === 'Gslow')).toBe(false)
   expect(actions.loaded).toBe(true)
 })
+
+it('selects the next document or creates a new one when the root default document is deleted', async () => {
+  function Harness() {
+    actions = useDocuments(undefined, storage)
+    return null
+  }
+  await act(() => root.render(<Harness />))
+  expect(actions.document).toEqual(second)
+
+  await act(() => actions.deleteDocument(second.id))
+  expect(actions.document).toEqual(first)
+  expect(navigate).not.toHaveBeenCalled()
+
+  const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
+  await act(() => listener({ type: 'delete', id: first.id }))
+  expect(storage.create).toHaveBeenCalledTimes(1)
+  expect(actions.document?.id).toBe('new')
+})

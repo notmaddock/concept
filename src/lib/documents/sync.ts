@@ -56,6 +56,9 @@ export function setSaveStatus(id: string, status: SaveStatus) {
   statuses.set(id, status)
   listeners.forEach((listener) => listener())
 }
+export function clearSaveStatus(id: string) {
+  if (statuses.delete(id)) listeners.forEach((listener) => listener())
+}
 
 export function documentName(doc: Doc, fallback: string) {
   const name = doc.getMap<string>('metadata').get('name')
@@ -112,6 +115,13 @@ export class DocumentSync {
       etag: this.etag,
     }
     setSaveStatus(this.info.id, status)
+    if (
+      phase === 'loading' ||
+      phase === 'saving' ||
+      phase === 'pending' ||
+      phase === 'reconciling'
+    )
+      return
     const version = ++this.metadataVersion
     const content = this.content()
     const bytes = new TextEncoder().encode(content)
@@ -142,20 +152,24 @@ export class DocumentSync {
       try {
         await this.download()
       } catch (error) {
-        this.fail(error)
+        this.fail(error, false)
         if (
           !(this.info.drive.offlineAvailable || this.dirty) ||
           !hasCachedContent
         )
           throw error
       }
+    } else if (
+      this.doc.getMap<string>('metadata').get('name') !== this.info.name
+    ) {
+      this.doc.getMap<string>('metadata').set('name', this.info.name)
     }
     if (this.stopped) return
     this.doc.on('update', this.changed)
     if (this.info.drive)
       this.unsubscribeAuth = subscribeGoogleDriveAuth(() => {
         if (isGoogleDriveConnected()) this.check()
-        else this.fail(new GoogleDriveAuthError())
+        else this.fail(new GoogleDriveAuthError(), false)
       })
     if (!this.info.drive) {
       await this.persistence.flush?.()
@@ -168,6 +182,7 @@ export class DocumentSync {
 
   private changed = () => {
     ++this.version
+    const wasDirty = this.dirty
     this.dirty = true
     if (!this.info.drive) {
       const version = this.version
@@ -180,13 +195,21 @@ export class DocumentSync {
         .catch((error: unknown) => this.fail(error))
       return
     }
-    void this.persistMetadata().catch((error: unknown) => this.fail(error))
+    const nextName = documentName(this.doc, this.info.name)
+    if (!wasDirty || nextName !== this.info.name) {
+      this.info.name = nextName
+      void this.persistMetadata().catch((error: unknown) => this.fail(error))
+    }
     if (!this.running) this.publish('pending')
     this.schedule()
   }
 
-  private async persistMetadata() {
+  private async persistMetadata(
+    drive?: Partial<NonNullable<DocumentInfo['drive']>>,
+  ) {
     await this.persistence.flush?.()
+    const nextName = documentName(this.doc, this.info.name)
+    this.info.name = nextName
     return localDocumentStorage.patch(this.info.id, (current) => ({
       ...current,
       name: documentName(this.doc, current.name),
@@ -197,6 +220,7 @@ export class DocumentSync {
             dirty: this.dirty,
             etag: this.etag,
             remoteFilename: this.remoteFilename,
+            ...drive,
           }
         : undefined,
     }))
@@ -249,26 +273,19 @@ export class DocumentSync {
       this.remoteFilename = remote.file.name
       this.etag = remote.etag
       this.dirty = this.content() !== this.acknowledged
-      const info = await this.persistMetadata()
+      const lastSyncedAt = this.dirty ? undefined : Date.now()
+      const savedRevision = this.dirty
+        ? undefined
+        : await documentRevision(this.acknowledged)
+      const info = await this.persistMetadata(
+        this.dirty ? undefined : { lastSyncedAt, savedRevision },
+      )
       setSaveStatus(this.info.id, {
         ...getSaveStatus(this.info.id),
+        ...(lastSyncedAt === undefined ? {} : { lastSyncedAt }),
         remoteRevision: remote.file.headRevisionId ?? remote.file.version,
         offlineAvailable: info.drive?.offlineAvailable,
       })
-      if (!this.dirty) {
-        const lastSyncedAt = Date.now()
-        const savedRevision = await documentRevision(this.acknowledged)
-        await localDocumentStorage.patch(this.info.id, (current) => ({
-          ...current,
-          drive: current.drive
-            ? { ...current.drive, lastSyncedAt, savedRevision }
-            : undefined,
-        }))
-        setSaveStatus(this.info.id, {
-          ...getSaveStatus(this.info.id),
-          lastSyncedAt,
-        })
-      }
       this.publish(this.dirty ? 'pending' : 'synced')
     } finally {
       snapshot.destroy()
@@ -339,22 +356,16 @@ export class DocumentSync {
         this.retryCount = 0
         const lastSyncedAt = Date.now()
         const savedRevision = await documentRevision(content)
-        await this.persistMetadata()
-        await localDocumentStorage.patch(this.info.id, (current) => ({
-          ...current,
-          drive: current.drive
-            ? {
-                ...current.drive,
-                lastSyncedAt,
-                savedRevision,
-                revision: remote.file.headRevisionId ?? remote.file.version,
-              }
-            : undefined,
-        }))
+        const remoteRevision = remote.file.headRevisionId ?? remote.file.version
+        await this.persistMetadata({
+          lastSyncedAt,
+          savedRevision,
+          revision: remoteRevision,
+        })
         setSaveStatus(this.info.id, {
           ...getSaveStatus(this.info.id),
           lastSyncedAt,
-          remoteRevision: remote.file.headRevisionId ?? remote.file.version,
+          remoteRevision,
         })
         this.publish(this.dirty ? 'pending' : 'synced')
         return
@@ -370,22 +381,29 @@ export class DocumentSync {
     }
   }
 
-  private fail(error: unknown) {
-    if (
-      !this.stopped &&
-      this.remoteFilename &&
-      documentName(this.doc, this.info.name) !==
-        this.remoteFilename.replace(/\.concept$/i, '')
-    )
-      toast.error('Could not rename the file on Google Drive.', {
-        id: `drive-rename:${this.info.id}`,
-      })
+  private fail(error: unknown, notify = true) {
+    const message =
+      error instanceof Error ? error.message : 'Could not save changes.'
     const auth =
       isGoogleDriveAuthError(error) ||
       (error instanceof DriveError && error.status === 401)
+    const renameFailed =
+      Boolean(this.remoteFilename) &&
+      documentName(this.doc, this.info.name) !==
+        this.remoteFilename!.replace(/\.concept$/i, '')
+    if (!this.stopped) {
+      if (renameFailed)
+        toast.error('Could not rename the file on Google Drive.', {
+          id: `drive-rename:${this.info.id}`,
+        })
+      else if (notify && !auth && navigator.onLine)
+        toast.error(message, {
+          id: `drive-sync:${this.info.id}`,
+        })
+    }
     this.publish(
       auth ? 'auth-required' : !navigator.onLine ? 'offline' : 'error',
-      error instanceof Error ? error.message : 'Could not save changes.',
+      message,
     )
     const retryable =
       !auth &&
@@ -430,6 +448,9 @@ export class DocumentSync {
     if (documentSessions.get(this.info.id) === this)
       documentSessions.delete(this.info.id)
     await this.running
-    if (this.info.drive && this.dirty) await this.persistMetadata()
+    if (this.dirty)
+      await (this.info.drive
+        ? this.persistMetadata()
+        : this.persistence.flush?.())
   }
 }

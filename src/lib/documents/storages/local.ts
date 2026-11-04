@@ -293,37 +293,12 @@ export const localDocumentStorage: DocumentStorage & {
     publishDocumentChange({ type: 'upsert', document })
     return document
   },
-  async rename(id, name) {
-    const db = await database()
-    const document = await new Promise<DocumentInfo>((resolve, reject) => {
-      const transaction = db.transaction('documents', 'readwrite')
-      const store = transaction.objectStore('documents')
-      const request: IDBRequest<DocumentInfo | undefined> = store.get(id)
-      let updated: DocumentInfo | undefined
-      request.onsuccess = () => {
-        if (!request.result) {
-          transaction.abort()
-          return
-        }
-        updated = {
-          ...request.result,
-          name: name.trim() || 'Untitled document',
-          updatedAt: Date.now(),
-        }
-        store.put(updated)
-      }
-      transaction.oncomplete = () => {
-        if (updated) resolve(updated)
-      }
-      transaction.onabort = () => {
-        reject(transaction.error ?? new Error('Document not found'))
-      }
-      transaction.onerror = () => {
-        reject(transaction.error)
-      }
-    })
-    publishDocumentChange({ type: 'upsert', document })
-    return document
+  rename(id, name) {
+    return this.patch(id, (current) => ({
+      ...current,
+      name: name.trim() || 'Untitled document',
+      updatedAt: Date.now(),
+    }))
   },
   async delete(id) {
     await withDocumentLock(id, async () => {

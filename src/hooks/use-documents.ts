@@ -31,10 +31,10 @@ export function useDocuments(
     pending: boolean
     error?: string
   }>()
-  const activeId = useRef(id)
+  const activeId = useRef({ id, defaultId })
   useEffect(() => {
-    activeId.current = id
-  }, [id])
+    activeId.current = { id, defaultId }
+  }, [id, defaultId])
 
   useEffect(() => {
     let active = true
@@ -94,11 +94,11 @@ export function useDocuments(
         )
       } else {
         setDocuments((items) => items.filter((item) => item.id !== change.id))
-        if (
-          change.id === activeId.current &&
-          !deletePending.current.has(change.id)
-        )
-          void navigate({ to: '/' })
+        if (!deletePending.current.has(change.id)) {
+          if (change.id === activeId.current.id) void navigate({ to: '/' })
+          else if (change.id === activeId.current.defaultId)
+            setDefaultId(undefined)
+        }
       }
     })
     refresh()
@@ -230,6 +230,7 @@ export function useDocuments(
       setDocuments((items) => items.filter((item) => item.id !== documentId))
       setError('')
       if (documentId === id) await navigate({ to: '/' })
+      else if (documentId === defaultId) setDefaultId(undefined)
     } catch {
       setError('Could not delete the document. Please try again.')
     } finally {
