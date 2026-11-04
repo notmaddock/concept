@@ -78,6 +78,7 @@ Under the `drive.file` scope, files shared from other users or not created by th
 2. In the OAuth 2.0 Client ID settings, register authorized JavaScript origins for both local development (`http://localhost:3000`) and production (`https://concept.maddock.world`).
 3. Create an API key restricted to the Google Picker API. For website restrictions, allow `http://localhost:3000/*`, `https://concept.maddock.world/*`, and `https://docs.google.com/*` (Picker runs in a Google iframe).
 4. Set `VITE_GOOGLE_PICKER_API_KEY` and `VITE_GOOGLE_PICKER_APP_ID` (the Google Cloud project number) in `.env` / `.env.local`. The API key is required; the app ID may be omitted when `VITE_GOOGLE_CLIENT_ID` is set. If `VITE_GOOGLE_PICKER_APP_ID` is omitted, the project number is automatically derived from `VITE_GOOGLE_CLIENT_ID`.
+5. For GitHub Actions deployments, set the repository secret `VITE_GOOGLE_PICKER_API_KEY` and repository variable `VITE_GOOGLE_PICKER_APP_ID`. The build job supplies these to Vite before creating the shared preview/production artifact. The restricted browser key is included in the client bundle; setting a Worker runtime secret alone does not configure Picker.
 
 ## Setting up PostHog
 
