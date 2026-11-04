@@ -50,7 +50,7 @@ export function CanaryWarningDialog({
     <AlertDialog
       open={open}
       onOpenChange={(next) => {
-        if (!next && !isChecked) return
+        if (!next) return
         setOpen(next)
       }}
     >
