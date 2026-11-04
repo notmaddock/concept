@@ -180,10 +180,12 @@ export async function listFolders(
 export async function readConceptFile(
   id: string,
   signal?: AbortSignal,
+  initial?: DriveFileVersion,
 ): Promise<DriveFileVersion & { content: string }> {
   // Bind downloaded bytes to their validator even if another writer saves mid-read.
   for (let attempt = 0; attempt < 3; attempt++) {
-    const before = await getFileMetadata(id, signal)
+    const before =
+      attempt === 0 && initial ? initial : await getFileMetadata(id, signal)
     const etag = requiredEtag(before.etag)
     const response = await request(
       `${api}/${encodeURIComponent(id)}?alt=media`,

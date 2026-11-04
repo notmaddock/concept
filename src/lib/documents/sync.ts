@@ -11,7 +11,13 @@ import {
   isGoogleDriveConnected,
   subscribeGoogleDriveAuth,
 } from './drive/auth'
-import { DriveError, readConceptFile, updateConceptFile } from './drive/api'
+import {
+  DriveError,
+  getFileMetadata,
+  readConceptFile,
+  updateConceptFile,
+} from './drive/api'
+import type { DriveFileVersion } from './drive/api'
 
 export const saveTiming = { idleMs: 3000, maxWaitMs: 60_000 }
 
@@ -212,10 +218,11 @@ export class DocumentSync {
     void this.sync(true)
   }
 
-  private async download() {
+  private async download(initial?: DriveFileVersion) {
     const remote = await readConceptFile(
       this.info.drive!.fileId,
       this.abort.signal,
+      initial,
     )
     if (this.stopped) return
     // Canonicalize the remote snapshot separately: local edits must never become
@@ -291,8 +298,14 @@ export class DocumentSync {
 
   private async run(checkRemote: boolean) {
     if (checkRemote || !this.etag) {
-      this.publish('reconciling')
-      await this.download()
+      const current =
+        this.etag && this.acknowledged
+          ? await getFileMetadata(this.info.drive!.fileId, this.abort.signal)
+          : undefined
+      if (!current || current.etag !== this.etag) {
+        this.publish('reconciling')
+        await this.download(current)
+      }
     }
     for (let attempt = 0; this.dirty && !this.stopped; attempt++) {
       if (attempt === 5)

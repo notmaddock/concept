@@ -8,7 +8,12 @@ import {
   getSaveStatus,
   mergeConcept,
 } from './sync'
-import { DriveError, readConceptFile, updateConceptFile } from './drive/api'
+import {
+  DriveError,
+  getFileMetadata,
+  readConceptFile,
+  updateConceptFile,
+} from './drive/api'
 import type { DocumentInfo } from './storage'
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
@@ -23,6 +28,7 @@ vi.mock('./drive/api', () => ({
     }
   },
   readConceptFile: vi.fn(),
+  getFileMetadata: vi.fn(),
   updateConceptFile: vi.fn(),
 }))
 vi.mock('./storage', () => ({
@@ -41,6 +47,7 @@ let local: Doc
 let remote: Doc
 let session: DocumentSync
 const read = vi.mocked(readConceptFile)
+const metadata = vi.mocked(getFileMetadata)
 const write = vi.mocked(updateConceptFile)
 const flush = vi.fn(async () => {})
 
@@ -91,6 +98,7 @@ beforeEach(() => {
     ...version('"base"'),
     content: serializeConcept('Test', remote),
   }))
+  metadata.mockResolvedValue(version('"base"'))
   write.mockResolvedValue(version('"saved"'))
 })
 
@@ -128,6 +136,64 @@ it('forces a save at sixty seconds while edits keep resetting the idle timer', a
   expect(write).not.toHaveBeenCalled()
   await vi.advanceTimersByTimeAsync(1000)
   expect(write).toHaveBeenCalledOnce()
+})
+
+it('checks only metadata when focus returns to an unchanged clean document', async () => {
+  await start()
+  read.mockClear()
+  window.dispatchEvent(new Event('focus'))
+  await session.sync(true)
+  expect(metadata).toHaveBeenCalledExactlyOnceWith(
+    'drive-file',
+    expect.any(AbortSignal),
+  )
+  expect(read).not.toHaveBeenCalled()
+  expect(write).not.toHaveBeenCalled()
+  expect(getSaveStatus(info.id).phase).toBe('synced')
+})
+
+it('uploads local edits after an unchanged focus check without downloading content', async () => {
+  await start()
+  read.mockClear()
+  local.getMap('settings').set('local-edit', true)
+  await session.sync(true)
+  expect(metadata).toHaveBeenCalledOnce()
+  expect(read).not.toHaveBeenCalled()
+  expect(write).toHaveBeenCalledOnce()
+  expect(write.mock.calls[0][3]).toBe('"base"')
+  const saved = new Doc()
+  mergeConcept(saved, write.mock.calls[0][2])
+  expect(saved.getMap('settings').get('local-edit')).toBe(true)
+  expect(getSaveStatus(info.id).phase).toBe('synced')
+  saved.destroy()
+})
+
+it('reuses changed focus metadata while reconciling remote and local edits', async () => {
+  await start()
+  read.mockClear()
+  local.getMap('settings').set('local-edit', true)
+  remote.getMap('settings').set('remote-edit', true)
+  const changed = version('"external-change"')
+  metadata.mockResolvedValueOnce(changed)
+  read.mockResolvedValueOnce({
+    ...changed,
+    content: serializeConcept('Test', remote),
+  })
+  await session.sync(true)
+  expect(metadata).toHaveBeenCalledOnce()
+  expect(read).toHaveBeenCalledExactlyOnceWith(
+    'drive-file',
+    expect.any(AbortSignal),
+    changed,
+  )
+  expect(write.mock.calls[0][3]).toBe(changed.etag)
+  const saved = new Doc()
+  mergeConcept(saved, write.mock.calls[0][2])
+  expect(saved.getMap('settings').toJSON()).toEqual({
+    'local-edit': true,
+    'remote-edit': true,
+  })
+  saved.destroy()
 })
 
 it('merges remote changes and retries each stale ETag without losing local edits', async () => {
@@ -214,6 +280,7 @@ it('stops timers, event-triggered reads, and document subscriptions', async () =
   window.dispatchEvent(new Event('online'))
   await vi.advanceTimersByTimeAsync(120_000)
   expect(read).toHaveBeenCalledOnce()
+  expect(metadata).not.toHaveBeenCalled()
   expect(write).not.toHaveBeenCalled()
 })
 
@@ -221,12 +288,10 @@ it('keeps an edit pending when it arrives during the final clean-sync flush', as
   await start()
   const finishing = deferred<void>()
   const entered = deferred<void>()
-  flush
-    .mockImplementationOnce(async () => {})
-    .mockImplementationOnce(() => {
-      entered.resolve()
-      return finishing.promise
-    })
+  flush.mockImplementationOnce(() => {
+    entered.resolve()
+    return finishing.promise
+  })
   const checking = session.sync(true)
   await entered.promise
   local.getMap('settings').set('during-final-flush', true)
@@ -242,6 +307,7 @@ it('adopts an external Drive filename even when the embedded name is older', asy
   await start()
   const renamed = version('"renamed"')
   renamed.file.name = 'External name.concept'
+  metadata.mockResolvedValueOnce(renamed)
   read.mockResolvedValueOnce({
     ...renamed,
     content: serializeConcept('Test', remote),

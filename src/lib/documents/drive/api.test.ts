@@ -113,6 +113,43 @@ it('retries a download whose validator changed during reading', async () => {
   })
 })
 
+it('reuses supplied metadata before download while verifying the final validator', async () => {
+  const initial = { file, etag: '"checked"' }
+  fetchMock
+    .mockResolvedValueOnce(new Response('content'))
+    .mockResolvedValueOnce(metadata(initial.etag))
+  await expect(
+    readConceptFile('drive-id', undefined, initial),
+  ).resolves.toEqual({ ...initial, content: 'content' })
+  expect(fetchMock).toHaveBeenCalledTimes(2)
+  expect(String(fetchMock.mock.calls[0][0])).toContain(
+    '/drive/v3/files/drive-id?alt=media',
+  )
+  expect(String(fetchMock.mock.calls[1][0])).toContain(
+    '/drive/v2/files/drive-id?fields=',
+  )
+})
+
+it('discards stale supplied metadata and reads fresh metadata on download retry', async () => {
+  const initial = { file, etag: '"stale"' }
+  fetchMock
+    .mockResolvedValueOnce(new Response('stale-content'))
+    .mockResolvedValueOnce(metadata('"changed"'))
+    .mockResolvedValueOnce(metadata('"fresh"'))
+    .mockResolvedValueOnce(new Response('fresh-content'))
+    .mockResolvedValueOnce(metadata('"fresh"'))
+  await expect(
+    readConceptFile('drive-id', undefined, initial),
+  ).resolves.toEqual({ file, etag: '"fresh"', content: 'fresh-content' })
+  expect(fetchMock).toHaveBeenCalledTimes(5)
+  expect(String(fetchMock.mock.calls[2][0])).toContain(
+    '/drive/v2/files/drive-id?fields=',
+  )
+  expect(String(fetchMock.mock.calls[3][0])).toContain(
+    '/drive/v3/files/drive-id?alt=media',
+  )
+})
+
 it('fails closed when Drive omits the response ETag', async () => {
   fetchMock.mockResolvedValueOnce(metadata())
   await expect(readConceptFile('drive-id')).rejects.toThrow(
