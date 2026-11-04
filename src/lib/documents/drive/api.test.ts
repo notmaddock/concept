@@ -10,6 +10,8 @@ import {
   DriveCreatedFileError,
   DriveError,
   listConceptFiles,
+  getFileMetadata,
+  isDriveFileReadOnly,
   readConceptFile,
   trashConceptFile,
   updateConceptFile,
@@ -284,4 +286,26 @@ it('cancels document downloads when their owning session stops', async () => {
   controller.abort()
   await rejected
   expect(fetchMock).toHaveBeenCalledOnce()
+})
+
+it('requests content capabilities and shared-drive support when opening a file', async () => {
+  fetchMock.mockResolvedValueOnce(metadata('"base"'))
+  await getFileMetadata('shared-drive-file')
+  const url = new URL(String(fetchMock.mock.calls[0][0]))
+  expect(url.searchParams.get('supportsAllDrives')).toBe('true')
+  expect(url.searchParams.get('fields')).toContain('canModifyContent')
+  expect(
+    isDriveFileReadOnly({
+      ...file,
+      capabilities: { canEdit: true, canModifyContent: false },
+    }),
+  ).toBe(true)
+})
+
+it('includes shared-drive files in library listings', async () => {
+  fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ files: [] })))
+  await listConceptFiles()
+  const url = new URL(String(fetchMock.mock.calls[0][0]))
+  expect(url.searchParams.get('supportsAllDrives')).toBe('true')
+  expect(url.searchParams.get('includeItemsFromAllDrives')).toBe('true')
 })
