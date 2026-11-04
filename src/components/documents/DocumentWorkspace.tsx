@@ -172,6 +172,9 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 editorRef={editorRef}
                 pageSetupOpen={pageSetupOpen}
                 onPageSetupOpenChange={onPageSetupOpenChange}
+                onConnectDrive={() => {
+                  void connectDrive()
+                }}
               />
             </div>
           ) : (!loaded || !id) && !error ? (
@@ -179,25 +182,65 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               label={id ? 'Opening document…' : 'Loading documents…'}
             />
           ) : (
-            <div className="flex min-h-full flex-col items-center justify-center gap-4 rounded-xl bg-card p-8 text-center">
-              <FileTextIcon className="size-10 text-muted-foreground" />
-              <h2 className="text-2xl font-medium">
-                {!loaded
-                  ? 'Loading documents…'
-                  : id
-                    ? 'Document not found'
-                    : 'What would you like to write?'}
-              </h2>
-              <p className="max-w-sm text-muted-foreground">
-                {!loaded
-                  ? 'Opening your local library.'
-                  : id
-                    ? 'This document is not available in this browser.'
-                    : 'Choose a document from the sidebar, or start something new.'}
-              </p>
-              <Button onClick={createDocument} disabled={creating}>
-                <PlusIcon /> New document
-              </Button>
+            <div
+              data-slot="empty"
+              className="flex min-h-full flex-col items-center justify-center gap-4 rounded-xl bg-card p-8 text-center"
+            >
+              <div
+                data-slot="empty-header"
+                className="flex flex-col items-center gap-2"
+              >
+                <div data-slot="empty-media">
+                  <FileTextIcon className="size-10 text-muted-foreground" />
+                </div>
+                <h2 data-slot="empty-title" className="text-2xl font-medium">
+                  {!loaded
+                    ? 'Loading documents…'
+                    : id && error
+                      ? 'Could not open this document'
+                      : id
+                        ? 'Document not found'
+                        : 'What would you like to write?'}
+                </h2>
+                <p
+                  data-slot="empty-description"
+                  className="max-w-sm text-muted-foreground"
+                >
+                  {!loaded
+                    ? 'Opening your local library.'
+                    : error
+                      ? error
+                      : id
+                        ? 'This document is not available in this browser.'
+                        : 'Choose a document from the sidebar, or start something new.'}
+                </p>
+              </div>
+              <div
+                data-slot="empty-content"
+                className="flex flex-wrap items-center justify-center gap-2"
+              >
+                {id?.startsWith('G') && !driveConnected && (
+                  <Button
+                    disabled={driveLoading}
+                    onClick={() => {
+                      void connectDrive()
+                    }}
+                  >
+                    Connect Google Drive
+                  </Button>
+                )}
+                <Button
+                  variant={
+                    id?.startsWith('G') && !driveConnected
+                      ? 'outline'
+                      : 'default'
+                  }
+                  onClick={createDocument}
+                  disabled={creating}
+                >
+                  <PlusIcon /> New document
+                </Button>
+              </div>
             </div>
           )}
         </main>

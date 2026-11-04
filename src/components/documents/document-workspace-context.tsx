@@ -21,6 +21,7 @@ import {
   refreshDriveDocuments,
   documentStorage,
 } from '#/lib/documents/document-storage'
+import { localDocumentStorage } from '#/lib/documents/storage'
 import {
   documentSessions,
   getSaveStatus,
@@ -79,18 +80,15 @@ function useWorkspaceState(id?: string) {
   const [fileAction, setFileAction] = useState<
     'open' | 'copy' | ImportFormat | null
   >(null)
-  const [fileError, setFileError] = useState('')
   const [pageSetupOpen, setPageSetupOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [saveToDriveOpen, setSaveToDriveOpen] = useState(false)
   const [driveLoading, setDriveLoading] = useState(false)
-  const [driveError, setDriveError] = useState('')
-  const operationError = library.error || fileError || driveError
   useEffect(() => {
-    if (operationError)
-      toast.error(operationError, { id: 'document-workspace-error' })
-  }, [operationError])
+    if (library.error)
+      toast.error(library.error, { id: 'document-workspace-error' })
+  }, [library.error])
   const [driveIds, setDriveIds] = useState<Set<string>>()
   const driveConnectionPending = useRef(false)
   const driveConnected = useSyncExternalStore(
@@ -128,10 +126,11 @@ function useWorkspaceState(id?: string) {
       })
       .catch((cause: unknown) => {
         if (active)
-          setDriveError(
+          toast.error(
             cause instanceof Error
               ? cause.message
               : 'Could not load Drive documents.',
+            { id: 'document-workspace-error' },
           )
       })
       .finally(() => {
@@ -143,7 +142,6 @@ function useWorkspaceState(id?: string) {
   }, [driveConnected])
 
   async function connectDrive() {
-    setDriveError('')
     setDriveLoading(true)
     driveConnectionPending.current = true
     try {
@@ -151,14 +149,14 @@ function useWorkspaceState(id?: string) {
         await connectGoogleDrive()
         return
       }
-      setDriveLoading(true)
       setDriveIds(await refreshDriveDocuments())
       if (id?.startsWith('G')) await documentStorage.get(id)
       if (!documentRef.current) setConnectionRevision((value) => value + 1)
       else await documentSessions.get(document?.id ?? '')?.sync(true)
     } catch (cause) {
-      setDriveError(
+      toast.error(
         cause instanceof Error ? cause.message : 'Could not connect to Drive.',
+        { id: 'document-workspace-error' },
       )
     } finally {
       driveConnectionPending.current = false
@@ -173,8 +171,9 @@ function useWorkspaceState(id?: string) {
   function copyDocument() {
     if (documentRef.current && document) setFileAction('copy')
     else
-      setFileError(
+      toast.error(
         'Open a document and wait for it to load before making a copy.',
+        { id: 'document-workspace-error' },
       )
   }
 
@@ -187,12 +186,12 @@ function useWorkspaceState(id?: string) {
       const source = { name: document.name, doc: documentRef.current }
       const { downloadConcept } = await import('#/lib/documents/concept-file')
       downloadConcept(source.name, source.doc)
-      setFileError('')
     } catch (cause) {
-      setFileError(
+      toast.error(
         cause instanceof Error
           ? cause.message
           : 'Could not download the document.',
+        { id: 'document-workspace-error' },
       )
     }
   }
@@ -200,7 +199,9 @@ function useWorkspaceState(id?: string) {
   async function exportDocument(format: ExportFormat) {
     const editor = editorRef.current
     if (!document || !editor) {
-      setFileError('Open a document and wait for it to load before exporting.')
+      toast.error('Open a document and wait for it to load before exporting.', {
+        id: 'document-workspace-error',
+      })
       return
     }
     try {
@@ -208,9 +209,10 @@ function useWorkspaceState(id?: string) {
         await import('#/lib/documents/export')
       const file = await serializeExport(editor, document.name, format)
       downloadExport(document.name, file)
-      setFileError('')
     } catch {
-      setFileError('Could not export the document. Please try again.')
+      toast.error('Could not export the document. Please try again.', {
+        id: 'document-workspace-error',
+      })
     }
   }
 
@@ -219,8 +221,7 @@ function useWorkspaceState(id?: string) {
     documents: library.documents.filter(
       (item) =>
         !item.drive ||
-        !driveIds ||
-        driveIds.has(item.id) ||
+        (driveConnected && (!driveIds || driveIds.has(item.id))) ||
         item.id === document?.id ||
         item.drive.offlineAvailable ||
         item.drive.dirty,
@@ -231,20 +232,26 @@ function useWorkspaceState(id?: string) {
     disconnectDrive: () => {
       setDriveLoading(true)
       void disconnectGoogleDrive()
-        .then(() => {
+        .then(async () => {
           setDriveIds(new Set())
-          setDriveError('')
+          await Promise.all(
+            library.documents
+              .filter((item) => item.drive && !item.drive.dirty)
+              .map((item) => localDocumentStorage.delete(item.id)),
+          )
+          if (document?.drive || id?.startsWith('G'))
+            await navigate({ to: '/' })
         })
         .catch((cause: unknown) =>
-          setDriveError(
+          toast.error(
             cause instanceof Error
               ? cause.message
               : 'Could not disconnect Google Drive.',
+            { id: 'document-workspace-error' },
           ),
         )
         .finally(() => setDriveLoading(false))
     },
-    driveError,
     connectionRevision,
     connectDrive,
     saveToDrive: () => setSaveToDriveOpen(true),
@@ -257,10 +264,11 @@ function useWorkspaceState(id?: string) {
       try {
         setDriveIds(await refreshDriveDocuments())
       } catch (cause) {
-        setDriveError(
+        toast.error(
           cause instanceof Error
             ? cause.message
             : 'Could not load Drive documents.',
+          { id: 'document-workspace-error' },
         )
       } finally {
         setDriveLoading(false)
@@ -274,14 +282,15 @@ function useWorkspaceState(id?: string) {
         .get(document?.id ?? '')
         ?.setOfflineAvailable(value)
         .catch((cause: unknown) =>
-          setFileError(
+          toast.error(
             cause instanceof Error
               ? cause.message
               : 'Could not change offline availability.',
+            { id: 'document-workspace-error' },
           ),
         )
     },
-    error: library.error || fileError,
+    error: library.error,
     enabled: Boolean(document),
     documentRef,
     editorRef,

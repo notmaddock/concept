@@ -144,9 +144,7 @@ export function DocumentSaveStatus({
           )}
         </dl>
         {status.error && (
-          <p role="alert" className="text-xs text-destructive">
-            {status.error}
-          </p>
+          <p className="text-xs text-muted-foreground">{status.error}</p>
         )}
         {provider && onOfflineChange && (
           <Button
