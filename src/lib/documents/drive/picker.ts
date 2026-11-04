@@ -239,15 +239,21 @@ export async function openGooglePicker(
       resolve(document)
     }
     try {
+      const mimeTypes =
+        'application/vnd.concept+json,application/json,application/octet-stream,text/plain'
       const docsView = new pickerNamespace.DocsView(pickerNamespace.ViewId.DOCS)
         .setIncludeFolders(true)
+        .setMimeTypes(mimeTypes)
+      const sharedDrivesView = new pickerNamespace.DocsView(
+        pickerNamespace.ViewId.DOCS,
+      )
+        .setIncludeFolders(true)
         .setEnableDrives(true)
-        .setMimeTypes(
-          'application/vnd.concept+json,application/json,application/octet-stream,text/plain',
-        )
+        .setMimeTypes(mimeTypes)
 
       const builder = new pickerNamespace.PickerBuilder()
         .addView(docsView)
+        .addView(sharedDrivesView)
         .setOAuthToken(token)
         .enableFeature(pickerNamespace.Feature.SUPPORT_DRIVES)
 

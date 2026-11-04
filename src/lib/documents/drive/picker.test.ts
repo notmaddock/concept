@@ -209,6 +209,7 @@ describe('openGooglePicker workflow', () => {
     setMimeTypes: ReturnType<typeof vi.fn>
     setSelectFolderEnabled: ReturnType<typeof vi.fn>
   }
+  let mockSharedDrivesView: typeof mockDocsView
   let mockPicker: {
     setVisible: ReturnType<typeof vi.fn>
   }
@@ -220,6 +221,12 @@ describe('openGooglePicker workflow', () => {
 
     vi.mocked(env).VITE_GOOGLE_PICKER_API_KEY = 'test-api-key'
     mockDocsView = {
+      setIncludeFolders: vi.fn().mockReturnThis(),
+      setEnableDrives: vi.fn().mockReturnThis(),
+      setMimeTypes: vi.fn().mockReturnThis(),
+      setSelectFolderEnabled: vi.fn().mockReturnThis(),
+    }
+    mockSharedDrivesView = {
       setIncludeFolders: vi.fn().mockReturnThis(),
       setEnableDrives: vi.fn().mockReturnThis(),
       setMimeTypes: vi.fn().mockReturnThis(),
@@ -247,9 +254,14 @@ describe('openGooglePicker workflow', () => {
         PickerBuilder: vi.fn(function () {
           return mockBuilder
         }) as never,
-        DocsView: vi.fn(function () {
-          return mockDocsView
-        }) as never,
+        DocsView: vi
+          .fn()
+          .mockImplementationOnce(function () {
+            return mockDocsView
+          })
+          .mockImplementationOnce(function () {
+            return mockSharedDrivesView
+          }) as never,
         Action: { PICKED: 'picked', CANCEL: 'cancel' },
         Response: { ACTION: 'action', DOCUMENTS: 'docs' },
         Document: { ID: 'id', NAME: 'name', MIME_TYPE: 'mimeType', URL: 'url' },
@@ -265,13 +277,19 @@ describe('openGooglePicker workflow', () => {
 
   const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0))
 
-  it('builds picker with shared drives enabled and OAuth token from session', async () => {
+  it('opens matching files by default and offers shared drives in a separate view', async () => {
     const pickPromise = openGooglePicker()
     await flushPromises()
 
     expect(mockDocsView.setIncludeFolders).toHaveBeenCalledWith(true)
-    expect(mockDocsView.setEnableDrives).toHaveBeenCalledWith(true)
-    expect(mockBuilder.addView).toHaveBeenCalledWith(mockDocsView)
+    expect(mockDocsView.setEnableDrives).not.toHaveBeenCalled()
+    expect(mockSharedDrivesView.setEnableDrives).toHaveBeenCalledWith(true)
+    const mimeTypes =
+      'application/vnd.concept+json,application/json,application/octet-stream,text/plain'
+    expect(mockDocsView.setMimeTypes).toHaveBeenCalledWith(mimeTypes)
+    expect(mockSharedDrivesView.setMimeTypes).toHaveBeenCalledWith(mimeTypes)
+    expect(mockBuilder.addView).toHaveBeenNthCalledWith(1, mockDocsView)
+    expect(mockBuilder.addView).toHaveBeenNthCalledWith(2, mockSharedDrivesView)
     expect(mockBuilder.setOAuthToken).toHaveBeenCalledWith('mock-auth-token')
     expect(mockBuilder.enableFeature).toHaveBeenCalledWith('support_drives')
     expect(mockBuilder.setAppId).toHaveBeenCalledWith('123456789012')
