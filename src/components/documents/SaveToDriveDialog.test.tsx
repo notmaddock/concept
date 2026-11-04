@@ -184,13 +184,15 @@ it('falls back remoteFilename to undefined when remote file name is empty', asyn
   })
   await render()
   await click('Save in My Drive')
-  expect(onSaved).toHaveBeenCalledWith(
-    expect.objectContaining({
-      id: 'Gremote-empty-name',
-      drive: expect.objectContaining({
-        savedRevision: expect.stringMatching(/^[a-f0-9]{64}$/),
-        remoteFilename: undefined,
+  await vi.waitFor(() => {
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'Gremote-empty-name',
+        drive: expect.objectContaining({
+          savedRevision: expect.stringMatching(/^[a-f0-9]{64}$/),
+          remoteFilename: undefined,
+        }),
       }),
-    }),
-  )
+    )
+  })
 })
