@@ -2,7 +2,12 @@ import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { applyUpdate, Doc, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { importConcept, parseConcept, serializeConcept } from './concept-file'
+import {
+  downloadConcept,
+  importConcept,
+  parseConcept,
+  serializeConcept,
+} from './concept-file'
 import { localDocumentStorage } from './storage'
 
 beforeEach(() => vi.stubGlobal('indexedDB', new IDBFactory()))
@@ -11,17 +16,21 @@ afterEach(() => vi.unstubAllGlobals())
 it('round trips Unicode content and document settings into independent, persisted copies', async () => {
   const source = new Doc()
   source.get('root', XmlText).insert(0, 'Hello 🌎 — café')
+  source.getMap('metadata').set('name', 'Original embedded title')
   source.getMap('settings').set('pageSetup', { mode: 'paper', width: 210 })
   const file = parseConcept(serializeConcept('Résumé', source))
   const first = await importConcept(file)
-  const second = await importConcept(file, 'Copy of Résumé')
+  const second = await importConcept(file, '  Copy of Résumé  ')
+  const untitled = await importConcept(file, '   ')
   expect(first.id).not.toBe(second.id)
   expect(first.name).toBe('Résumé')
   expect(second.name).toBe('Copy of Résumé')
+  expect(untitled.name).toBe('Untitled document')
   const restored = new Doc()
   const session = localDocumentStorage.open(first.id, restored)
   await session.whenSynced
   expect(restored.get('root', XmlText).toString()).toBe('Hello 🌎 — café')
+  expect(restored.getMap('metadata').get('name')).toBe('Résumé')
   expect(restored.getMap('settings').get('pageSetup')).toEqual({
     mode: 'paper',
     width: 210,
@@ -32,11 +41,18 @@ it('round trips Unicode content and document settings into independent, persiste
   const copySession = localDocumentStorage.open(second.id, copy)
   await copySession.whenSynced
   expect(copy.get('root', XmlText).toString()).toBe('Hello 🌎 — café')
+  expect(copy.getMap('metadata').get('name')).toBe('Copy of Résumé')
+  const blank = new Doc()
+  const blankSession = localDocumentStorage.open(untitled.id, blank)
+  await blankSession.whenSynced
+  expect(blank.getMap('metadata').get('name')).toBe('Untitled document')
   await session.destroy()
   await copySession.destroy()
+  await blankSession.destroy()
   source.destroy()
   restored.destroy()
   copy.destroy()
+  blank.destroy()
 })
 
 it.each([
@@ -126,4 +142,30 @@ it.each([
   expect(() => parseConcept(JSON.stringify(value))).toThrow(
     'not a supported .concept document',
   )
+})
+
+it('downloads a .concept file with a sanitized filename', () => {
+  vi.useFakeTimers()
+  const create = vi.fn(() => 'blob:concept')
+  const revoke = vi.fn()
+  vi.stubGlobal('URL', { createObjectURL: create, revokeObjectURL: revoke })
+  const click = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(function (this: HTMLAnchorElement) {
+      expect(this.download).toBe('Draft_v1.concept')
+      expect(this.isConnected).toBe(true)
+    })
+  const doc = new Doc()
+  try {
+    doc.get('root', XmlText).insert(0, 'Hello')
+    downloadConcept('Draft:v1. ', doc)
+    expect(create).toHaveBeenCalledWith(expect.any(Blob))
+    expect(click).toHaveBeenCalledOnce()
+    vi.runAllTimers()
+    expect(revoke).toHaveBeenCalledWith('blob:concept')
+  } finally {
+    doc.destroy()
+    click.mockRestore()
+    vi.useRealTimers()
+  }
 })
