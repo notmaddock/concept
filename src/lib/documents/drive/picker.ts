@@ -14,6 +14,7 @@ export interface GooglePickerOptions {
   apiKey?: string
   token?: string
   title?: string
+  fileId?: string
 }
 
 export interface GooglePickerBuilder {
@@ -34,6 +35,7 @@ export interface GooglePickerInstance {
 
 export interface GoogleDocsView {
   setIncludeFolders: (include: boolean) => this
+  setFileIds: (fileIds: string) => this
   setEnableDrives: (enable: boolean) => this
   setMimeTypes: (mimeTypes: string) => this
   setSelectFolderEnabled: (enabled: boolean) => this
@@ -252,10 +254,17 @@ export async function openGooglePicker(
         .setMimeTypes(mimeTypes)
 
       const builder = new pickerNamespace.PickerBuilder()
-        .addView(docsView)
-        .addView(sharedDrivesView)
         .setOAuthToken(token)
         .enableFeature(pickerNamespace.Feature.SUPPORT_DRIVES)
+
+      if (options.fileId) {
+        builder.addView(
+          new pickerNamespace.DocsView(pickerNamespace.ViewId.DOCS)
+            .setFileIds(options.fileId)
+            .setMimeTypes(mimeTypes),
+        )
+      }
+      builder.addView(docsView).addView(sharedDrivesView)
 
       if (appId) {
         builder.setAppId(appId)

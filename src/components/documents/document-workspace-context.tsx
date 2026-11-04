@@ -173,7 +173,9 @@ function useWorkspaceState(id?: string) {
     pickerPending.current = true
     setPickerLoading(true)
     try {
-      const picked = await openGooglePicker()
+      const picked = await openGooglePicker(
+        id?.startsWith('G') ? { fileId: id.slice(1) } : undefined,
+      )
       if (!picked) return
       const targetId = `G${picked.id}`
       await documentStorage.get(targetId)

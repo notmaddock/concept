@@ -205,11 +205,13 @@ describe('openGooglePicker workflow', () => {
   }
   let mockDocsView: {
     setIncludeFolders: ReturnType<typeof vi.fn>
+    setFileIds: ReturnType<typeof vi.fn>
     setEnableDrives: ReturnType<typeof vi.fn>
     setMimeTypes: ReturnType<typeof vi.fn>
     setSelectFolderEnabled: ReturnType<typeof vi.fn>
   }
   let mockSharedDrivesView: typeof mockDocsView
+  let mockRequestedView: typeof mockDocsView
   let mockPicker: {
     setVisible: ReturnType<typeof vi.fn>
   }
@@ -222,12 +224,21 @@ describe('openGooglePicker workflow', () => {
     vi.mocked(env).VITE_GOOGLE_PICKER_API_KEY = 'test-api-key'
     mockDocsView = {
       setIncludeFolders: vi.fn().mockReturnThis(),
+      setFileIds: vi.fn().mockReturnThis(),
       setEnableDrives: vi.fn().mockReturnThis(),
       setMimeTypes: vi.fn().mockReturnThis(),
       setSelectFolderEnabled: vi.fn().mockReturnThis(),
     }
     mockSharedDrivesView = {
       setIncludeFolders: vi.fn().mockReturnThis(),
+      setFileIds: vi.fn().mockReturnThis(),
+      setEnableDrives: vi.fn().mockReturnThis(),
+      setMimeTypes: vi.fn().mockReturnThis(),
+      setSelectFolderEnabled: vi.fn().mockReturnThis(),
+    }
+    mockRequestedView = {
+      setIncludeFolders: vi.fn().mockReturnThis(),
+      setFileIds: vi.fn().mockReturnThis(),
       setEnableDrives: vi.fn().mockReturnThis(),
       setMimeTypes: vi.fn().mockReturnThis(),
       setSelectFolderEnabled: vi.fn().mockReturnThis(),
@@ -261,6 +272,9 @@ describe('openGooglePicker workflow', () => {
           })
           .mockImplementationOnce(function () {
             return mockSharedDrivesView
+          })
+          .mockImplementationOnce(function () {
+            return mockRequestedView
           }) as never,
         Action: { PICKED: 'picked', CANCEL: 'cancel' },
         Response: { ACTION: 'action', DOCUMENTS: 'docs' },
@@ -276,6 +290,19 @@ describe('openGooglePicker workflow', () => {
   })
 
   const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  it('shows a hinted file first while preserving general browsing as a fallback', async () => {
+    const pickPromise = openGooglePicker({ fileId: 'requested-file' })
+    await flushPromises()
+    expect(mockRequestedView.setFileIds).toHaveBeenCalledWith('requested-file')
+    expect(mockRequestedView.setEnableDrives).not.toHaveBeenCalled()
+    expect(mockDocsView.setFileIds).not.toHaveBeenCalled()
+    expect(mockBuilder.addView).toHaveBeenNthCalledWith(1, mockRequestedView)
+    expect(mockBuilder.addView).toHaveBeenNthCalledWith(2, mockDocsView)
+    expect(mockBuilder.addView).toHaveBeenNthCalledWith(3, mockSharedDrivesView)
+    callbackRegistered?.({ action: 'cancel' })
+    expect(await pickPromise).toBeNull()
+  })
 
   it('opens matching files by default and offers shared drives in a separate view', async () => {
     const pickPromise = openGooglePicker()

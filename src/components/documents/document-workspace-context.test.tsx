@@ -33,7 +33,7 @@ vi.mock('#/hooks/use-documents', () => ({
   }),
 }))
 vi.mock('#/lib/documents/drive/picker', () => ({
-  openGooglePicker: () => mocks.openPicker(),
+  openGooglePicker: (options?: { fileId: string }) => mocks.openPicker(options),
 }))
 vi.mock('#/lib/documents/drive/auth', () => ({
   connectGoogleDrive: vi.fn(),
@@ -311,6 +311,7 @@ it('retries the editor after selecting the active document again', async () => {
   await act(async () => workspace.openGoogleDrivePicker())
   expect(workspace.connectionRevision).toBe(previousRevision + 1)
   expect(mocks.navigate).toHaveBeenCalledWith({ to: '/', hash: 'Gactive' })
+  expect(mocks.openPicker).toHaveBeenCalledWith({ fileId: 'active' })
 })
 
 it('retains the current document and reports one error when selected file registration fails', async () => {
