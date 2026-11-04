@@ -11,6 +11,7 @@ import {
   Settings2Icon,
 } from 'lucide-react'
 import { DocumentSaveStatus } from './DocumentSaveStatus'
+import { DocumentAccessStatus } from './DocumentAccessStatus'
 import { ProvidersDialog } from './ProvidersDialog'
 import { Button } from '#/components/ui/button'
 import {
@@ -178,18 +179,26 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               }
             />
             {document && (
-              <DocumentSaveStatus
-                status={saveStatus}
-                provider={document.drive ? 'google-drive' : undefined}
-                onRetry={syncNow}
-                onConnect={() => {
-                  void connectDrive()
-                }}
-                onSaveToDrive={saveToDrive}
-                onOfflineChange={
-                  document.drive ? setOfflineAvailable : undefined
-                }
-              />
+              <div className="flex shrink-0 items-center gap-1">
+                <DocumentSaveStatus
+                  status={saveStatus}
+                  provider={document.drive ? 'google-drive' : undefined}
+                  onRetry={syncNow}
+                  onConnect={() => {
+                    void connectDrive()
+                  }}
+                  onSaveToDrive={saveToDrive}
+                  onOfflineChange={
+                    document.drive ? setOfflineAvailable : undefined
+                  }
+                />
+                <DocumentAccessStatus
+                  readOnly={Boolean(
+                    document.readOnly || document.drive?.readOnly,
+                  )}
+                  provider={document.drive ? 'google-drive' : undefined}
+                />
+              </div>
             )}
           </div>
           <DocumentNavigation />
