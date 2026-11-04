@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { useNavigate } from '@tanstack/react-router'
 import { documentStorage } from '#/lib/documents/document-storage'
 import { documentHash } from '#/lib/documents/document-url'
@@ -21,6 +22,15 @@ export function useDocuments(
   const deletePending = useRef(new Set<string>())
   const [defaultId, setDefaultId] = useState<string>()
   const document = documents.find((item) => item.id === (id ?? defaultId))
+  const hasDocument = Boolean(document)
+  const lookupTarget = useRef<
+    { id: string; storage: DocumentStorage } | undefined
+  >(undefined)
+  const [lookup, setLookup] = useState<{
+    id: string
+    pending: boolean
+    error?: string
+  }>()
   const activeId = useRef(id)
   useEffect(() => {
     activeId.current = id
@@ -100,6 +110,54 @@ export function useDocuments(
     }
   }, [storage, navigate])
 
+  useEffect(() => {
+    if (!id || !loaded || error) return
+    if (
+      lookupTarget.current?.id === id &&
+      lookupTarget.current.storage === storage
+    )
+      return
+    lookupTarget.current = { id, storage }
+    if (hasDocument) {
+      setLookup({ id, pending: false })
+      return
+    }
+    let active = true
+    setLookup({ id, pending: true })
+    void storage
+      .get(id)
+      .then((found) => {
+        if (!active) return
+        if (found)
+          setDocuments((items) =>
+            items.some((item) => item.id === found.id)
+              ? items
+              : [...items, found].sort((a, b) => b.updatedAt - a.updatedAt),
+          )
+        setLookup({ id, pending: false })
+      })
+      .catch((cause: unknown) => {
+        if (!active) return
+        const missing =
+          typeof cause === 'object' &&
+          cause !== null &&
+          'status' in cause &&
+          cause.status === 404
+        setLookup({
+          id,
+          pending: false,
+          error: missing
+            ? undefined
+            : cause instanceof Error
+              ? cause.message
+              : 'Could not open this document.',
+        })
+      })
+    return () => {
+      active = false
+    }
+  }, [id, loaded, error, storage, hasDocument])
+
   const openNewDocument = useCallback(
     async (navigateToDocument: boolean) => {
       if (createPending.current) return
@@ -152,7 +210,10 @@ export function useDocuments(
       )
       setError('')
     } catch {
-      setError('Could not save the document name. Please try again.')
+      setError('')
+      toast.error('Could not save the document name. Please try again.', {
+        id: `drive-rename:${documentId}`,
+      })
       return false
     }
     return true
@@ -179,8 +240,15 @@ export function useDocuments(
   return {
     documents,
     document,
-    loaded,
-    error,
+    loaded:
+      loaded &&
+      (Boolean(error) ||
+        !id ||
+        hasDocument ||
+        (lookup?.id === id && !lookup.pending)),
+    error:
+      error ||
+      (!hasDocument && lookup && lookup.id === id ? (lookup.error ?? '') : ''),
     creating,
     createDocument,
     renameDocument,

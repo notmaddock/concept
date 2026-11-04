@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { ArrowLeftIcon, FolderIcon } from 'lucide-react'
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
 import type { DocumentInfo, DocumentPersistence } from '#/lib/documents/storage'
 import type { DriveFileVersion } from '#/lib/documents/drive/api'
 import {
   connectGoogleDrive,
-  getGoogleDriveToken,
+  isGoogleDriveConnected,
   isGoogleDriveAuthError,
   isGoogleDriveConfigured,
   prepareGoogleDriveAuth,
@@ -43,6 +44,9 @@ export function SaveToDriveDialog({
   const pendingRef = useRef(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  useEffect(() => {
+    if (error) toast.error(error, { id: 'save-to-drive' })
+  }, [error])
   const [created, setCreated] = useState(false)
   const [createdFileId, setCreatedFileId] = useState<string>()
   const [path, setPath] = useState([{ id: 'root', name: 'My Drive' }])
@@ -59,15 +63,18 @@ export function SaveToDriveDialog({
   useEffect(() => {
     let active = true
     if (isGoogleDriveConfigured())
-      void prepareGoogleDriveAuth().catch((cause: unknown) => {
-        if (active) setError(message(cause))
-      })
-    try {
-      getGoogleDriveToken()
-      setConnected(true)
-    } catch {
-      // Connecting is an explicit user action, including after token expiry.
-    }
+      void prepareGoogleDriveAuth()
+        .then(() => {
+          if (active) {
+            setConnected(isGoogleDriveConnected())
+            if (!isGoogleDriveConfigured())
+              setError('Google Drive is not configured.')
+          }
+        })
+        .catch((cause: unknown) => {
+          if (active) setError(message(cause))
+        })
+    setConnected(isGoogleDriveConnected())
     return () => {
       active = false
       saved.current?.doc.destroy()
@@ -104,7 +111,7 @@ export function SaveToDriveDialog({
     setError('')
     try {
       await connectGoogleDrive()
-      setConnected(true)
+      setConnected(isGoogleDriveConnected())
     } catch (cause) {
       setError(message(cause))
     } finally {
@@ -259,11 +266,6 @@ export function SaveToDriveDialog({
             {pending ? 'Connecting…' : 'Connect Google Drive'}
           </Button>
         )}
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
         {createdFileId && error && (
           <a
             href={`https://drive.google.com/file/d/${encodeURIComponent(createdFileId)}/view`}
@@ -273,11 +275,6 @@ export function SaveToDriveDialog({
           >
             Open saved file in Drive
           </a>
-        )}
-        {!isGoogleDriveConfigured() && (
-          <p role="alert" className="text-sm text-destructive">
-            Google Drive is not configured.
-          </p>
         )}
         <DialogFooter>
           <Button variant="outline" disabled={pending} onClick={onClose}>

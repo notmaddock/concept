@@ -61,7 +61,6 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     onPageSetupOpenChange,
     saveStatus,
     driveLoading,
-    driveError,
     driveConnected,
     connectDrive,
     disconnectDrive,
@@ -128,7 +127,6 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
         onOpenChange={setProvidersOpen}
         connected={driveConnected}
         loading={driveLoading}
-        error={driveError}
         onConnect={connectDrive}
         onDisconnect={disconnectDrive}
       />
@@ -158,11 +156,6 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
           </div>
           <DocumentNavigation />
         </header>
-        {error && (
-          <p role="alert" className="px-6 pb-3 text-sm text-destructive">
-            {error}
-          </p>
-        )}
         <main
           aria-label="Document workspace"
           className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-4 [scrollbar-gutter:stable] md:px-6"

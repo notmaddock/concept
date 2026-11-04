@@ -23,7 +23,7 @@ afterEach(async () => {
   container.remove()
 })
 
-async function render(connected = false, loading = false, error?: string) {
+async function render(connected = false, loading = false) {
   await act(() =>
     root.render(
       <ProvidersDialog
@@ -31,7 +31,6 @@ async function render(connected = false, loading = false, error?: string) {
         onOpenChange={onOpenChange}
         connected={connected}
         loading={loading}
-        error={error}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
       />,
@@ -58,12 +57,10 @@ it('offers Connect for a disconnected provider and Disconnect after connection',
   expect(onDisconnect).toHaveBeenCalledOnce()
 })
 
-it('disables provider actions during loading and shows the connection error', async () => {
-  await render(false, true, 'Sign-in was closed.')
+it('disables provider actions during loading without duplicating error notifications', async () => {
+  await render(false, true)
   expect(button('Connect').disabled).toBe(true)
-  expect(document.querySelector('[role="alert"]')?.textContent).toBe(
-    'Sign-in was closed.',
-  )
+  expect(document.querySelector('[role="alert"]')).toBeNull()
   await act(() => button('Connect').click())
   expect(onConnect).not.toHaveBeenCalled()
 })

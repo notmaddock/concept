@@ -7,11 +7,11 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { toast } from 'sonner'
 import { DocumentWorkspaceContext } from './document-workspace-store'
 import { documentHash } from '#/lib/documents/document-url'
 import {
   connectGoogleDrive,
-  getGoogleDriveToken,
   prepareGoogleDriveAuth,
   disconnectGoogleDrive,
   isGoogleDriveConnected,
@@ -86,6 +86,11 @@ function useWorkspaceState(id?: string) {
   const [saveToDriveOpen, setSaveToDriveOpen] = useState(false)
   const [driveLoading, setDriveLoading] = useState(false)
   const [driveError, setDriveError] = useState('')
+  const operationError = library.error || fileError || driveError
+  useEffect(() => {
+    if (operationError)
+      toast.error(operationError, { id: 'document-workspace-error' })
+  }, [operationError])
   const [driveIds, setDriveIds] = useState<Set<string>>()
   const driveConnectionPending = useRef(false)
   const driveConnected = useSyncExternalStore(
@@ -100,7 +105,16 @@ function useWorkspaceState(id?: string) {
     () => getSaveStatus(''),
   )
   useEffect(() => {
-    void prepareGoogleDriveAuth().catch(() => {})
+    const refresh = () => {
+      void prepareGoogleDriveAuth().catch(() => {})
+    }
+    refresh()
+    window.addEventListener('focus', refresh)
+    window.addEventListener('online', refresh)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      window.removeEventListener('online', refresh)
+    }
   }, [])
   useEffect(() => {
     if (!driveConnected) {
@@ -135,10 +149,9 @@ function useWorkspaceState(id?: string) {
     setDriveLoading(true)
     driveConnectionPending.current = true
     try {
-      try {
-        getGoogleDriveToken()
-      } catch {
+      if (!isGoogleDriveConnected()) {
         await connectGoogleDrive()
+        return
       }
       setDriveLoading(true)
       setDriveIds(await refreshDriveDocuments())
@@ -218,9 +231,20 @@ function useWorkspaceState(id?: string) {
     driveLoading,
     driveConnected,
     disconnectDrive: () => {
-      disconnectGoogleDrive()
-      setDriveIds(new Set())
-      setDriveError('')
+      setDriveLoading(true)
+      void disconnectGoogleDrive()
+        .then(() => {
+          setDriveIds(new Set())
+          setDriveError('')
+        })
+        .catch((cause: unknown) =>
+          setDriveError(
+            cause instanceof Error
+              ? cause.message
+              : 'Could not disconnect Google Drive.',
+          ),
+        )
+        .finally(() => setDriveLoading(false))
     },
     driveError,
     connectionRevision,

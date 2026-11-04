@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
   getGoogleDriveToken,
   GoogleDriveAuthError,
-  invalidateGoogleDriveToken,
+  invalidateGoogleDriveSession,
 } from './auth'
 import {
   createConceptFile,
@@ -16,8 +16,8 @@ import {
 } from './api'
 
 vi.mock('./auth', () => ({
-  getGoogleDriveToken: vi.fn(() => 'test-token'),
-  invalidateGoogleDriveToken: vi.fn(),
+  getGoogleDriveToken: vi.fn(async () => 'test-token'),
+  invalidateGoogleDriveSession: vi.fn(),
   GoogleDriveAuthError: class extends Error {},
 }))
 
@@ -33,7 +33,7 @@ beforeEach(() => {
   vi.stubGlobal('Blob', NodeBlob)
   fetchMock.mockReset()
   vi.clearAllMocks()
-  vi.mocked(getGoogleDriveToken).mockReturnValue('test-token')
+  vi.mocked(getGoogleDriveToken).mockResolvedValue('test-token')
 })
 
 afterEach(() => vi.unstubAllGlobals())
@@ -60,6 +60,8 @@ it('uploads content and metadata atomically with the supplied If-Match', async (
   )
   expect(init?.method).toBe('PUT')
   expect(new Headers(init?.headers).get('If-Match')).toBe('"base"')
+  expect(String(url)).toMatch(/^https:\/\/www.googleapis.com\//)
+  expect(init?.credentials).toBe('omit')
   expect(new Headers(init?.headers).get('Authorization')).toBe(
     'Bearer test-token',
   )
@@ -119,14 +121,14 @@ it('fails closed when Drive omits the response ETag', async () => {
   expect(fetchMock).toHaveBeenCalledTimes(1)
 })
 
-it('creates in the selected folder and invalidates revoked tokens', async () => {
+it('creates in the selected folder and rejects credentials still invalid after refresh', async () => {
   fetchMock.mockResolvedValueOnce(metadata('"created"'))
   await createConceptFile('Test', '{}', 'folder-id')
   const body = await (fetchMock.mock.calls[0][1]?.body as NodeBlob).text()
   expect(body).toContain('"parents":[{"id":"folder-id"}]')
-  fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }))
+  fetchMock.mockResolvedValue(new Response(null, { status: 401 }))
   await expect(listConceptFiles()).rejects.toBeInstanceOf(GoogleDriveAuthError)
-  expect(invalidateGoogleDriveToken).toHaveBeenCalledOnce()
+  expect(invalidateGoogleDriveSession).toHaveBeenCalledOnce()
 })
 
 it('filters matching names by exact file extension', async () => {
@@ -164,18 +166,53 @@ it('retains the created file identity when its validator is missing', async () =
   expect(fetchMock).toHaveBeenCalledTimes(1)
 })
 
-it('retries a late 401 with the replacement token without disconnecting it', async () => {
+it('refreshes a Google-rejected token once and replays the identical conditional upload', async () => {
+  let token = 'old-token'
+  vi.mocked(getGoogleDriveToken).mockImplementation(async (options) => {
+    if (options?.forceRefresh) token = 'new-token'
+    return token
+  })
+  fetchMock
+    .mockResolvedValueOnce(new Response(null, { status: 401 }))
+    .mockResolvedValueOnce(metadata('"saved"'))
+  await updateConceptFile('drive-id', 'Test', '{}', '"base"')
+  expect(getGoogleDriveToken).toHaveBeenCalledWith(
+    expect.objectContaining({ forceRefresh: true }),
+  )
+  expect(invalidateGoogleDriveSession).not.toHaveBeenCalled()
+  const first = fetchMock.mock.calls[0][1]
+  const second = fetchMock.mock.calls[1][1]
+  expect(second?.body).toBe(first?.body)
+  expect(new Headers(second?.headers).get('If-Match')).toBe('"base"')
+  expect(new Headers(second?.headers).get('Authorization')).toBe(
+    'Bearer new-token',
+  )
+  expect(second?.credentials).toBe('omit')
+})
+
+it('uses a token already refreshed by another request after a late Google 401', async () => {
   vi.mocked(getGoogleDriveToken)
-    .mockReturnValueOnce('old-token')
-    .mockReturnValue('replacement-token')
+    .mockResolvedValueOnce('old-token')
+    .mockResolvedValue('new-token')
   fetchMock
     .mockResolvedValueOnce(new Response(null, { status: 401 }))
     .mockResolvedValueOnce(new Response(JSON.stringify({ files: [file] })))
   await expect(listConceptFiles()).resolves.toEqual([file])
-  expect(invalidateGoogleDriveToken).not.toHaveBeenCalled()
-  expect(
-    new Headers(fetchMock.mock.calls[1][1]?.headers).get('Authorization'),
-  ).toBe('Bearer replacement-token')
+  expect(getGoogleDriveToken).not.toHaveBeenCalledWith(
+    expect.objectContaining({ forceRefresh: true }),
+  )
+})
+
+it('preserves the app session when broker refresh temporarily fails', async () => {
+  vi.mocked(getGoogleDriveToken).mockImplementation(async (options) => {
+    if (options?.forceRefresh)
+      throw new Error('Google Drive is temporarily unavailable.')
+    return 'test-token'
+  })
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }))
+  await expect(listConceptFiles()).rejects.toThrow('temporarily unavailable')
+  expect(invalidateGoogleDriveSession).not.toHaveBeenCalled()
+  expect(fetchMock).toHaveBeenCalledOnce()
 })
 
 it('cancels document downloads when their owning session stops', async () => {
@@ -194,6 +231,7 @@ it('cancels document downloads when their owning session stops', async () => {
   const rejected = expect(download).rejects.toMatchObject({
     name: 'AbortError',
   })
+  await Promise.resolve()
   controller.abort()
   await rejected
   expect(fetchMock).toHaveBeenCalledOnce()

@@ -13,6 +13,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DIndexRouteImport } from './routes/d/index'
 import { Route as DIdRouteImport } from './routes/d/$id'
 import { Route as NewIndexRouteImport } from './routes/new/index'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiDriveSplatRouteImport } from './routes/api/drive/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,18 +36,32 @@ const NewIndexRoute = NewIndexRouteImport.update({
   path: '/new/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDriveSplatRoute = ApiDriveSplatRouteImport.update({
+  id: '/api/drive/$',
+  path: '/api/drive/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/d/$id': typeof DIdRoute
   '/d/': typeof DIndexRoute
   '/new/': typeof NewIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/drive/$': typeof ApiDriveSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/d/$id': typeof DIdRoute
   '/d': typeof DIndexRoute
   '/new': typeof NewIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/drive/$': typeof ApiDriveSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +69,22 @@ export interface FileRoutesById {
   '/d/$id': typeof DIdRoute
   '/d/': typeof DIndexRoute
   '/new/': typeof NewIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/drive/$': typeof ApiDriveSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/d/$id' | '/d/' | '/new/'
+  fullPaths: '/' | '/d/$id' | '/d/' | '/new/' | '/api/auth/$' | '/api/drive/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/d/$id' | '/d' | '/new'
-  id: '__root__' | '/' | '/d/$id' | '/d/' | '/new/'
+  to: '/' | '/d/$id' | '/d' | '/new' | '/api/auth/$' | '/api/drive/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/d/$id'
+    | '/d/'
+    | '/new/'
+    | '/api/auth/$'
+    | '/api/drive/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +92,8 @@ export interface RootRouteChildren {
   DIdRoute: typeof DIdRoute
   DIndexRoute: typeof DIndexRoute
   NewIndexRoute: typeof NewIndexRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiDriveSplatRoute: typeof ApiDriveSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +126,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NewIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/drive/$': {
+      id: '/api/drive/$'
+      path: '/api/drive/$'
+      fullPath: '/api/drive/$'
+      preLoaderRoute: typeof ApiDriveSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +148,8 @@ const rootRouteChildren: RootRouteChildren = {
   DIdRoute: DIdRoute,
   DIndexRoute: DIndexRoute,
   NewIndexRoute: NewIndexRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiDriveSplatRoute: ApiDriveSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

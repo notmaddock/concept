@@ -1,7 +1,7 @@
 import {
   getGoogleDriveToken,
   GoogleDriveAuthError,
-  invalidateGoogleDriveToken,
+  invalidateGoogleDriveSession,
 } from './auth'
 
 const api = 'https://www.googleapis.com/drive/v3/files'
@@ -76,23 +76,31 @@ async function request(
   retryAuth = true,
 ): Promise<Response> {
   const headers = new Headers(init.headers)
-  const token = getGoogleDriveToken()
+  const token = await getGoogleDriveToken({ signal: init.signal ?? undefined })
+  init.signal?.throwIfAborted()
   headers.set('Authorization', `Bearer ${token}`)
   const timeout = AbortSignal.timeout(30000)
   const response = await fetch(url, {
     ...init,
     headers,
     cache: 'no-store',
+    credentials: 'omit',
     signal: init.signal ? AbortSignal.any([init.signal, timeout]) : timeout,
   })
   if (response.status === 401) {
-    let currentToken: string | undefined
-    try {
-      currentToken = getGoogleDriveToken()
-    } catch {}
-    if (retryAuth && currentToken && currentToken !== token)
+    if (retryAuth) {
+      await response.body?.cancel()
+      const current = await getGoogleDriveToken({
+        signal: init.signal ?? undefined,
+      })
+      if (current === token)
+        await getGoogleDriveToken({
+          forceRefresh: true,
+          signal: init.signal ?? undefined,
+        })
       return request(url, init, false)
-    invalidateGoogleDriveToken(token)
+    }
+    invalidateGoogleDriveSession()
     throw new GoogleDriveAuthError()
   }
   if (!response.ok)

@@ -5,6 +5,44 @@
   "compatibility_date": "2026-09-11",
   "observability": {
     "enabled": true,
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01,
+    },
   },
-  "previews": {},
+  "previews": {
+    "vars": {
+      "GOOGLE_CLIENT_ID": "819574860574-3e68a16ekd85g25uj9jliejt4l2qaamp.apps.googleusercontent.com",
+      "OAUTH_PROXY_URL": "https://concept.maddock.world",
+      "AUTH_TRUSTED_ORIGINS": "http://localhost:3000,https://concept.maddock.world,https://*.concept.maddock.world,https://concept.notmaddock.workers.dev,https://*-concept.notmaddock.workers.dev",
+    },
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "concept-staging",
+        "database_id": "e2f41d8f-17d9-46bf-b174-ea17dfe710a6",
+        "migrations_dir": "migrations",
+      },
+    ],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "concept",
+      "database_id": "bbad6346-812f-459d-80a0-75532871ba75",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "vars": {
+    "GOOGLE_CLIENT_ID": "819574860574-3e68a16ekd85g25uj9jliejt4l2qaamp.apps.googleusercontent.com",
+    "OAUTH_PROXY_URL": "https://concept.maddock.world",
+    "AUTH_TRUSTED_ORIGINS": "http://localhost:3000,https://concept.maddock.world,https://*.concept.maddock.world,https://concept.notmaddock.workers.dev,https://*-concept.notmaddock.workers.dev",
+  },
+  "secrets": {
+    "required": [
+      "BETTER_AUTH_SECRET",
+      "GOOGLE_CLIENT_SECRET",
+      "OAUTH_PROXY_SECRET",
+    ],
+  },
 }

@@ -5,6 +5,9 @@ import { Doc, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { SaveToDriveDialog } from './SaveToDriveDialog'
 import { DriveCreatedFileError } from '#/lib/documents/drive/api'
+import { toast } from 'sonner'
+
+vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -17,7 +20,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('#/lib/documents/drive/auth', () => ({
   connectGoogleDrive: vi.fn(),
-  getGoogleDriveToken: () => 'test-token',
+  isGoogleDriveConnected: () => true,
   isGoogleDriveAuthError: () => false,
   isGoogleDriveConfigured: () => true,
   prepareGoogleDriveAuth: () => Promise.resolve(),
@@ -123,7 +126,12 @@ it('retries local setup without creating a duplicate Drive file', async () => {
   await render()
   await click('Save in My Drive')
   expect(onSaved).not.toHaveBeenCalled()
-  expect(document.body.textContent).toContain('Local storage is unavailable.')
+  expect(toast.error).toHaveBeenCalledWith('Local storage is unavailable.', {
+    id: 'save-to-drive',
+  })
+  expect(document.body.textContent).not.toContain(
+    'Local storage is unavailable.',
+  )
   await click('Open saved document')
   expect(mocks.create).toHaveBeenCalledOnce()
   expect(onSaved).toHaveBeenCalledOnce()

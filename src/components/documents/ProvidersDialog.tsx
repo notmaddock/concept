@@ -13,7 +13,6 @@ export function ProvidersDialog({
   onOpenChange,
   connected,
   loading,
-  error,
   onConnect,
   onDisconnect,
 }: {
@@ -21,7 +20,6 @@ export function ProvidersDialog({
   onOpenChange: (open: boolean) => void
   connected: boolean
   loading: boolean
-  error?: string
   onConnect: () => Promise<void>
   onDisconnect: () => void
 }) {
@@ -51,11 +49,6 @@ export function ProvidersDialog({
             {connected ? 'Disconnect' : 'Connect'}
           </Button>
         </div>
-        {error && (
-          <p role="alert" className="text-xs text-destructive">
-            {error}
-          </p>
-        )}
       </DialogContent>
     </Dialog>
   )

@@ -1,5 +1,4 @@
 import { Doc } from 'yjs'
-import { toast } from 'sonner'
 import { localDocumentStorage } from './storage'
 import type { DocumentStorage, DocumentPersistence } from './storage'
 import { DocumentSync, documentName, documentSessions } from './sync'
@@ -65,12 +64,7 @@ export const documentStorage: DocumentStorage = {
     const doc = new Doc()
     const session = documentStorage.open(id, doc)
     try {
-      await session.whenSynced.catch((cause: unknown) => {
-        toast.error('Could not rename the file on Google Drive.', {
-          id: `drive-rename:${id}`,
-        })
-        throw cause
-      })
+      await session.whenSynced
       doc
         .getMap<string>('metadata')
         .set('name', name.trim() || 'Untitled document')
