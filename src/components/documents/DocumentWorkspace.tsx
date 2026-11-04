@@ -14,6 +14,11 @@ import { DocumentSaveStatus } from './DocumentSaveStatus'
 import { ProvidersDialog } from './ProvidersDialog'
 import { Button } from '#/components/ui/button'
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '#/components/ui/tooltip'
+import {
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -85,12 +90,30 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
       <CloseSidebarOnNavigation id={document?.id} />
       <Sidebar variant="inset">
         <SidebarHeader className="gap-4 p-4">
-          <Link
-            to="/"
-            className="flex items-center gap-2 px-2 py-1 font-semibold"
-          >
-            <FileTextIcon className="size-5" /> Concept
-          </Link>
+          <div className="flex items-center gap-1.5">
+            <Link
+              to="/"
+              className="flex items-center gap-2 px-2 py-1 font-semibold"
+            >
+              <FileTextIcon className="size-5" /> Concept
+            </Link>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    tabIndex={0}
+                    aria-label="Pre-alpha"
+                    className="font-mono text-sm font-semibold text-orange-500 select-none cursor-default focus-visible:outline-none dark:text-orange-400"
+                  />
+                }
+              >
+                α
+              </TooltipTrigger>
+              <TooltipContent>
+                Concept is in pre-alpha, expect issues!
+              </TooltipContent>
+            </Tooltip>
+          </div>
           <Button onClick={createDocument} disabled={creating}>
             <PlusIcon /> New document
           </Button>

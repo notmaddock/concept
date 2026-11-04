@@ -10,6 +10,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import { ThemeProvider } from '#/components/theme-provider'
 import { NotFound } from '#/components/not-found'
 import { TooltipProvider } from '#/components/ui/tooltip'
+import { CanaryWarningDialog } from '#/components/canary-warning-dialog'
 
 import PostHogProvider from '../integrations/posthog/provider'
 
@@ -64,6 +65,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           <PostHogProvider>
             <TooltipProvider delay={200}>
               {children}
+              <CanaryWarningDialog />
               <TanStackDevtools
                 config={{
                   position: 'bottom-right',
