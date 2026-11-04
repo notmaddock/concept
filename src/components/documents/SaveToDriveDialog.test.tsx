@@ -48,7 +48,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.resetAllMocks()
   mocks.create.mockResolvedValue({
-    file: { id: 'remote-id', version: '1' },
+    file: { id: 'remote-id', name: 'Original.concept', version: '1' },
     etag: '"new"',
   })
   mocks.folders.mockResolvedValue([])
@@ -74,15 +74,15 @@ afterEach(async () => {
 })
 
 async function render() {
-  await act(() =>
+  await act(async () => {
     root.render(
       <SaveToDriveDialog
         source={{ name: 'Original', doc }}
         onSaved={onSaved}
         onClose={() => {}}
       />,
-    ),
-  )
+    )
+  })
 }
 
 async function click(label: string) {
@@ -90,7 +90,10 @@ async function click(label: string) {
     (item) => item.textContent.trim() === label,
   )
   expect(button).toBeDefined()
-  await act(() => button?.click())
+  await act(async () => {
+    button?.click()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
 }
 
 it('saves in the selected folder and flushes the local copy before opening it', async () => {
@@ -111,6 +114,8 @@ it('saves in the selected folder and flushes the local copy before opening it', 
         offlineAvailable: false,
         dirty: false,
         etag: '"new"',
+        savedRevision: expect.stringMatching(/^[a-f0-9]{64}$/),
+        remoteFilename: 'Original.concept',
       }),
     }),
   )
@@ -122,16 +127,21 @@ it('saves in the selected folder and flushes the local copy before opening it', 
 })
 
 it('retries local setup without creating a duplicate Drive file', async () => {
-  mocks.put.mockRejectedValueOnce(new Error('Local storage is unavailable.'))
+  mocks.put
+    .mockRejectedValueOnce(new Error('Local storage is unavailable.'))
+    .mockRejectedValueOnce(new Error('Local storage is unavailable.'))
   await render()
   await click('Save in My Drive')
   expect(onSaved).not.toHaveBeenCalled()
+  expect(toast.error).toHaveBeenCalledTimes(1)
   expect(toast.error).toHaveBeenCalledWith('Local storage is unavailable.', {
     id: 'save-to-drive',
   })
   expect(document.body.textContent).not.toContain(
     'Local storage is unavailable.',
   )
+  await click('Open saved document')
+  expect(toast.error).toHaveBeenCalledTimes(2)
   await click('Open saved document')
   expect(mocks.create).toHaveBeenCalledOnce()
   expect(onSaved).toHaveBeenCalledOnce()
@@ -154,7 +164,33 @@ it('keeps a missing-validator creation addressable and never creates it twice', 
   await click('Open saved document')
   expect(mocks.create).toHaveBeenCalledOnce()
   expect(mocks.metadata).toHaveBeenCalledWith('already-created')
+  await vi.waitFor(() => {
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'Galready-created',
+        drive: expect.objectContaining({
+          savedRevision: expect.stringMatching(/^[a-f0-9]{64}$/),
+          remoteFilename: 'Original.concept',
+        }),
+      }),
+    )
+  })
+})
+
+it('falls back remoteFilename to undefined when remote file name is empty', async () => {
+  mocks.create.mockResolvedValueOnce({
+    file: { id: 'remote-empty-name', name: '', version: '1' },
+    etag: '"new"',
+  })
+  await render()
+  await click('Save in My Drive')
   expect(onSaved).toHaveBeenCalledWith(
-    expect.objectContaining({ id: 'Galready-created' }),
+    expect.objectContaining({
+      id: 'Gremote-empty-name',
+      drive: expect.objectContaining({
+        savedRevision: expect.stringMatching(/^[a-f0-9]{64}$/),
+        remoteFilename: undefined,
+      }),
+    }),
   )
 })

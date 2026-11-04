@@ -17,6 +17,7 @@ import {
   getFileMetadata,
   listFolders,
 } from '#/lib/documents/drive/api'
+import { documentRevision } from '#/lib/documents/revision'
 import { serializeConcept } from '#/lib/documents/serialization'
 import { localDocumentStorage } from '#/lib/documents/storage'
 import { Button } from '#/components/ui/button'
@@ -43,10 +44,6 @@ export function SaveToDriveDialog({
   const [pending, setPending] = useState(false)
   const pendingRef = useRef(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  useEffect(() => {
-    if (error) toast.error(error, { id: 'save-to-drive' })
-  }, [error])
   const [created, setCreated] = useState(false)
   const [createdFileId, setCreatedFileId] = useState<string>()
   const [path, setPath] = useState([{ id: 'root', name: 'My Drive' }])
@@ -57,6 +54,7 @@ export function SaveToDriveDialog({
     remote: DriveFileVersion
     doc: Doc
     name: string
+    content: string
   } | null>(null)
   const folder = path[path.length - 1]
 
@@ -68,11 +66,13 @@ export function SaveToDriveDialog({
           if (active) {
             setConnected(isGoogleDriveConnected())
             if (!isGoogleDriveConfigured())
-              setError('Google Drive is not configured.')
+              toast.error('Google Drive is not configured.', {
+                id: 'save-to-drive',
+              })
           }
         })
         .catch((cause: unknown) => {
-          if (active) setError(message(cause))
+          if (active) toast.error(message(cause), { id: 'save-to-drive' })
         })
     setConnected(isGoogleDriveConnected())
     return () => {
@@ -86,14 +86,13 @@ export function SaveToDriveDialog({
     let active = true
     setLoading(true)
     setFolders([])
-    setError('')
     void listFolders(folder.id)
       .then((items) => {
         if (active) setFolders(items)
       })
       .catch((cause: unknown) => {
         if (!active) return
-        setError(message(cause))
+        toast.error(message(cause), { id: 'save-to-drive' })
         if (isGoogleDriveAuthError(cause)) setConnected(false)
       })
       .finally(() => {
@@ -108,12 +107,11 @@ export function SaveToDriveDialog({
     if (pendingRef.current) return
     pendingRef.current = true
     setPending(true)
-    setError('')
     try {
       await connectGoogleDrive()
       setConnected(isGoogleDriveConnected())
     } catch (cause) {
-      setError(message(cause))
+      toast.error(message(cause), { id: 'save-to-drive' })
     } finally {
       pendingRef.current = false
       setPending(false)
@@ -124,8 +122,8 @@ export function SaveToDriveDialog({
     if (pendingRef.current || !name.trim()) return
     pendingRef.current = true
     setPending(true)
-    setError('')
     let clone: Doc | undefined
+    let serialized: string | undefined
     let session: DocumentPersistence | undefined
     try {
       if (!saved.current) {
@@ -133,21 +131,28 @@ export function SaveToDriveDialog({
         applyUpdate(clone, encodeStateAsUpdate(source.doc))
         const documentName = name.trim()
         clone.getMap<string>('metadata').set('name', documentName)
+        serialized = serializeConcept(documentName, clone)
         const remote = await createConceptFile(
           documentName,
-          serializeConcept(documentName, clone),
+          serialized,
           folder.id,
         )
-        saved.current = { remote, doc: clone, name: documentName }
+        saved.current = {
+          remote,
+          doc: clone,
+          name: documentName,
+          content: serialized,
+        }
         setCreated(true)
         setCreatedFileId(remote.file.id)
         clone = undefined
       }
-      const { remote, doc, name: documentName } = saved.current
+      const { remote, doc, name: documentName, content } = saved.current
       if (!remote.etag) {
         const metadata = await getFileMetadata(remote.file.id)
         remote.etag = metadata.etag
       }
+      const savedRevision = await documentRevision(content)
       const now = Date.now()
       const info: DocumentInfo = {
         id: `G${remote.file.id}`,
@@ -159,6 +164,8 @@ export function SaveToDriveDialog({
           etag: remote.etag,
           revision: remote.file.headRevisionId ?? remote.file.version,
           lastSyncedAt: now,
+          savedRevision,
+          remoteFilename: remote.file.name || undefined,
           dirty: false,
         },
       }
@@ -170,17 +177,22 @@ export function SaveToDriveDialog({
       session = undefined
       onSaved(info)
     } catch (cause) {
-      if (cause instanceof DriveCreatedFileError && clone) {
+      if (
+        cause instanceof DriveCreatedFileError &&
+        clone &&
+        serialized !== undefined
+      ) {
         saved.current = {
           remote: { file: cause.file, etag: '' },
           doc: clone,
           name: name.trim(),
+          content: serialized,
         }
         clone = undefined
         setCreated(true)
         setCreatedFileId(cause.file.id)
       }
-      setError(message(cause))
+      toast.error(message(cause), { id: 'save-to-drive' })
       if (isGoogleDriveAuthError(cause)) setConnected(false)
     } finally {
       await session?.destroy()
@@ -266,7 +278,7 @@ export function SaveToDriveDialog({
             {pending ? 'Connecting…' : 'Connect Google Drive'}
           </Button>
         )}
-        {createdFileId && error && (
+        {createdFileId && (
           <a
             href={`https://drive.google.com/file/d/${encodeURIComponent(createdFileId)}/view`}
             target="_blank"

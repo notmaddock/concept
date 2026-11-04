@@ -20,19 +20,16 @@ export function RenameDocumentDialog({
 }) {
   const [value, setValue] = useState(name)
   const [pending, setPending] = useState(false)
-  const [error, setError] = useState('')
   const pendingRef = useRef(false)
 
   async function save() {
     if (pendingRef.current || !value.trim()) return
     pendingRef.current = true
     setPending(true)
-    setError('')
     try {
       if (await onRename(value.trim())) onClose()
-      else setError('Could not rename the document. Please try again.')
     } catch {
-      setError('Could not rename the document. Please try again.')
+      // Rename failures are reported via toast by the caller.
     } finally {
       pendingRef.current = false
       setPending(false)
@@ -67,11 +64,6 @@ export function RenameDocumentDialog({
               disabled={pending}
             />
           </label>
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
           <DialogFooter>
             <Button
               type="button"

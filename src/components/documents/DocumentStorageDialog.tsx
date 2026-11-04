@@ -2,6 +2,7 @@ import { DocumentFilePicker } from './DocumentFilePicker'
 import { importFormats } from '#/lib/documents/import/formats'
 import type { ImportFormat } from '#/lib/documents/import/formats'
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { CheckIcon, FileTextIcon } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import type { Doc } from 'yjs'
@@ -53,7 +54,7 @@ export function DocumentStorageDialog({
   const [pending, setPending] = useState(false)
   const pendingRef = useRef(false)
   const [reading, setReading] = useState(false)
-  const [error, setError] = useState('')
+  const [listFailed, setListFailed] = useState(false)
   const [selected, setSelected] = useState<SelectedDocument | null>(null)
   const [name, setName] = useState(source ? `Copy of ${source.name}` : '')
   const revision = useRef(0)
@@ -67,6 +68,7 @@ export function DocumentStorageDialog({
     if (openSource?.kind !== 'library') return
     let active = true
     setReading(true)
+    setListFailed(false)
     setDocuments([])
     void openSource
       .list()
@@ -74,10 +76,12 @@ export function DocumentStorageDialog({
         if (active) setDocuments(items)
       })
       .catch(() => {
-        if (active)
-          setError(
+        if (active) {
+          setListFailed(true)
+          toast.error(
             'Could not load documents. Choose the source again to retry.',
           )
+        }
       })
       .finally(() => {
         if (active) setReading(false)
@@ -98,7 +102,7 @@ export function DocumentStorageDialog({
     revision.current++
     setSelected(null)
     setReading(false)
-    setError('')
+    setListFailed(false)
     setSourceId(id)
   }
 
@@ -106,7 +110,6 @@ export function DocumentStorageDialog({
     const request = ++revision.current
     setSelected(null)
     setReading(true)
-    setError('')
     try {
       const next = await read()
       if (request === revision.current) {
@@ -115,7 +118,7 @@ export function DocumentStorageDialog({
       }
     } catch (cause) {
       if (request === revision.current)
-        setError(
+        toast.error(
           cause instanceof Error
             ? cause.message
             : 'Could not read this document.',
@@ -135,7 +138,6 @@ export function DocumentStorageDialog({
       return
     pendingRef.current = true
     setPending(true)
-    setError('')
     try {
       let id = selected?.existingId
       if (!id) {
@@ -152,7 +154,7 @@ export function DocumentStorageDialog({
       await navigate({ to: '/', hash: documentHash(id) })
       onClose()
     } catch (cause) {
-      setError(
+      toast.error(
         cause instanceof Error
           ? cause.message
           : 'Could not open the document. Please try again.',
@@ -275,7 +277,7 @@ export function DocumentStorageDialog({
                     aria-label={`${openSource.label} documents`}
                     className="grid max-h-60 gap-2 overflow-y-auto"
                   >
-                    {!reading && !error && documents.length === 0 && (
+                    {!reading && !listFailed && documents.length === 0 && (
                       <p className="text-sm text-muted-foreground">
                         No documents saved here yet. Choose This device to open
                         a .concept file.
@@ -332,7 +334,6 @@ export function DocumentStorageDialog({
                 onClick={() => {
                   revision.current++
                   setSelected(null)
-                  setError('')
                 }}
               >
                 Change
@@ -385,11 +386,6 @@ export function DocumentStorageDialog({
               </p>
             )}
           </div>
-        )}
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
         )}
         <DialogFooter>
           <Button variant="outline" disabled={pending} onClick={onClose}>
