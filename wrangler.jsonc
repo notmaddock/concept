@@ -14,7 +14,7 @@
     "vars": {
       "GOOGLE_CLIENT_ID": "819574860574-3e68a16ekd85g25uj9jliejt4l2qaamp.apps.googleusercontent.com",
       "OAUTH_PROXY_URL": "https://concept.maddock.world",
-      "AUTH_TRUSTED_ORIGINS": "http://localhost:3000,https://concept.maddock.world,https://*.concept.maddock.world,https://concept.notmaddock.workers.dev,https://*-concept.notmaddock.workers.dev",
+      "AUTH_TRUSTED_ORIGINS": "https://concept.maddock.world,https://*.concept.maddock.world,https://concept.notmaddock.workers.dev,https://*-concept.notmaddock.workers.dev",
     },
     "d1_databases": [
       {
@@ -36,7 +36,7 @@
   "vars": {
     "GOOGLE_CLIENT_ID": "819574860574-3e68a16ekd85g25uj9jliejt4l2qaamp.apps.googleusercontent.com",
     "OAUTH_PROXY_URL": "https://concept.maddock.world",
-    "AUTH_TRUSTED_ORIGINS": "http://localhost:3000,https://concept.maddock.world,https://*.concept.maddock.world,https://concept.notmaddock.workers.dev,https://*-concept.notmaddock.workers.dev",
+    "AUTH_TRUSTED_ORIGINS": "https://concept.maddock.world,https://*.concept.maddock.world,https://concept.notmaddock.workers.dev,https://*-concept.notmaddock.workers.dev",
   },
   "secrets": {
     "required": [
