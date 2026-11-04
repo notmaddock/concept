@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   CanaryWarningDialog,
   CANARY_WARNING_STORAGE_KEY,
@@ -25,20 +25,20 @@ afterEach(async () => {
 })
 
 describe('CanaryWarningDialog', () => {
-  it('shows dialog when canary is not yet acknowledged', async () => {
+  it('shows welcoming pre-alpha warning dialog when not yet acknowledged', async () => {
     await act(async () => {
       root.render(<CanaryWarningDialog />)
     })
 
-    expect(document.body.textContent).toContain('Pre-Alpha Canary Warning')
+    expect(document.body.textContent).toContain('Welcome to Concept!')
     expect(document.body.textContent).toContain(
-      'Concept is currently in an experimental pre-alpha/canary state',
+      'Concept is in very early development and is in pre-alpha',
     )
     expect(document.body.textContent).toContain(
-      'High Risk of Irreversible Data Loss',
+      'until 1.0 your documents might break',
     )
     expect(document.body.textContent).toContain(
-      'I acknowledge Concept is in very early development and I might lose my documents and data.',
+      'I acknowledge Concept is in very early development and I might lose my documents',
     )
   })
 
@@ -75,10 +75,8 @@ describe('CanaryWarningDialog', () => {
   })
 
   it('saves acknowledgement to localStorage and closes when Acknowledge is clicked', async () => {
-    const onAcknowledge = vi.fn()
-
     await act(async () => {
-      root.render(<CanaryWarningDialog onAcknowledge={onAcknowledge} />)
+      root.render(<CanaryWarningDialog />)
     })
 
     const checkbox = document.querySelector(
@@ -97,7 +95,6 @@ describe('CanaryWarningDialog', () => {
     })
 
     expect(localStorage.getItem(CANARY_WARNING_STORAGE_KEY)).toBe('true')
-    expect(onAcknowledge).toHaveBeenCalledOnce()
     expect(
       document.querySelector('[data-slot="alert-dialog-content"]'),
     ).toBeNull()
@@ -110,6 +107,6 @@ describe('CanaryWarningDialog', () => {
       root.render(<CanaryWarningDialog />)
     })
 
-    expect(document.body.textContent).not.toContain('Pre-Alpha Canary Warning')
+    expect(document.body.textContent).not.toContain('Welcome to Concept!')
   })
 })
