@@ -20,8 +20,7 @@ export function useDocuments(
   const [creating, setCreating] = useState(false)
   const createPending = useRef(false)
   const deletePending = useRef(new Set<string>())
-  const [defaultId, setDefaultId] = useState<string>()
-  const document = documents.find((item) => item.id === (id ?? defaultId))
+  const document = documents.find((item) => item.id === id)
   const hasDocument = Boolean(document)
   const lookupTarget = useRef<
     { id: string; storage: DocumentStorage } | undefined
@@ -31,10 +30,10 @@ export function useDocuments(
     pending: boolean
     error?: string
   }>()
-  const activeId = useRef({ id, defaultId })
+  const activeId = useRef(id)
   useEffect(() => {
-    activeId.current = { id, defaultId }
-  }, [id, defaultId])
+    activeId.current = id
+  }, [id])
 
   useEffect(() => {
     let active = true
@@ -95,9 +94,7 @@ export function useDocuments(
       } else {
         setDocuments((items) => items.filter((item) => item.id !== change.id))
         if (!deletePending.current.has(change.id)) {
-          if (change.id === activeId.current.id) void navigate({ to: '/' })
-          else if (change.id === activeId.current.defaultId)
-            setDefaultId(undefined)
+          if (change.id === activeId.current) void navigate({ to: '/' })
         }
       }
     })
@@ -158,45 +155,25 @@ export function useDocuments(
     }
   }, [id, loaded, error, storage, hasDocument])
 
-  const openNewDocument = useCallback(
-    async (navigateToDocument: boolean) => {
-      if (createPending.current) return
-      createPending.current = true
-      setCreating(true)
-      try {
-        const created = await storage.create()
-        setDocuments((items) => [
-          created,
-          ...items.filter((item) => item.id !== created.id),
-        ])
-        setError('')
-        if (navigateToDocument)
-          await navigate({ to: '/', hash: documentHash(created.id) })
-        else setDefaultId(created.id)
-      } catch {
-        setError('Could not create the document. Please try again.')
-      } finally {
-        createPending.current = false
-        setCreating(false)
-      }
-    },
-    [storage, navigate],
-  )
-
-  useEffect(() => {
-    if (id || !loaded || error || document) return
-    const latest = documents.reduce<DocumentInfo | undefined>(
-      (current, item) =>
-        !current || item.updatedAt > current.updatedAt ? item : current,
-      undefined,
-    )
-    if (latest) setDefaultId(latest.id)
-    else void openNewDocument(false)
-  }, [id, loaded, error, document, documents, openNewDocument])
-
-  async function createDocument() {
-    await openNewDocument(true)
-  }
+  const createDocument = useCallback(async () => {
+    if (createPending.current) return
+    createPending.current = true
+    setCreating(true)
+    try {
+      const created = await storage.create()
+      setDocuments((items) => [
+        created,
+        ...items.filter((item) => item.id !== created.id),
+      ])
+      setError('')
+      await navigate({ to: '/', hash: documentHash(created.id) })
+    } catch {
+      setError('Could not create the document. Please try again.')
+    } finally {
+      createPending.current = false
+      setCreating(false)
+    }
+  }, [storage, navigate])
 
   async function renameDocumentById(documentId: string, name: string) {
     const target = documents.find((item) => item.id === documentId)
@@ -232,7 +209,6 @@ export function useDocuments(
       setDocuments((items) => items.filter((item) => item.id !== documentId))
       setError('')
       if (documentId === id) await navigate({ to: '/' })
-      else if (documentId === defaultId) setDefaultId(undefined)
     } catch {
       setError('Could not delete the document. Please try again.')
     } finally {

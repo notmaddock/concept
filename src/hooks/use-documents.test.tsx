@@ -186,44 +186,50 @@ it('retains its library subscription across document navigation', async () => {
   expect(navigate).toHaveBeenCalledWith({ to: '/' })
 })
 
-it('opens the most recent document at the root without navigating', async () => {
+it('keeps the root as a library without selecting an existing document', async () => {
   function Harness() {
     actions = useDocuments(undefined, storage)
     return null
   }
   await act(() => root.render(<Harness />))
-  expect(actions.document).toEqual(second)
+  expect(actions.loaded).toBe(true)
+  expect(actions.document).toBeUndefined()
   expect(storage.create).not.toHaveBeenCalled()
   expect(navigate).not.toHaveBeenCalled()
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
   await act(() =>
     listener({ type: 'upsert', document: { ...first, updatedAt: 10 } }),
   )
-  expect(actions.document).toEqual(second)
+  expect(actions.document).toBeUndefined()
 })
 
-it('creates a document for an empty root library and retains the root URL', async () => {
+it('keeps an empty root library empty until a document is explicitly created', async () => {
   vi.mocked(storage.list).mockResolvedValue([])
   function Harness() {
     actions = useDocuments(undefined, storage)
     return null
   }
   await act(() => root.render(<Harness />))
-  expect(storage.create).toHaveBeenCalledTimes(1)
-  expect(actions.document?.id).toBe('new')
+  expect(actions.loaded).toBe(true)
+  expect(actions.document).toBeUndefined()
+  expect(storage.create).not.toHaveBeenCalled()
   expect(navigate).not.toHaveBeenCalled()
+  await act(() => actions.createDocument())
+  expect(storage.create).toHaveBeenCalledTimes(1)
+  expect(navigate).toHaveBeenCalledWith({ to: '/', hash: 'Lnew' })
 })
 
-it('does not retry failed automatic creation in a loop', async () => {
-  vi.mocked(storage.list).mockResolvedValue([])
-  vi.mocked(storage.create).mockRejectedValue(new Error('Storage unavailable'))
-  function Harness() {
-    actions = useDocuments(undefined, storage)
+it('closes the document when navigating back to the root', async () => {
+  function Harness({ id }: { id?: string }) {
+    actions = useDocuments(id, storage)
     return null
   }
+  await act(() => root.render(<Harness id="first" />))
+  expect(actions.document).toEqual(first)
   await act(() => root.render(<Harness />))
-  expect(storage.create).toHaveBeenCalledTimes(1)
-  expect(actions.error).toContain('Could not create')
+  expect(actions.document).toBeUndefined()
+  expect(actions.loaded).toBe(true)
+  expect(storage.create).not.toHaveBeenCalled()
 })
 
 it('resolves a direct Drive identity missing from the current library', async () => {
@@ -296,20 +302,17 @@ it('ignores a direct lookup that finishes after navigation', async () => {
   expect(actions.loaded).toBe(true)
 })
 
-it('selects the next document or creates a new one when the root default document is deleted', async () => {
+it('does not open another document when deleting documents from the root', async () => {
   function Harness() {
     actions = useDocuments(undefined, storage)
     return null
   }
   await act(() => root.render(<Harness />))
-  expect(actions.document).toEqual(second)
-
   await act(() => actions.deleteDocument(second.id))
-  expect(actions.document).toEqual(first)
-  expect(navigate).not.toHaveBeenCalled()
-
+  expect(actions.document).toBeUndefined()
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
   await act(() => listener({ type: 'delete', id: first.id }))
-  expect(storage.create).toHaveBeenCalledTimes(1)
-  expect(actions.document?.id).toBe('new')
+  expect(actions.document).toBeUndefined()
+  expect(storage.create).not.toHaveBeenCalled()
+  expect(navigate).not.toHaveBeenCalled()
 })
