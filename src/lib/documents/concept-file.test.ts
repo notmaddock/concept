@@ -169,3 +169,32 @@ it('downloads a .concept file with a sanitized filename', () => {
     vi.useRealTimers()
   }
 })
+
+it('deletes the created document and closes the session if import fails during flush', async () => {
+  const source = new Doc()
+  source.get('root', XmlText).insert(0, 'Hello')
+  const file = parseConcept(serializeConcept('Broken import', source))
+  source.destroy()
+  const originalOpen = localDocumentStorage.open.bind(localDocumentStorage)
+  let destroyed = false
+  const openSpy = vi
+    .spyOn(localDocumentStorage, 'open')
+    .mockImplementation((id, doc) => {
+      const session = originalOpen(id, doc)
+      return {
+        whenSynced: session.whenSynced,
+        flush: () => Promise.reject(new Error('QuotaExceededError')),
+        destroy: async () => {
+          destroyed = true
+          await session.destroy()
+        },
+      }
+    })
+  try {
+    await expect(importConcept(file)).rejects.toThrow('QuotaExceededError')
+    expect(destroyed).toBe(true)
+    expect(await localDocumentStorage.list()).toEqual([])
+  } finally {
+    openSpy.mockRestore()
+  }
+})
