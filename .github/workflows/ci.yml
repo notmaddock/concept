@@ -110,6 +110,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build application (Vite)
+        env:
+          VITE_GOOGLE_PICKER_API_KEY: ${{ secrets.VITE_GOOGLE_PICKER_API_KEY }}
+          VITE_GOOGLE_PICKER_APP_ID: ${{ vars.VITE_GOOGLE_PICKER_APP_ID }}
         run: pnpm run build
 
       - name: Upload build artifact

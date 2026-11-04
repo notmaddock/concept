@@ -9,9 +9,17 @@ const api = 'https://www.googleapis.com/drive/v3/files'
 const conditionalApi = 'https://www.googleapis.com/drive/v2/files'
 const uploadApi = 'https://www.googleapis.com/upload/drive/v2/files'
 const mimeType = 'application/vnd.concept+json'
-const fields = 'id,name,mimeType,modifiedTime,size,version,headRevisionId'
+const fields =
+  'id,name,mimeType,modifiedTime,size,version,headRevisionId,capabilities(canEdit,canModifyContent,canComment,canCopy)'
 const conditionalFields =
-  'id,title,mimeType,modifiedDate,fileSize,version,headRevisionId,etag'
+  'id,title,mimeType,modifiedDate,fileSize,version,headRevisionId,etag,capabilities(canEdit,canModifyContent,canComment,canCopy)'
+
+export interface DriveCapabilities {
+  canEdit?: boolean
+  canComment?: boolean
+  canCopy?: boolean
+  canModifyContent?: boolean
+}
 
 export interface DriveFile {
   id: string
@@ -21,6 +29,15 @@ export interface DriveFile {
   size?: string
   version?: string
   headRevisionId?: string
+  capabilities?: DriveCapabilities
+}
+
+export function isDriveFileReadOnly(file: DriveFile): boolean {
+  if (!file.capabilities) return false
+  return (
+    file.capabilities.canEdit === false ||
+    file.capabilities.canModifyContent === false
+  )
 }
 
 export interface DriveFileVersion {
@@ -56,6 +73,7 @@ interface ConditionalFile extends Omit<
   modifiedDate?: string
   fileSize?: string
   etag?: string
+  capabilities?: DriveCapabilities
 }
 
 function normalizeFile(file: ConditionalFile): DriveFile {
@@ -67,6 +85,7 @@ function normalizeFile(file: ConditionalFile): DriveFile {
     size: file.fileSize,
     version: file.version,
     headRevisionId: file.headRevisionId,
+    capabilities: file.capabilities,
   }
 }
 
@@ -80,7 +99,9 @@ async function request(
   init.signal?.throwIfAborted()
   headers.set('Authorization', `Bearer ${token}`)
   const timeout = AbortSignal.timeout(30000)
-  const response = await fetch(url, {
+  const requestUrl = new URL(url)
+  requestUrl.searchParams.set('supportsAllDrives', 'true')
+  const response = await fetch(requestUrl.toString(), {
     ...init,
     headers,
     cache: 'no-store',
@@ -142,6 +163,7 @@ export async function listConceptFiles(): Promise<Array<DriveFile>> {
     q: `trashed = false and (mimeType = '${mimeType}' or name contains '.concept')`,
     fields: `nextPageToken,files(${fields})`,
     pageSize: '100',
+    includeItemsFromAllDrives: 'true',
     orderBy: 'modifiedTime desc',
   })
   const files: Array<DriveFile> = []
@@ -172,6 +194,7 @@ export async function listFolders(
     q: `trashed = false and mimeType = 'application/vnd.google-apps.folder' and '${parentId.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' in parents`,
     fields: `nextPageToken,files(${fields})`,
     pageSize: '100',
+    includeItemsFromAllDrives: 'true',
     orderBy: 'name',
   })
   const files: Array<DriveFile> = []

@@ -25,7 +25,7 @@ export function DocumentActionSearch({
 }: {
   options: NavigationOption[]
 }) {
-  const { enabled, focusEditor } = useDocumentWorkspace()
+  const { focusEditor } = useDocumentWorkspace()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -46,7 +46,7 @@ export function DocumentActionSearch({
     .sort((a, b) => b.score - a.score)
     .map(({ option }) => option)
   const groups = [...new Set(matches.map((option) => option.group))]
-  const searchOpen = open && enabled
+  const searchOpen = open
   const hasQuery = query.trim().length > 0
 
   function closeSearch(restoreFocus = false) {
@@ -57,11 +57,7 @@ export function DocumentActionSearch({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (
-        enabled &&
-        (event.metaKey || event.ctrlKey) &&
-        event.key.toLowerCase() === 'k'
-      ) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         setOpen((previous) => !previous)
         setQuery('')
@@ -71,7 +67,7 @@ export function DocumentActionSearch({
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [enabled, searchOpen])
+  }, [searchOpen])
 
   useEffect(() => {
     if (!searchOpen) return
@@ -134,7 +130,6 @@ export function DocumentActionSearch({
                     setOpen(true)
                     inputRef.current?.focus()
                   }}
-                  disabled={!enabled}
                   className="size-7 [&_svg]:size-3.5"
                 />
               }

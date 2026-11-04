@@ -27,6 +27,14 @@ vi.mock('./drive/api', () => ({
       super(message)
     }
   },
+  isDriveFileReadOnly: (file: {
+    capabilities?: { canEdit?: boolean; canModifyContent?: boolean }
+  }) =>
+    Boolean(
+      file.capabilities &&
+      (file.capabilities.canEdit === false ||
+        file.capabilities.canModifyContent === false),
+    ),
   readConceptFile: vi.fn(),
   getFileMetadata: vi.fn(),
   updateConceptFile: vi.fn(),
@@ -59,6 +67,8 @@ function version(etag: string) {
       name: 'Test.concept',
       mimeType: 'application/vnd.concept+json',
       headRevisionId: etag,
+      capabilities: undefined as
+        { canEdit?: boolean; canModifyContent?: boolean } | undefined,
     },
   }
 }
@@ -348,4 +358,110 @@ it('shows a toast and retains a pending rename when Drive rejects it', async () 
   expect(local.getMap('metadata').get('name')).toBe('Pending name')
   expect(info.drive?.dirty).toBe(true)
   expect(getSaveStatus(info.id).phase).toBe('error')
+})
+
+it('detects read-only capabilities on download and propagates readOnly to DocumentInfo', async () => {
+  const roVersion = version('"ro-version"')
+  roVersion.file.capabilities = { canEdit: false, canModifyContent: false }
+  read.mockResolvedValueOnce({
+    ...roVersion,
+    content: serializeConcept(info.name, remote),
+  })
+
+  await start()
+
+  expect(info.readOnly).toBe(true)
+  expect(info.drive?.readOnly).toBe(true)
+  expect(getSaveStatus(info.id).readOnly).toBe(true)
+  expect(getSaveStatus(info.id).phase).toBe('synced')
+})
+
+it('does not mark dirty or attempt upload when local doc is modified in read-only mode', async () => {
+  info.readOnly = true
+  info.drive = { ...info.drive!, readOnly: true }
+
+  await start()
+
+  local.getMap('settings').set('theme', 'dark')
+  expect(getSaveStatus(info.id).readOnly).toBe(true)
+  expect(info.drive.dirty).toBe(false)
+
+  await vi.advanceTimersByTimeAsync(5000)
+  expect(write).not.toHaveBeenCalled()
+
+  await session.sync(true)
+  expect(write).not.toHaveBeenCalled()
+})
+
+it('preserves unsynced edits after Drive access becomes view-only', async () => {
+  info.drive!.offlineAvailable = false
+  await start()
+  local.getMap('settings').set('unsynced-edit', 'recover me')
+  const readonly = version('"view-only"')
+  readonly.file.capabilities = { canEdit: false }
+  metadata.mockResolvedValue(readonly)
+  read.mockResolvedValue({
+    ...readonly,
+    content: serializeConcept(info.name, remote),
+  })
+
+  await session.sync(true)
+
+  expect(write).not.toHaveBeenCalled()
+  expect(local.getMap('settings').get('unsynced-edit')).toBe('recover me')
+  expect(info).toMatchObject({ readOnly: true, drive: { dirty: true } })
+  expect(getSaveStatus(info.id)).toMatchObject({
+    phase: 'error',
+    readOnly: true,
+  })
+  expect(getSaveStatus(info.id).error).toContain('preserved in this browser')
+  await vi.advanceTimersByTimeAsync(120_000)
+  expect(write).not.toHaveBeenCalled()
+})
+
+it('retains recoverable cached edits when reopening a view-only document', async () => {
+  info.readOnly = true
+  info.drive = { ...info.drive!, readOnly: true, dirty: true }
+  local.getMap('settings').set('cached-edit', 'recover me')
+  const readonly = version('"view-only"')
+  readonly.file.capabilities = { canEdit: false }
+  read.mockResolvedValue({
+    ...readonly,
+    content: serializeConcept(info.name, remote),
+  })
+
+  await start()
+
+  expect(info.drive.dirty).toBe(true)
+  expect(local.getMap('settings').get('cached-edit')).toBe('recover me')
+  expect(getSaveStatus(info.id).phase).toBe('error')
+  expect(write).not.toHaveBeenCalled()
+})
+
+it('detects permissions changing without a content ETag change', async () => {
+  await start()
+  const readonly = version('"base"')
+  readonly.file.capabilities = { canEdit: false }
+  metadata.mockResolvedValue(readonly)
+  read.mockResolvedValue({
+    ...readonly,
+    content: serializeConcept(info.name, remote),
+  })
+
+  await session.sync(true)
+
+  expect(info.readOnly).toBe(true)
+  expect(getSaveStatus(info.id).readOnly).toBe(true)
+
+  const editable = version('"base"')
+  editable.file.capabilities = { canEdit: true }
+  metadata.mockResolvedValue(editable)
+  read.mockResolvedValue({
+    ...editable,
+    content: serializeConcept(info.name, remote),
+  })
+  await session.sync(true)
+
+  expect(info.readOnly).toBe(false)
+  expect(getSaveStatus(info.id).readOnly).toBe(false)
 })

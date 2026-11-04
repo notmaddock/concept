@@ -14,6 +14,7 @@ import {
 import {
   DriveError,
   getFileMetadata,
+  isDriveFileReadOnly,
   readConceptFile,
   updateConceptFile,
 } from './drive/api'
@@ -39,6 +40,7 @@ export interface SaveStatus {
   size?: number
   error?: string
   offlineAvailable?: boolean
+  readOnly?: boolean
 }
 
 const emptyStatus: SaveStatus = { phase: 'loading' }
@@ -87,6 +89,10 @@ export class DocumentSync {
   private readonly abort = new AbortController()
   private isStopped = () => this.stopped
 
+  get isReadOnly() {
+    return Boolean(this.info.readOnly || this.info.drive?.readOnly)
+  }
+
   constructor(
     readonly info: DocumentInfo,
     readonly doc: Doc,
@@ -99,6 +105,7 @@ export class DocumentSync {
       phase: 'loading',
       offlineAvailable: info.drive?.offlineAvailable,
       lastSyncedAt: info.drive?.lastSyncedAt,
+      readOnly: this.isReadOnly,
     })
   }
 
@@ -113,6 +120,7 @@ export class DocumentSync {
       phase,
       error,
       etag: this.etag,
+      readOnly: this.isReadOnly,
     }
     setSaveStatus(this.info.id, status)
     if (
@@ -174,13 +182,14 @@ export class DocumentSync {
     if (!this.info.drive) {
       await this.persistence.flush?.()
       this.publish('local')
-    } else if (this.dirty) this.schedule()
+    } else if (this.dirty && !this.isReadOnly) this.schedule()
     window.addEventListener('focus', this.check)
     window.addEventListener('online', this.check)
     documentSessions.set(this.info.id, this)
   }
 
   private changed = () => {
+    if (this.isReadOnly) return
     ++this.version
     const wasDirty = this.dirty
     this.dirty = true
@@ -217,20 +226,33 @@ export class DocumentSync {
       ...current,
       name: documentName(this.doc, current.name),
       updatedAt: Date.now(),
+      readOnly: this.info.readOnly ?? current.readOnly,
       drive: current.drive
         ? {
             ...current.drive,
             dirty: this.dirty,
             etag: this.etag,
             remoteFilename: this.remoteFilename,
+            readOnly: this.info.drive?.readOnly ?? current.drive.readOnly,
             ...drive,
           }
         : undefined,
     }))
   }
 
+  private publishSyncState() {
+    if (this.dirty && this.isReadOnly) {
+      const message =
+        'Unsynced changes are preserved in this browser. Make a copy to keep editing this view-only document.'
+      const previous = getSaveStatus(this.info.id)
+      this.publish('error', message)
+      if (previous.phase !== 'error' || previous.error !== message)
+        toast.error(message, { id: `drive-sync:${this.info.id}` })
+    } else this.publish(this.dirty ? 'pending' : 'synced')
+  }
+
   private schedule() {
-    if (this.stopped || !this.info.drive) return
+    if (this.stopped || !this.info.drive || this.isReadOnly) return
     clearTimeout(this.idle)
     this.idle = setTimeout(() => {
       void this.sync()
@@ -275,21 +297,36 @@ export class DocumentSync {
         this.doc.getMap<string>('metadata').set('name', name)
       this.remoteFilename = remote.file.name
       this.etag = remote.etag
+      const isReadOnly = isDriveFileReadOnly(remote.file)
+      if (isReadOnly) {
+        this.info.readOnly = true
+        if (this.info.drive) this.info.drive.readOnly = true
+      } else if (remote.file.capabilities?.canEdit === true) {
+        this.info.readOnly = false
+        if (this.info.drive) this.info.drive.readOnly = false
+      }
       this.dirty = this.content() !== this.acknowledged
       const lastSyncedAt = this.dirty ? undefined : Date.now()
       const savedRevision = this.dirty
         ? undefined
         : await documentRevision(this.acknowledged)
       const info = await this.persistMetadata(
-        this.dirty ? undefined : { lastSyncedAt, savedRevision },
+        this.dirty
+          ? undefined
+          : {
+              lastSyncedAt,
+              savedRevision,
+              readOnly: this.info.drive?.readOnly,
+            },
       )
       setSaveStatus(this.info.id, {
         ...getSaveStatus(this.info.id),
         ...(lastSyncedAt === undefined ? {} : { lastSyncedAt }),
         remoteRevision: remote.file.headRevisionId ?? remote.file.version,
         offlineAvailable: info.drive?.offlineAvailable,
+        readOnly: this.isReadOnly,
       })
-      this.publish(this.dirty ? 'pending' : 'synced')
+      this.publishSyncState()
     } finally {
       snapshot.destroy()
     }
@@ -322,12 +359,19 @@ export class DocumentSync {
         this.etag && this.acknowledged
           ? await getFileMetadata(this.info.drive!.fileId, this.abort.signal)
           : undefined
-      if (!current || current.etag !== this.etag) {
+      const permissionsChanged =
+        current?.file.capabilities !== undefined &&
+        isDriveFileReadOnly(current.file) !== this.isReadOnly
+      if (!current || current.etag !== this.etag || permissionsChanged) {
         this.publish('reconciling')
         await this.download(current)
       }
     }
-    for (let attempt = 0; this.dirty && !this.stopped; attempt++) {
+    for (
+      let attempt = 0;
+      this.dirty && !this.stopped && !this.isReadOnly;
+      attempt++
+    ) {
       if (attempt === 5)
         throw new Error('Drive keeps changing. Try syncing again.')
       this.publish('saving')
@@ -370,7 +414,7 @@ export class DocumentSync {
           lastSyncedAt,
           remoteRevision,
         })
-        this.publish(this.dirty ? 'pending' : 'synced')
+        this.publishSyncState()
         return
       } catch (error) {
         if (!(error instanceof DriveError) || error.status !== 412) throw error
@@ -380,7 +424,7 @@ export class DocumentSync {
     }
     if (!this.stopped) {
       await this.persistMetadata()
-      this.publish(this.dirty ? 'pending' : 'synced')
+      this.publishSyncState()
     }
   }
 

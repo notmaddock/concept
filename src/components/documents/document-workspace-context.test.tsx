@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   disconnect: vi.fn(async () => {}),
   navigate: vi.fn(async () => {}),
   deleteLocal: vi.fn<(id: string) => Promise<void>>(async () => {}),
+  openPicker: vi.fn(),
+  storageGet: vi.fn(async (_id?: string) => undefined),
   documents: [] as DocumentInfo[],
   document: undefined as DocumentInfo | undefined,
   status: { phase: 'local' as const },
@@ -29,6 +31,9 @@ vi.mock('#/hooks/use-documents', () => ({
     document: mocks.document,
     error: '',
   }),
+}))
+vi.mock('#/lib/documents/drive/picker', () => ({
+  openGooglePicker: (options?: { fileId: string }) => mocks.openPicker(options),
 }))
 vi.mock('#/lib/documents/drive/auth', () => ({
   connectGoogleDrive: vi.fn(),
@@ -45,7 +50,9 @@ vi.mock('#/lib/documents/drive/auth', () => ({
 }))
 vi.mock('#/lib/documents/document-storage', () => ({
   refreshDriveDocuments: () => mocks.refresh(),
-  documentStorage: {},
+  documentStorage: {
+    get: (id: string) => mocks.storageGet(id),
+  },
 }))
 vi.mock('#/lib/documents/storage', () => ({
   localDocumentStorage: {
@@ -68,10 +75,14 @@ beforeEach(() => {
   mocks.documents = []
   mocks.document = undefined
   mocks.refresh.mockReset()
+  mocks.refresh.mockResolvedValue(new Set())
   mocks.prepareAuth.mockClear()
   mocks.disconnect.mockReset()
   mocks.navigate.mockClear()
   mocks.deleteLocal.mockClear()
+  mocks.openPicker.mockReset()
+  mocks.storageGet.mockReset()
+  mocks.storageGet.mockResolvedValue(undefined)
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -205,4 +216,122 @@ it('hides non-offline, non-dirty Drive documents when disconnected and deletes n
   expect(mocks.deleteLocal).not.toHaveBeenCalledWith('Gdirty')
   expect(mocks.deleteLocal).not.toHaveBeenCalledWith('local-1')
   expect(mocks.navigate).toHaveBeenCalledWith({ to: '/' })
+})
+
+it('preserves current state and does not navigate when picker is cancelled', async () => {
+  mocks.openPicker.mockResolvedValueOnce(null)
+  function Harness() {
+    workspace = useDocumentWorkspace()
+    return null
+  }
+  await act(() =>
+    root.render(
+      <DocumentWorkspaceProvider>
+        <Harness />
+      </DocumentWorkspaceProvider>,
+    ),
+  )
+
+  await act(async () => {
+    await workspace.openGoogleDrivePicker()
+  })
+
+  expect(mocks.openPicker).toHaveBeenCalledOnce()
+  expect(mocks.navigate).not.toHaveBeenCalled()
+  expect(workspace.pickerLoading).toBe(false)
+})
+
+it('navigates to selected Drive document and registers it in storage even with different ID', async () => {
+  mocks.openPicker.mockResolvedValueOnce({
+    id: 'picked-123',
+    name: 'Shared.concept',
+    mimeType: 'application/vnd.concept+json',
+  })
+  function Harness() {
+    workspace = useDocumentWorkspace()
+    return null
+  }
+  await act(() =>
+    root.render(
+      <DocumentWorkspaceProvider>
+        <Harness />
+      </DocumentWorkspaceProvider>,
+    ),
+  )
+
+  await act(async () => {
+    await workspace.openGoogleDrivePicker()
+  })
+
+  expect(mocks.openPicker).toHaveBeenCalledOnce()
+  expect(mocks.navigate).toHaveBeenCalledWith({ to: '/', hash: 'Gpicked-123' })
+  expect(mocks.storageGet).toHaveBeenCalledWith('Gpicked-123')
+})
+
+it('shows toast error when picker fails to open', async () => {
+  const toastErrorSpy = vi.spyOn(toast, 'error').mockImplementation(() => '')
+  mocks.openPicker.mockRejectedValueOnce(
+    new Error('Network error loading picker'),
+  )
+  function Harness() {
+    workspace = useDocumentWorkspace()
+    return null
+  }
+  await act(() =>
+    root.render(
+      <DocumentWorkspaceProvider>
+        <Harness />
+      </DocumentWorkspaceProvider>,
+    ),
+  )
+
+  await act(async () => {
+    await workspace.openGoogleDrivePicker()
+  })
+
+  expect(toastErrorSpy).toHaveBeenCalledWith('Network error loading picker', {
+    id: 'google-picker-error',
+  })
+})
+
+it('retries the editor after selecting the active document again', async () => {
+  mocks.openPicker.mockResolvedValueOnce({ id: 'active' })
+  function Harness() {
+    workspace = useDocumentWorkspace()
+    return null
+  }
+  await act(() =>
+    root.render(
+      <DocumentWorkspaceProvider id="Gactive">
+        <Harness />
+      </DocumentWorkspaceProvider>,
+    ),
+  )
+  const previousRevision = workspace.connectionRevision
+  await act(async () => workspace.openGoogleDrivePicker())
+  expect(workspace.connectionRevision).toBe(previousRevision + 1)
+  expect(mocks.navigate).toHaveBeenCalledWith({ to: '/', hash: 'Gactive' })
+  expect(mocks.openPicker).toHaveBeenCalledWith({ fileId: 'active' })
+})
+
+it('retains the current document and reports one error when selected file registration fails', async () => {
+  const error = vi.spyOn(toast, 'error').mockImplementation(() => '')
+  mocks.openPicker.mockResolvedValueOnce({ id: 'inaccessible' })
+  mocks.storageGet.mockRejectedValueOnce(new Error('Access denied'))
+  function Harness() {
+    workspace = useDocumentWorkspace()
+    return null
+  }
+  await act(() =>
+    root.render(
+      <DocumentWorkspaceProvider>
+        <Harness />
+      </DocumentWorkspaceProvider>,
+    ),
+  )
+  await act(async () => workspace.openGoogleDrivePicker())
+  expect(mocks.navigate).not.toHaveBeenCalled()
+  expect(error).toHaveBeenCalledExactlyOnceWith('Access denied', {
+    id: 'google-picker-error',
+  })
 })

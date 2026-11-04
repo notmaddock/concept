@@ -53,6 +53,9 @@ export function DocumentEditor({
   } | null>(null)
 
   useEffect(() => {
+    setError('')
+    setAuthError(false)
+    setReady(false)
     const startedAt = performance.now()
     let active = true
     const doc = new Doc()
@@ -72,7 +75,8 @@ export function DocumentEditor({
           toast.error(message, { id: `document-open:${id}` })
           setAuthError(
             id.startsWith('G') &&
-              (!isGoogleDriveConnected() || isGoogleDriveAuthError(cause)),
+              (!(workspace?.driveConnected ?? isGoogleDriveConnected()) ||
+                isGoogleDriveAuthError(cause)),
           )
           setError(
             cause instanceof Error
@@ -101,7 +105,7 @@ export function DocumentEditor({
         doc.destroy(),
       )
     }
-  }, [id, documentRef])
+  }, [id, documentRef, workspace?.driveConnected])
 
   useEffect(() => {
     if (ready && window.document.activeElement === window.document.body)
@@ -130,7 +134,7 @@ export function DocumentEditor({
           <EmptyTitle>Could not open this document</EmptyTitle>
           <EmptyDescription>{error}</EmptyDescription>
         </EmptyHeader>
-        {needsDriveConnection && connectDrive && (
+        {needsDriveConnection && connectDrive ? (
           <EmptyContent>
             <Button
               disabled={workspace?.driveLoading}
@@ -142,12 +146,29 @@ export function DocumentEditor({
               Connect Google Drive
             </Button>
           </EmptyContent>
-        )}
+        ) : id.startsWith('G') && workspace?.openGoogleDrivePicker ? (
+          <EmptyContent>
+            <Button
+              disabled={workspace.pickerLoading || workspace.driveLoading}
+              onClick={() => {
+                void workspace.openGoogleDrivePicker()
+              }}
+            >
+              <DriveIcon className="size-4" />
+              Open the Google Drive file picker
+            </Button>
+          </EmptyContent>
+        ) : null}
       </Empty>
     )
   }
 
   if (!session) return <DocumentLoading />
+
+  const isReadOnly = Boolean(
+    workspace?.document?.readOnly || workspace?.document?.drive?.readOnly,
+  )
+  const mode = isReadOnly ? 'view-only' : 'edit'
 
   return (
     <>
@@ -155,7 +176,9 @@ export function DocumentEditor({
       <div className={ready ? 'contents' : 'hidden'}>
         <LexicalCollaboration>
           <Nova
+            key={session.doc.guid}
             editorRef={editorRef}
+            mode={mode}
             pageSetupOpen={pageSetupOpen}
             onPageSetupOpenChange={onPageSetupOpenChange}
             collaboration={

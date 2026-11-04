@@ -21,6 +21,7 @@ import {
   refreshDriveDocuments,
   documentStorage,
 } from '#/lib/documents/document-storage'
+import { openGooglePicker } from '#/lib/documents/drive/picker'
 import { localDocumentStorage } from '#/lib/documents/storage'
 import {
   documentSessions,
@@ -164,6 +165,38 @@ function useWorkspaceState(id?: string) {
     }
   }
 
+  const [pickerLoading, setPickerLoading] = useState(false)
+  const pickerPending = useRef(false)
+
+  async function openGoogleDrivePicker() {
+    if (pickerPending.current) return
+    pickerPending.current = true
+    setPickerLoading(true)
+    try {
+      const picked = await openGooglePicker(
+        id?.startsWith('G') ? { fileId: id.slice(1) } : undefined,
+      )
+      if (!picked) return
+      const targetId = `G${picked.id}`
+      await documentStorage.get(targetId)
+      if (targetId === id) setConnectionRevision((value) => value + 1)
+      await navigate({ to: '/', hash: documentHash(targetId) })
+      try {
+        setDriveIds(await refreshDriveDocuments())
+      } catch {}
+    } catch (cause) {
+      toast.error(
+        cause instanceof Error
+          ? cause.message
+          : 'Could not open Google Drive file picker.',
+        { id: 'google-picker-error' },
+      )
+    } finally {
+      pickerPending.current = false
+      setPickerLoading(false)
+    }
+  }
+
   function openDocument() {
     setFileAction('open')
   }
@@ -229,6 +262,8 @@ function useWorkspaceState(id?: string) {
     saveStatus,
     driveLoading,
     driveConnected,
+    openGoogleDrivePicker,
+    pickerLoading,
     disconnectDrive: () => {
       setDriveLoading(true)
       void disconnectGoogleDrive()

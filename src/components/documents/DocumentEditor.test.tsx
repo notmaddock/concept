@@ -14,6 +14,7 @@ import type { ComponentProps } from 'react'
 import type { Nova } from '#/components/nova/Nova'
 import { toast } from 'sonner'
 import { localDocumentStorage } from '#/lib/documents/storage'
+import { documentStorage } from '#/lib/documents/document-storage'
 import {
   importConcept,
   parseConcept,
@@ -21,6 +22,7 @@ import {
 } from '#/lib/documents/concept-file'
 import { DocumentEditor } from './DocumentEditor'
 import { DocumentSaveStatus } from './DocumentSaveStatus'
+import { DocumentWorkspaceContext } from './document-workspace-store'
 
 vi.mock('#/components/nova/Nova', () => ({
   Nova: ({ collaboration, editorRef }: ComponentProps<typeof Nova>) => (
@@ -190,4 +192,113 @@ it('renders a Connect Google Drive action when a Google Drive document fails whi
   expect(errorText?.getAttribute('role')).toBeNull()
   expect(errorText?.className).toContain('text-muted-foreground')
   expect(errorText?.className).not.toContain('text-destructive')
+})
+
+it('renders an Open the Google Drive file picker action when a Google Drive document fails while connected', async () => {
+  vi.spyOn(toast, 'error').mockImplementation(() => '')
+  const openGoogleDrivePicker = vi.fn()
+  const mockWorkspace = {
+    driveConnected: true,
+    openGoogleDrivePicker,
+    driveLoading: false,
+    pickerLoading: false,
+  } as unknown as React.ContextType<typeof DocumentWorkspaceContext>
+
+  await act(() =>
+    root.render(
+      <DocumentWorkspaceContext.Provider value={mockWorkspace}>
+        <DocumentEditor
+          id="Gmissing"
+          documentRef={documentRef}
+          editorRef={editorRef}
+          pageSetupOpen={false}
+          onPageSetupOpenChange={() => {}}
+        />
+      </DocumentWorkspaceContext.Provider>,
+    ),
+  )
+
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(
+      container.querySelector('[data-slot="empty"]')?.textContent,
+    ).toContain('Could not open this document')
+  })
+
+  const button = Array.from(container.querySelectorAll('button')).find((el) =>
+    el.textContent.includes('Open the Google Drive file picker'),
+  )
+  expect(button).toBeDefined()
+  await act(async () => {
+    button?.click()
+  })
+  expect(openGoogleDrivePicker).toHaveBeenCalledOnce()
+})
+
+it('restarts the collaboration binding and clears an earlier open error when the document changes', async () => {
+  vi.spyOn(toast, 'error').mockImplementation(() => '')
+  const renderEditor = (id: string) => (
+    <DocumentEditor
+      id={id}
+      documentRef={documentRef}
+      editorRef={editorRef}
+      pageSetupOpen={false}
+      onPageSetupOpenChange={() => {}}
+    />
+  )
+  await act(() => root.render(renderEditor('missing')))
+  await vi.waitFor(() => {
+    expect(container.textContent).toContain('Could not open this document')
+  })
+  const saved = await localDocumentStorage.create()
+  await act(() => root.render(renderEditor(saved.id)))
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(documentRef.current).not.toBeNull()
+    expect(container.textContent).not.toContain('Could not open this document')
+    expect(container.querySelector('[role="status"]')).toBeNull()
+    expect(editorRef.current?.getRootElement()).not.toBeNull()
+  })
+})
+
+it('recovers a failed Drive session when its connection changes without changing the document id', async () => {
+  vi.spyOn(toast, 'error').mockImplementation(() => '')
+  const saved = await localDocumentStorage.create()
+  const storageOpen = vi.spyOn(documentStorage, 'open')
+  storageOpen.mockImplementationOnce(() => ({
+    whenSynced: Promise.reject(new Error('Connection required')),
+    destroy: async () => {},
+  }))
+  storageOpen.mockImplementation((_id, doc) =>
+    localDocumentStorage.open(saved.id, doc),
+  )
+  const renderEditor = (connected: boolean) => (
+    <DocumentWorkspaceContext.Provider
+      value={
+        { driveConnected: connected } as React.ContextType<
+          typeof DocumentWorkspaceContext
+        >
+      }
+    >
+      <DocumentEditor
+        id="Gsame"
+        documentRef={documentRef}
+        editorRef={editorRef}
+        pageSetupOpen={false}
+        onPageSetupOpenChange={() => {}}
+      />
+    </DocumentWorkspaceContext.Provider>
+  )
+  await act(() => root.render(renderEditor(false)))
+  await vi.waitFor(() =>
+    expect(container.textContent).toContain('Connection required'),
+  )
+  await act(() => root.render(renderEditor(true)))
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(documentRef.current).not.toBeNull()
+    expect(container.textContent).not.toContain('Connection required')
+    expect(container.querySelector('[role="status"]')).toBeNull()
+  })
+  expect(storageOpen).toHaveBeenCalledTimes(2)
 })

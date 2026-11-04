@@ -11,6 +11,7 @@ import {
   Settings2Icon,
 } from 'lucide-react'
 import { DocumentSaveStatus } from './DocumentSaveStatus'
+import { DocumentAccessStatus } from './DocumentAccessStatus'
 import { ProvidersDialog } from './ProvidersDialog'
 import { Button } from '#/components/ui/button'
 import {
@@ -82,6 +83,8 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     syncNow,
     setOfflineAvailable,
     connectionRevision,
+    openGoogleDrivePicker,
+    pickerLoading,
   } = useDocumentWorkspace()
   const [providersOpen, setProvidersOpen] = useState(false)
 
@@ -169,21 +172,33 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
             <DocumentName
               key={document ? `${document.id}:${document.name}` : 'library'}
               name={document?.name ?? 'Documents'}
-              onSave={document ? renameDocument : undefined}
+              onSave={
+                document && !document.readOnly && !document.drive?.readOnly
+                  ? renameDocument
+                  : undefined
+              }
             />
             {document && (
-              <DocumentSaveStatus
-                status={saveStatus}
-                provider={document.drive ? 'google-drive' : undefined}
-                onRetry={syncNow}
-                onConnect={() => {
-                  void connectDrive()
-                }}
-                onSaveToDrive={saveToDrive}
-                onOfflineChange={
-                  document.drive ? setOfflineAvailable : undefined
-                }
-              />
+              <div className="flex shrink-0 items-center gap-1">
+                <DocumentSaveStatus
+                  status={saveStatus}
+                  provider={document.drive ? 'google-drive' : undefined}
+                  onRetry={syncNow}
+                  onConnect={() => {
+                    void connectDrive()
+                  }}
+                  onSaveToDrive={saveToDrive}
+                  onOfflineChange={
+                    document.drive ? setOfflineAvailable : undefined
+                  }
+                />
+                <DocumentAccessStatus
+                  readOnly={Boolean(
+                    document.readOnly || document.drive?.readOnly,
+                  )}
+                  provider={document.drive ? 'google-drive' : undefined}
+                />
+              </div>
             )}
           </div>
           <DocumentNavigation />
@@ -209,7 +224,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 }}
               />
             </div>
-          ) : (!loaded || !id) && !error ? (
+          ) : !loaded && !error ? (
             <DocumentLoading
               label={id ? 'Opening document…' : 'Loading documents…'}
             />
@@ -222,20 +237,24 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 <EmptyTitle>
                   {!loaded
                     ? 'Loading documents…'
-                    : id && error
-                      ? 'Could not open this document'
-                      : id
-                        ? 'Document not found'
-                        : 'What would you like to write?'}
+                    : id?.startsWith('G')
+                      ? 'Access denied or document not found'
+                      : id && error
+                        ? 'Could not open this document'
+                        : id
+                          ? 'Document not found'
+                          : 'What would you like to write?'}
                 </EmptyTitle>
                 <EmptyDescription>
                   {!loaded
                     ? 'Opening your local library.'
-                    : error
-                      ? error
-                      : id
-                        ? 'This document is not available in this browser.'
-                        : 'Choose a document from the sidebar, or start something new.'}
+                    : id?.startsWith('G')
+                      ? 'Google Drive requires selecting shared files with the file picker to grant access.'
+                      : error
+                        ? error
+                        : id
+                          ? 'This document is not available in this browser.'
+                          : 'Choose a document from the sidebar, or start something new.'}
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent className="flex-row flex-wrap justify-center gap-2">
@@ -250,12 +269,19 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                     Connect Google Drive
                   </Button>
                 )}
+                {(!id || id.startsWith('G')) && driveConnected && (
+                  <Button
+                    disabled={pickerLoading || driveLoading}
+                    onClick={() => {
+                      void openGoogleDrivePicker()
+                    }}
+                  >
+                    <DriveIcon className="size-4" />
+                    Open the Google Drive file picker
+                  </Button>
+                )}
                 <Button
-                  variant={
-                    id?.startsWith('G') && !driveConnected
-                      ? 'outline'
-                      : 'default'
-                  }
+                  variant={id?.startsWith('G') ? 'outline' : 'default'}
                   onClick={createDocument}
                   disabled={creating}
                 >

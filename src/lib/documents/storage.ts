@@ -4,6 +4,7 @@ export interface DocumentInfo {
   id: string
   name: string
   updatedAt: number
+  readOnly?: boolean
   drive?: {
     fileId: string
     offlineAvailable: boolean
@@ -13,6 +14,7 @@ export interface DocumentInfo {
     lastSyncedAt?: number
     savedRevision?: string
     remoteFilename?: string
+    readOnly?: boolean
   }
 }
 

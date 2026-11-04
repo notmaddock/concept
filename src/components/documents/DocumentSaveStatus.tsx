@@ -64,11 +64,13 @@ export function DocumentSaveStatus({
 
   const working = ['loading', 'saving', 'reconciling'].includes(status.phase)
   const label =
-    !provider && status.phase === 'saving'
-      ? 'Saving locally'
-      : !provider && status.phase === 'error'
-        ? 'Could not save locally'
-        : labels[status.phase]
+    status.readOnly && status.phase === 'synced'
+      ? 'View only · Synced with Drive'
+      : !provider && status.phase === 'saving'
+        ? 'Saving locally'
+        : !provider && status.phase === 'error'
+          ? 'Could not save locally'
+          : labels[status.phase]
   const Icon = working
     ? LoaderCircleIcon
     : status.phase === 'local'
@@ -109,6 +111,12 @@ export function DocumentSaveStatus({
       >
         <PopoverTitle className="text-sm">{label}</PopoverTitle>
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-xs">
+          {status.readOnly && (
+            <>
+              <dt className="text-muted-foreground">Access</dt>
+              <dd className="font-medium text-foreground">View only</dd>
+            </>
+          )}
           {provider && (
             <>
               <dt className="text-muted-foreground">Location</dt>
