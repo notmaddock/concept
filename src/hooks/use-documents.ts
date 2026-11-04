@@ -201,7 +201,8 @@ export function useDocuments(
   async function renameDocumentById(documentId: string, name: string) {
     const target = documents.find((item) => item.id === documentId)
     const trimmedName = name.trim()
-    if (!target || !trimmedName) return false
+    if (!target || !trimmedName || target.readOnly || target.drive?.readOnly)
+      return false
     if (trimmedName === target.name) return true
     try {
       const updated = await storage.rename(documentId, trimmedName)
@@ -220,7 +221,8 @@ export function useDocuments(
   }
 
   async function renameDocument(name: string) {
-    if (document) await renameDocumentById(document.id, name)
+    if (document && !document.readOnly && !document.drive?.readOnly)
+      await renameDocumentById(document.id, name)
   }
 
   async function deleteDocument(documentId: string) {

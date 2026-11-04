@@ -119,7 +119,9 @@ export function DocumentList({
                     id={item.id}
                     name={item.name}
                     onRename={
-                      onRename ? (name) => onRename(item.id, name) : undefined
+                      onRename && !item.readOnly && !item.drive?.readOnly
+                        ? (name) => onRename(item.id, name)
+                        : undefined
                     }
                     onDelete={async () => {
                       await onDelete(item.id)
