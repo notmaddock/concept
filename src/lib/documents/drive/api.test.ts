@@ -168,18 +168,30 @@ it('creates in the selected folder and rejects credentials still invalid after r
   expect(invalidateGoogleDriveSession).toHaveBeenCalledOnce()
 })
 
-it('filters matching names by exact file extension', async () => {
-  fetchMock.mockResolvedValueOnce(
-    new Response(
-      JSON.stringify({
-        files: [
-          file,
-          { ...file, mimeType: 'text/plain', name: 'test.concept.backup' },
-        ],
-      }),
-    ),
-  )
-  await expect(listConceptFiles()).resolves.toEqual([file])
+it('paginates concept files across pages and filters matching names by exact extension', async () => {
+  const secondFile = { ...file, id: 'drive-id-2', name: 'Second.concept' }
+  fetchMock
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          files: [
+            file,
+            { ...file, mimeType: 'text/plain', name: 'test.concept.backup' },
+          ],
+          nextPageToken: 'page-2',
+        }),
+      ),
+    )
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          files: [secondFile],
+        }),
+      ),
+    )
+  await expect(listConceptFiles()).resolves.toEqual([file, secondFile])
+  expect(fetchMock).toHaveBeenCalledTimes(2)
+  expect(String(fetchMock.mock.calls[1][0])).toContain('pageToken=page-2')
 })
 
 it('trashes with a fresh validator and leaves conflicts for the caller', async () => {

@@ -15,7 +15,16 @@ it.each([
   },
 )
 
-it.each(['', 'G', 'L', 'unknown', 'Uhttps://example.com/file'])(
-  'ignores unsupported or empty document hashes: %s',
-  (hash) => expect(documentIdFromHash(hash)).toBeUndefined(),
+it.each([
+  '',
+  'G',
+  'L',
+  'unknown',
+  'Uhttps://example.com/file',
+  'G../etc/passwd',
+  'Gfile/id?alt=media',
+  'Ldoc:id',
+  'G id with spaces',
+])('ignores unsupported or malformed document hashes: %s', (hash) =>
+  expect(documentIdFromHash(hash)).toBeUndefined(),
 )

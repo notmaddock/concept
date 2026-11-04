@@ -140,17 +140,29 @@ export async function getFileMetadata(id: string, signal?: AbortSignal) {
 export async function listConceptFiles(): Promise<Array<DriveFile>> {
   const parameters = new URLSearchParams({
     q: `trashed = false and (mimeType = '${mimeType}' or name contains '.concept')`,
-    fields: `files(${fields})`,
+    fields: `nextPageToken,files(${fields})`,
     pageSize: '100',
     orderBy: 'modifiedTime desc',
   })
-  const response = await request(`${api}?${parameters}`)
-  const result = (await response.json()) as { files: Array<DriveFile> }
-  return result.files.filter(
-    (file) =>
-      file.mimeType === mimeType ||
-      file.name.toLowerCase().endsWith('.concept'),
-  )
+  const files: Array<DriveFile> = []
+  let pageToken: string | undefined
+  do {
+    if (pageToken) parameters.set('pageToken', pageToken)
+    const response = await request(`${api}?${parameters}`)
+    const result = (await response.json()) as {
+      files: Array<DriveFile>
+      nextPageToken?: string
+    }
+    files.push(
+      ...result.files.filter(
+        (file) =>
+          file.mimeType === mimeType ||
+          file.name.toLowerCase().endsWith('.concept'),
+      ),
+    )
+    pageToken = result.nextPageToken
+  } while (pageToken)
+  return files
 }
 
 export async function listFolders(
