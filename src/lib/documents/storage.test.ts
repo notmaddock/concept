@@ -256,7 +256,9 @@ it('batches metadata persistence during rapid Drive edits and reports sync failu
       name: 'Doc.concept',
       mimeType: 'application/vnd.concept+json',
     },
-    content: serializeConcept('Doc', remoteDoc),
+    content: new Uint8Array(
+      new TextEncoder().encode(serializeConcept('Doc', remoteDoc)),
+    ),
   })
   const { localDocumentStorage: activeLocalStorage } = await import('./storage')
   const patchSpy = vi.spyOn(activeLocalStorage, 'patch')
