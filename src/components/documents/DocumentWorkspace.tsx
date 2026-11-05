@@ -44,7 +44,7 @@ import {
   useSidebar,
 } from '#/components/ui/sidebar'
 import { DocumentNavigation } from './DocumentNavigation'
-import { DocumentList } from './DocumentList'
+import { DocumentList } from './list/DocumentList'
 import { DocumentLoading } from './status/DocumentLoading'
 import { DocumentEditor } from './DocumentEditor'
 import { DriveIcon } from './icons/DriveIcon'

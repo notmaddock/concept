@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { FileTextIcon } from 'lucide-react'
-import { DriveIcon } from './icons/DriveIcon'
+import { DriveIcon } from '../icons/DriveIcon'
 import type { DocumentInfo } from '#/lib/documents/storage'
 import { documentHash } from '#/lib/documents/document-url'
 import {

@@ -11,9 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#/components/ui/dialog'
-import { StorageLocation } from '../DocumentDetailsPopover'
+import { StorageLocation } from '../list/DocumentDetailsPopover'
 
-export { DocumentDetailsPopover } from '../DocumentDetailsPopover'
+export { DocumentDetailsPopover } from '../list/DocumentDetailsPopover'
 
 function DetailRows({ rows }: { rows: Array<[string, ReactNode]> }) {
   return (

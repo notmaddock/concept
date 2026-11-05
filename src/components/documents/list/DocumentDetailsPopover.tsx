@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactElement } from 'react'
 import type { DocumentInfo } from '#/lib/documents/storage'
 import { storageLocations } from '#/lib/documents/storage-locations'
-import { DriveIcon } from './icons/DriveIcon'
+import { DriveIcon } from '../icons/DriveIcon'
 import { useIsMobile } from '#/hooks/use-mobile'
 import {
   Popover,
