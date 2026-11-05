@@ -33,6 +33,7 @@ import {
 } from './commands'
 import { $insertImageBlocks } from './insert-blocks'
 import { updateImageEdit } from './image-edit'
+import { hasImageDrop, imageDropRange } from './drop'
 
 export function ImagePlugin() {
   const [editor] = useLexicalComposerContext()
@@ -165,7 +166,11 @@ export function ImagePlugin() {
         (event) => {
           if (
             !session.canEdit() ||
-            !event.dataTransfer?.types.includes('Files')
+            !event.dataTransfer ||
+            event.dataTransfer.types.includes(
+              'application/x-lexical-drag-block',
+            ) ||
+            !hasImageDrop(event.dataTransfer)
           )
             return false
           event.preventDefault()
@@ -186,11 +191,12 @@ export function ImagePlugin() {
           if (transfer.types.includes('application/x-lexical-drag-block'))
             return false
           const files = Array.from(transfer.files)
-          if (!files.some((file) => file.type.startsWith('image/')))
-            return false
+          if (!hasImageDrop(transfer)) return false
           event.preventDefault()
           const owner = editor.getRootElement()?.ownerDocument
-          const range = owner?.caretRangeFromPoint(event.clientX, event.clientY)
+          const range = owner
+            ? imageDropRange(owner, event.clientX, event.clientY)
+            : null
           if (!range) {
             toast.error('Choose a text position for the image.')
             return true
