@@ -846,3 +846,37 @@ it('does not publish a package when the session closes while resolving its captu
   expect(info.drive?.dirty).toBe(true)
   expect(getSaveStatus(info.id)).toEqual({ phase: 'loading' })
 })
+
+it('uses foreground asset polling instead of rapid network retries after missing-asset recovery fails', async () => {
+  const visibility = vi
+    .spyOn(document, 'visibilityState', 'get')
+    .mockReturnValue('visible')
+  try {
+    await start()
+    const arriving = await assetRecord('published after temporary failure')
+    referenceAsset(arriving)
+    read.mockRejectedValueOnce(
+      new DriveError(503, 'Drive temporarily unavailable'),
+    )
+    await session.sync()
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(write).not.toHaveBeenCalled()
+    expect(info.drive?.dirty).toBe(true)
+    const published = version('"after-failure"')
+    metadata.mockResolvedValue(published)
+    read.mockResolvedValue({
+      ...published,
+      content: await packageBytes(remote, [arriving]),
+    })
+    await vi.advanceTimersByTimeAsync(assetRetryPolicy.initialMs - 1)
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(metadata).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    await session.sync()
+    expect(read).toHaveBeenCalledTimes(3)
+    expect(records.has(arriving.descriptor.id)).toBe(true)
+    expect(getSaveStatus(info.id).phase).toBe('synced')
+  } finally {
+    visibility.mockRestore()
+  }
+})
