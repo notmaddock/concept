@@ -1,0 +1,13 @@
+diff --git a/dist/node/chunks/node.js b/dist/node/chunks/node.js
+index 797794fd975e746a691212c9fe265fca28167242..3e76180f48bcb804e29351f9ab8f4ccb432b9306 100644
+--- a/dist/node/chunks/node.js
++++ b/dist/node/chunks/node.js
+@@ -30244,7 +30244,7 @@ function cssPostPlugin(config) {
+ 					}
+ 				}
+ 				if (s) {
+-					if (config.build.sourcemap) return {
++					if (this.environment.config.build.sourcemap) return {
+ 						code: s.toString(),
+ 						map: s.generateMap({ hires: "boundary" })
+ 					};

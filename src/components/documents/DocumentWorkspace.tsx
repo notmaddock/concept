@@ -10,9 +10,9 @@ import {
   LoaderCircleIcon,
   Settings2Icon,
 } from 'lucide-react'
-import { DocumentSaveStatus } from './DocumentSaveStatus'
-import { DocumentAccessStatus } from './DocumentAccessStatus'
-import { ProvidersDialog } from './ProvidersDialog'
+import { DocumentSaveStatus } from './status/DocumentSaveStatus'
+import { DocumentAccessStatus } from './status/DocumentAccessStatus'
+import { ProvidersDialog } from './dialogs/ProvidersDialog'
 import { Button } from '#/components/ui/button'
 import {
   Tooltip,
@@ -44,10 +44,10 @@ import {
   useSidebar,
 } from '#/components/ui/sidebar'
 import { DocumentNavigation } from './DocumentNavigation'
-import { DocumentList } from './DocumentList'
-import { DocumentLoading } from './DocumentLoading'
+import { DocumentList } from './list/DocumentList'
+import { DocumentLoading } from './status/DocumentLoading'
 import { DocumentEditor } from './DocumentEditor'
-import { DriveIcon } from './DriveIcon'
+import { DriveIcon } from './icons/DriveIcon'
 import { AppToaster } from '#/components/app-toaster'
 
 export function DocumentWorkspace({ id }: { id?: string }) {

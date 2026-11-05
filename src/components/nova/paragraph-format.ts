@@ -21,9 +21,20 @@ export function $setParagraphStyle(node: ElementNode, value: string) {
   $setState(node, paragraphStyleState, value)
 }
 
+let styleHelper: CSSStyleDeclaration | null = null
+
+function getStyleHelper(): CSSStyleDeclaration | null {
+  if (typeof document === 'undefined') return null
+  if (!styleHelper) {
+    styleHelper = document.createElement('span').style
+  }
+  return styleHelper
+}
+
 function $decorateParagraph(node: LexicalNode, dom: HTMLElement) {
   if (!$isElementNode(node)) return
-  const style = document.createElement('span').style
+  const style = getStyleHelper()
+  if (!style) return
   style.cssText = $getParagraphStyle(node)
   for (const property of properties) {
     const value = style.getPropertyValue(property)

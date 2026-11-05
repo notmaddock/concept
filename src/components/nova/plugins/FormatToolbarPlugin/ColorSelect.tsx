@@ -55,7 +55,10 @@ export function ColorSelect({
           .map((node) => editor.getElementByKey(node.getKey()))
           .filter((element): element is HTMLElement => element !== null)
         const root = editor.getRootElement()
-        if (!elements.length || !root) return
+        if (!elements.length || !root) {
+          setCurrentColor(null)
+          return
+        }
         const current = elements.map((element) =>
           sectionId === 'highlight'
             ? element.style.backgroundColor

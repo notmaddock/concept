@@ -1,3 +1,4 @@
+import { waitForAct } from '#/test/wait-for-act'
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { act, createRef } from 'react'
@@ -21,7 +22,7 @@ import {
   serializeConcept,
 } from '#/lib/documents/concept-file'
 import { DocumentEditor } from './DocumentEditor'
-import { DocumentSaveStatus } from './DocumentSaveStatus'
+import { DocumentSaveStatus } from './status/DocumentSaveStatus'
 import { DocumentWorkspaceContext } from './document-workspace-store'
 
 vi.mock('#/components/nova/Nova', () => ({
@@ -56,14 +57,14 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
   container.remove()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
 async function open(id: string, expected = '') {
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentEditor
         key={id}
@@ -75,8 +76,7 @@ async function open(id: string, expected = '') {
       />,
     ),
   )
-  await vi.waitFor(async () => {
-    await act(async () => {})
+  await waitForAct(async () => {
     expect(documentRef.current).not.toBeNull()
     expect(
       editorRef.current
@@ -106,7 +106,7 @@ it.each(['saved', 'imported'] as const)(
     const file = parseConcept(
       serializeConcept('Imported document', documentRef.current!),
     )
-    await act(() => root.render(null))
+    await act(async () => root.render(null))
     documentRef.current = null
     const id =
       kind === 'imported' ? (await importConcept(file)).id : original.id
@@ -116,7 +116,7 @@ it.each(['saved', 'imported'] as const)(
 
 it('replaces the loading state with an empty error state and toast when stored content cannot be opened', async () => {
   const toastError = vi.spyOn(toast, 'error').mockImplementation(() => '')
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentEditor
         id="missing"
@@ -127,8 +127,7 @@ it('replaces the loading state with an empty error state and toast when stored c
       />,
     ),
   )
-  await vi.waitFor(async () => {
-    await act(async () => {})
+  await waitForAct(async () => {
     expect(
       container.querySelector('[data-slot="empty"]')?.textContent,
     ).toContain('Could not open this document')
@@ -143,7 +142,7 @@ it('replaces the loading state with an empty error state and toast when stored c
 it('renders a Connect Google Drive action when a Google Drive document fails while disconnected', async () => {
   vi.spyOn(toast, 'error').mockImplementation(() => '')
   const onConnectDrive = vi.fn()
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentEditor
         id="Gmissing"
@@ -155,8 +154,7 @@ it('renders a Connect Google Drive action when a Google Drive document fails whi
       />,
     ),
   )
-  await vi.waitFor(async () => {
-    await act(async () => {})
+  await waitForAct(async () => {
     expect(
       container.querySelector('[data-slot="empty"]')?.textContent,
     ).toContain('Could not open this document')
@@ -170,7 +168,7 @@ it('renders a Connect Google Drive action when a Google Drive document fails whi
   })
   expect(onConnectDrive).toHaveBeenCalledOnce()
 
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentSaveStatus
         status={{ phase: 'error', error: 'Drive sync failed' }}
@@ -204,7 +202,7 @@ it('renders an Open the Google Drive file picker action when a Google Drive docu
     pickerLoading: false,
   } as unknown as React.ContextType<typeof DocumentWorkspaceContext>
 
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentWorkspaceContext.Provider value={mockWorkspace}>
         <DocumentEditor
@@ -218,8 +216,7 @@ it('renders an Open the Google Drive file picker action when a Google Drive docu
     ),
   )
 
-  await vi.waitFor(async () => {
-    await act(async () => {})
+  await waitForAct(async () => {
     expect(
       container.querySelector('[data-slot="empty"]')?.textContent,
     ).toContain('Could not open this document')
@@ -246,14 +243,13 @@ it('restarts the collaboration binding and clears an earlier open error when the
       onPageSetupOpenChange={() => {}}
     />
   )
-  await act(() => root.render(renderEditor('missing')))
-  await vi.waitFor(() => {
+  await act(async () => root.render(renderEditor('missing')))
+  await waitForAct(() => {
     expect(container.textContent).toContain('Could not open this document')
   })
   const saved = await localDocumentStorage.create()
-  await act(() => root.render(renderEditor(saved.id)))
-  await vi.waitFor(async () => {
-    await act(async () => {})
+  await act(async () => root.render(renderEditor(saved.id)))
+  await waitForAct(async () => {
     expect(documentRef.current).not.toBeNull()
     expect(container.textContent).not.toContain('Could not open this document')
     expect(container.querySelector('[role="status"]')).toBeNull()
@@ -289,13 +285,12 @@ it('recovers a failed Drive session when its connection changes without changing
       />
     </DocumentWorkspaceContext.Provider>
   )
-  await act(() => root.render(renderEditor(false)))
-  await vi.waitFor(() =>
+  await act(async () => root.render(renderEditor(false)))
+  await waitForAct(() =>
     expect(container.textContent).toContain('Connection required'),
   )
-  await act(() => root.render(renderEditor(true)))
-  await vi.waitFor(async () => {
-    await act(async () => {})
+  await act(async () => root.render(renderEditor(true)))
+  await waitForAct(async () => {
     expect(documentRef.current).not.toBeNull()
     expect(container.textContent).not.toContain('Connection required')
     expect(container.querySelector('[role="status"]')).toBeNull()

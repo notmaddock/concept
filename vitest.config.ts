@@ -28,6 +28,8 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
+          // Let browser storage dependencies use their in-memory Node fallback.
+          execArgv: ['--no-experimental-webstorage'],
           include: nodeTestPatterns,
         },
       },

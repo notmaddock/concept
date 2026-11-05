@@ -16,8 +16,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '#/components/ui/empty'
-import { DocumentLoading } from './DocumentLoading'
-import { DriveIcon } from './DriveIcon'
+import { DocumentLoading } from './status/DocumentLoading'
+import { DriveIcon } from './icons/DriveIcon'
 import { DocumentWorkspaceContext } from './document-workspace-store'
 import { Nova } from '#/components/nova/Nova'
 import {

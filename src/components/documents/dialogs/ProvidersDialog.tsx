@@ -1,5 +1,5 @@
 import { LoaderCircleIcon } from 'lucide-react'
-import { DriveIcon } from './DriveIcon'
+import { DriveIcon } from '../icons/DriveIcon'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,

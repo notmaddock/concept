@@ -21,7 +21,11 @@ export function subscribeToLibrary(listener: (change: DocumentChange) => void) {
 }
 
 export function publishDocumentChange(change: DocumentChange) {
-  listeners.forEach((listener) => listener(change))
+  listeners.forEach((listener) => {
+    try {
+      listener(change)
+    } catch {}
+  })
   if (typeof BroadcastChannel === 'undefined') return
   const publisher = channel ?? new BroadcastChannel('concept-library')
   publisher.postMessage(change)

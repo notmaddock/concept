@@ -46,7 +46,13 @@ export function subscribeGoogleDriveAuth(listener: () => void) {
   }
 }
 function notify() {
-  state.listeners.forEach((listener) => listener())
+  state.listeners.forEach((listener) => {
+    try {
+      listener()
+    } catch {
+      // Isolate listener exceptions
+    }
+  })
 }
 
 export function invalidateGoogleDriveSession() {
@@ -144,9 +150,9 @@ export function getGoogleDriveToken({
   if (tokenRequest) {
     const pending =
       forceRefresh && !tokenRequest.forceRefresh
-        ? tokenRequest.promise.then(() =>
-            getGoogleDriveToken({ forceRefresh: true, signal }),
-          )
+        ? tokenRequest.promise
+            .catch(() => {})
+            .then(() => getGoogleDriveToken({ forceRefresh: true, signal }))
         : tokenRequest.promise
     return waitForToken(pending, signal)
   }

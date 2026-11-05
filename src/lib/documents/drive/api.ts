@@ -124,13 +124,15 @@ async function request(
     invalidateGoogleDriveSession()
     throw new GoogleDriveAuthError()
   }
-  if (!response.ok)
+  if (!response.ok) {
+    await response.body?.cancel()
     throw new DriveError(
       response.status,
       response.status === 412
         ? 'Google Drive has newer changes.'
         : `Google Drive request failed (${response.status}).`,
     )
+  }
   return response
 }
 
@@ -148,6 +150,7 @@ function fileUrl(id: string) {
 }
 
 export async function getFileMetadata(id: string, signal?: AbortSignal) {
+  if (!id.trim()) throw new DriveError(400, 'Invalid file ID.')
   const response = await request(`${fileUrl(id)}?fields=${conditionalFields}`, {
     signal,
   })
@@ -172,11 +175,11 @@ export async function listConceptFiles(): Promise<Array<DriveFile>> {
     if (pageToken) parameters.set('pageToken', pageToken)
     const response = await request(`${api}?${parameters}`)
     const result = (await response.json()) as {
-      files: Array<DriveFile>
+      files?: Array<DriveFile>
       nextPageToken?: string
     }
     files.push(
-      ...result.files.filter(
+      ...(result.files ?? []).filter(
         (file) =>
           file.mimeType === mimeType ||
           file.name.toLowerCase().endsWith('.concept'),
@@ -203,10 +206,10 @@ export async function listFolders(
     if (pageToken) parameters.set('pageToken', pageToken)
     const response = await request(`${api}?${parameters}`)
     const result = (await response.json()) as {
-      files: Array<DriveFile>
+      files?: Array<DriveFile>
       nextPageToken?: string
     }
-    files.push(...result.files)
+    files.push(...(result.files ?? []))
     pageToken = result.nextPageToken
   } while (pageToken)
   return files
@@ -217,6 +220,7 @@ export async function readConceptFile(
   signal?: AbortSignal,
   initial?: DriveFileVersion,
 ): Promise<DriveFileVersion & { content: string }> {
+  if (!id.trim()) throw new DriveError(400, 'Invalid file ID.')
   // Bind downloaded bytes to their validator even if another writer saves mid-read.
   for (let attempt = 0; attempt < 3; attempt++) {
     const before =
@@ -296,6 +300,7 @@ export function updateConceptFile(
 }
 
 export async function trashConceptFile(id: string): Promise<void> {
+  if (!id.trim()) throw new DriveError(400, 'Invalid file ID.')
   const current = await getFileMetadata(id)
   await request(`${fileUrl(id)}?fields=id`, {
     method: 'PATCH',

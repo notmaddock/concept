@@ -10,6 +10,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { DocumentWorkspaceContext } from './document-workspace-store'
 import { documentHash } from '#/lib/documents/document-url'
+import { downloadConcept } from '#/lib/documents/concept-file'
+import { downloadExport, serializeExport } from '#/lib/documents/export'
 import {
   connectGoogleDrive,
   prepareGoogleDriveAuth,
@@ -34,30 +36,31 @@ import type { Doc } from 'yjs'
 import type { ImportFormat } from '#/lib/documents/import/formats'
 import type { ExportFormat } from '#/lib/documents/export'
 import { useDocuments } from '#/hooks/use-documents'
-import { DocumentLoading } from './DocumentLoading'
+import { DocumentLoading } from './status/DocumentLoading'
 
 export { useDocumentWorkspace } from './document-workspace-store'
 
-const loadDocumentStorageDialog = () => import('./DocumentStorageDialog')
+const loadDocumentStorageDialog = () =>
+  import('./dialogs/DocumentStorageDialog')
 const DocumentStorageDialog = lazy(() =>
   loadDocumentStorageDialog().then((module) => ({
     default: module.DocumentStorageDialog,
   })),
 )
-const loadDocumentDetailsDialog = () => import('./DocumentDetails')
+const loadDocumentDetailsDialog = () => import('./dialogs/DocumentDetails')
 const DocumentDetailsDialog = lazy(() =>
   loadDocumentDetailsDialog().then((module) => ({
     default: module.DocumentDetailsDialog,
   })),
 )
-const loadDocumentShareDialog = () => import('./DocumentShareDialog')
+const loadDocumentShareDialog = () => import('./dialogs/DocumentShareDialog')
 const DocumentShareDialog = lazy(() =>
   loadDocumentShareDialog().then((module) => ({
     default: module.DocumentShareDialog,
   })),
 )
 const SaveToDriveDialog = lazy(() =>
-  import('./SaveToDriveDialog').then((module) => ({
+  import('./dialogs/SaveToDriveDialog').then((module) => ({
     default: module.SaveToDriveDialog,
   })),
 )
@@ -217,7 +220,6 @@ function useWorkspaceState(id?: string) {
           'Open a document and wait for it to load before downloading.',
         )
       const source = { name: document.name, doc: documentRef.current }
-      const { downloadConcept } = await import('#/lib/documents/concept-file')
       downloadConcept(source.name, source.doc)
     } catch (cause) {
       toast.error(
@@ -238,8 +240,6 @@ function useWorkspaceState(id?: string) {
       return
     }
     try {
-      const { serializeExport, downloadExport } =
-        await import('#/lib/documents/export')
       const file = await serializeExport(editor, document.name, format)
       downloadExport(document.name, file)
     } catch {

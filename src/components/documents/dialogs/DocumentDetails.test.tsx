@@ -82,7 +82,7 @@ it('shows metadata, live word counts, and the serialized download size', async (
   expect(value('File size (.concept)')).toContain(
     `${new Blob([serializeConcept(info.name, doc)]).size} bytes`,
   )
-  await act(() =>
+  await act(async () => {
     editor.update(
       () => {
         $getRoot()
@@ -92,8 +92,9 @@ it('shows metadata, live word counts, and the serialized download size', async (
           )
       },
       { discrete: true },
-    ),
-  )
+    )
+    await Promise.resolve()
+  })
   expect(value('Words')).toBe('3')
 })
 
@@ -184,7 +185,7 @@ it('coalesces document updates and skips serialization for selection-only change
     )
   })
   expect(serialize).not.toHaveBeenCalled()
-  await act(() => {
+  await act(async () => {
     editor.update(
       () => {
         $getRoot().append(
@@ -194,6 +195,7 @@ it('coalesces document updates and skips serialization for selection-only change
       { discrete: true },
     )
     doc.getText('statistics').insert(0, 'update')
+    await Promise.resolve()
   })
   expect(serialize).toHaveBeenCalledTimes(1)
   expect(value('Words')).toBe('2')

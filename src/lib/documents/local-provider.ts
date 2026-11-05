@@ -101,10 +101,13 @@ export class LocalProvider
       })
     } else if (data.type === 'response') {
       applyUpdate(this.doc, data.update, this)
-      this.send({
-        type: 'update',
-        update: encodeStateAsUpdate(this.doc, data.vector),
-      })
+      const update = encodeStateAsUpdate(this.doc, data.vector)
+      if (update.byteLength > 2) {
+        this.send({
+          type: 'update',
+          update,
+        })
+      }
     } else if (data.type === 'update') {
       applyUpdate(this.doc, data.update, this)
     } else {

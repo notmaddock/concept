@@ -23,10 +23,12 @@ export function SlashMenuPlugin() {
 
     if (!queryString) return base
 
-    const regex = new RegExp(queryString, 'i')
+    const query = queryString.toLowerCase()
 
     return base.filter(
-      (o) => regex.test(o.title) || o.keywords?.some((k) => regex.test(k)),
+      (o) =>
+        o.title.toLowerCase().includes(query) ||
+        o.keywords?.some((k) => k.toLowerCase().includes(query)),
     )
   }, [editor, queryString])
 

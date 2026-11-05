@@ -127,7 +127,10 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
   const ensureOpen = () => {
     if (closed) throw new Error('Document closed')
   }
+  let started = false
   const whenSynced = withDocumentLock(id, async () => {
+    started = true
+    ensureOpen()
     await contentLock
     ensureOpen()
     const document = await query<DocumentInfo | undefined>(
@@ -177,7 +180,7 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
     destroy() {
       closed = true
       closing ??= (
-        persistence
+        started
           ? whenSynced.catch(() => {}).then(() => persistence?.destroy())
           : Promise.resolve()
       )

@@ -100,7 +100,10 @@ function useTypography(editor: LexicalEditor, active: boolean) {
           .map((node) => editor.getElementByKey(node.getKey()))
           .filter((element): element is HTMLElement => element !== null)
           .map((element) => getComputedStyle(element))
-        if (!styles.length) return
+        if (!styles.length) {
+          setValue({ family: '', size: '' })
+          return
+        }
         const families = new Set(styles.map((style) => style.fontFamily))
         const sizes = new Set(
           styles.map((style) =>

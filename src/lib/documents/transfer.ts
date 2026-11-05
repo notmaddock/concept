@@ -5,6 +5,7 @@ import type { ConceptFile } from './concept-file'
 import type { DocumentInfo } from './storage'
 import { importConcept, parseConcept, serializeConcept } from './concept-file'
 import { localDocumentStorage } from './storage'
+import { initializeDocument } from './initial-document'
 
 export interface SelectedDocument {
   file: ConceptFile
@@ -49,6 +50,7 @@ export const documentSources: Array<DocumentSource> = [
       const session = localDocumentStorage.open(document.id, doc)
       try {
         await session.whenSynced
+        if (!doc.share.has('root')) initializeDocument(doc)
         const text = serializeConcept(document.name, doc)
         return {
           file: parseConcept(text),

@@ -2,6 +2,7 @@ import { encodeStateAsUpdate } from 'yjs'
 import type { Doc } from 'yjs'
 
 export function serializeConcept(name: string, doc: Doc): string {
+  const docName = name.trim() || 'Untitled document'
   const update = encodeStateAsUpdate(doc)
   const chunks: string[] = []
   for (let offset = 0; offset < update.length; offset += 8192)
@@ -9,7 +10,7 @@ export function serializeConcept(name: string, doc: Doc): string {
   return JSON.stringify({
     format: 'concept',
     version: 1,
-    name,
+    name: docName,
     origin: 'Concept',
     update: btoa(chunks.join('')),
   })

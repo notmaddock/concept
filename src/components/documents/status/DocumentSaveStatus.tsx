@@ -15,7 +15,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from '#/components/ui/popover'
-import { DriveIcon } from './DriveIcon'
+import { DriveIcon } from '../icons/DriveIcon'
 
 const labels: Record<SaveStatus['phase'], string> = {
   loading: 'Loading saved changes',

@@ -15,6 +15,9 @@ minimumReleaseAgeExclude:
   - '@better-auth/mongo-adapter@1.7.16'
   - '@better-auth/prisma-adapter@1.7.16'
   - '@better-auth/telemetry@1.7.16'
-  - better-auth@1.7.16
+  - better-auth@1.7.17
   - better-call@1.4.5
-  - '@cloudflare/workers-types@5.20261103.1'
+  - '@cloudflare/workers-types@5.20261104.1'
+
+patchedDependencies:
+  vite@8.3.5: patches/vite@8.3.5.patch

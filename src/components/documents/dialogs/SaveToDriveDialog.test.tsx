@@ -1,3 +1,4 @@
+import { waitForAct } from '#/test/wait-for-act'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
@@ -68,7 +69,7 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
   container.remove()
   doc.destroy()
 })
@@ -164,7 +165,7 @@ it('keeps a missing-validator creation addressable and never creates it twice', 
   await click('Open saved document')
   expect(mocks.create).toHaveBeenCalledOnce()
   expect(mocks.metadata).toHaveBeenCalledWith('already-created')
-  await vi.waitFor(() => {
+  await waitForAct(() => {
     expect(onSaved).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'Galready-created',
@@ -184,7 +185,7 @@ it('falls back remoteFilename to undefined when remote file name is empty', asyn
   })
   await render()
   await click('Save in My Drive')
-  await vi.waitFor(() => {
+  await waitForAct(() => {
     expect(onSaved).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'Gremote-empty-name',

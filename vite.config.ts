@@ -11,6 +11,12 @@ import { cloudflare } from '@cloudflare/vite-plugin'
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
+  build: {
+    rolldownOptions: {
+      // Timing diagnostics depend on machine load; opt in when profiling builds.
+      checks: { bundlerTimings: process.env.PROFILE_BUILD === '1' },
+    },
+  },
   plugins: [
     devtools(),
     tailwindcss(),
