@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
-    "generate-routes": "tsr generate",
+    "generate-routes": "node scripts/generate-routes.mjs generate",
     "build": "vite build",
     "preview": "pnpm run build && wrangler dev",
     "lint": "eslint . --max-warnings 0",
