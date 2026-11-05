@@ -12,6 +12,7 @@ export const packageLimits = {
   nameCharacters: 4096,
   featureCharacters: 128,
   features: 128,
+  concurrentHashes: 2,
 }
 
 export type PackageLimits = typeof packageLimits

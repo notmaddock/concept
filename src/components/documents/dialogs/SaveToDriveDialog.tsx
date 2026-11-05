@@ -127,6 +127,7 @@ export function SaveToDriveDialog({
     let clone: Doc | undefined
     let captured: NormalizedSnapshot | undefined
     let session: DocumentPersistence | undefined
+    let localCopy: Doc | undefined
     try {
       if (!saved.current) {
         clone = new Doc()
@@ -177,13 +178,16 @@ export function SaveToDriveDialog({
           dirty: false,
         },
       }
-      await localDocumentStorage.put(info)
-      session = localDocumentStorage.open(info.id, doc)
+      await localDocumentStorage.put({ ...info, importing: true })
+      localCopy = new Doc()
+      session = localDocumentStorage.open(info.id, localCopy)
       await session.whenSynced
-      await documentAssets(doc)!.importAssets(snapshot.assets)
+      await documentAssets(localCopy)!.importAssets(snapshot.assets)
+      applyUpdate(localCopy, encodeStateAsUpdate(doc))
       await session.flush?.()
       await session.destroy()
       session = undefined
+      await localDocumentStorage.put(info)
       onSaved(info)
     } catch (cause) {
       if (
@@ -206,6 +210,7 @@ export function SaveToDriveDialog({
     } finally {
       await session?.destroy()
       clone?.destroy()
+      localCopy?.destroy()
       pendingRef.current = false
       setPending(false)
     }

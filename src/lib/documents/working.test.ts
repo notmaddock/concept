@@ -7,13 +7,14 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { TestBroadcastChannel } from '#/test/broadcast-channel'
 import { describeAsset, openAssetRepository } from './assets'
 import { importConcept } from './concept-file'
-import { readPackage, writePackage } from './package'
+import { readPackage, writePackage, snapshotRevision } from './package'
 import type { NormalizedSnapshot, PackageAsset } from './package'
 import { localDocumentStorage } from './storage'
 import type { DocumentPersistence } from './storage'
 import { documentSaveProviders, documentSources } from './transfer'
 import {
   captureSnapshot,
+  captureRevisionSnapshot,
   documentAssets,
   IncompleteAssetsError,
 } from './working'
@@ -241,4 +242,24 @@ it('never lists or announces a failed staged import and leaves an existing docum
   } finally {
     stop()
   }
+})
+
+it('computes dirty revisions from trusted descriptors without reading asset bytes', async () => {
+  const info = await importConcept(await sourceSnapshot())
+  const loaded = await reopen(info.id)
+  const get = vi
+    .spyOn(loaded.repository, 'get')
+    .mockRejectedValue(new Error('Blob bytes must not be read for a revision'))
+  const revision = await snapshotRevision(
+    await captureRevisionSnapshot(info.name, loaded.doc),
+  )
+  expect(revision).toMatch(/^[a-f0-9]{64}$/)
+  expect(get).not.toHaveBeenCalled()
+  loaded.doc.get('root', XmlText).insert(0, 'Changed ')
+  expect(
+    await snapshotRevision(
+      await captureRevisionSnapshot(info.name, loaded.doc),
+    ),
+  ).not.toBe(revision)
+  expect(get).not.toHaveBeenCalled()
 })

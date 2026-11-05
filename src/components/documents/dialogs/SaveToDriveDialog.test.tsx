@@ -97,6 +97,7 @@ beforeEach(() => {
   mocks.flush.mockResolvedValue(undefined)
   mocks.destroy.mockResolvedValue(undefined)
   mocks.open.mockImplementation((id: string, target: Doc) => {
+    expect(target.share.has('root')).toBe(false)
     attachDocumentAssets(target, repository(id))
     return {
       whenSynced: Promise.resolve(),
@@ -167,6 +168,11 @@ it('saves in the selected folder and flushes the local copy before opening it', 
         remoteFilename: 'Original.concept',
       }),
     }),
+  )
+  expect(mocks.put.mock.calls[0][0]).toMatchObject({ importing: true })
+  expect(mocks.put.mock.calls.at(-1)![0].importing).toBeUndefined()
+  expect(mocks.put.mock.invocationCallOrder.at(-1)!).toBeGreaterThan(
+    mocks.flush.mock.invocationCallOrder[0],
   )
   expect(mocks.flush).toHaveBeenCalledOnce()
   expect(mocks.destroy).toHaveBeenCalledOnce()

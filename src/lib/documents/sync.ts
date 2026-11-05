@@ -7,6 +7,7 @@ import {
 } from './package'
 import {
   captureSnapshot,
+  captureRevisionSnapshot,
   documentAssets,
   IncompleteAssetsError,
 } from './working'
@@ -107,6 +108,7 @@ export class DocumentSync {
   private unsubscribeAssets?: () => void
   private missingTimer?: ReturnType<typeof setTimeout>
   private missingAttempts = 0
+  private waitingForAssets = false
   private urgent = false
   private reconcileAgain = false
   private unsubscribeAuth?: () => void
@@ -135,10 +137,9 @@ export class DocumentSync {
   }
 
   private content() {
-    return captureSnapshot(
+    return captureRevisionSnapshot(
       documentName(this.doc, this.info.name),
       this.doc,
-      true,
     )
   }
 
@@ -502,6 +503,7 @@ export class DocumentSync {
         )
       } catch (error) {
         if (!(error instanceof IncompleteAssetsError)) throw error
+        this.waitingForAssets = true
         this.publish('reconciling')
         await this.download()
         snapshot = await captureSnapshot(
@@ -581,6 +583,7 @@ export class DocumentSync {
 
   private fail(error: unknown, notify = true) {
     if (error instanceof IncompleteAssetsError) {
+      this.waitingForAssets = true
       this.publish('missing-assets')
       void this.persistMetadata().catch(() => {})
       this.scheduleMissingCheck()
@@ -623,7 +626,12 @@ export class DocumentSync {
       (!(error instanceof DriveError) ||
         error.status === 429 ||
         error.status >= 500)
-    if (retryable && !this.stopped && this.info.drive) {
+    if (
+      retryable &&
+      !this.stopped &&
+      this.info.drive &&
+      !this.waitingForAssets
+    ) {
       clearTimeout(this.idle)
       this.idle = setTimeout(
         () => {
@@ -681,12 +689,19 @@ export class DocumentSync {
     void documentAssets(this.doc)
       ?.list()
       .then((assets) => {
-        if (this.stopped || this.missingTimer) return
+        if (
+          this.stopped ||
+          this.missingTimer ||
+          !navigator.onLine ||
+          document.visibilityState === 'hidden'
+        )
+          return
         const available = new Set(assets.map((asset) => asset.id))
         const missing = [
           ...required,
           ...(this.info.recoveryMissingAssets ?? []),
         ].some((id) => !available.has(id))
+        this.waitingForAssets = missing
         if (!missing) {
           this.missingAttempts = 0
           return

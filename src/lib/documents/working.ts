@@ -29,7 +29,6 @@ export { IncompleteAssetsError } from './package'
 export async function captureSnapshot(
   name: string,
   doc: Doc,
-  allowIncomplete = false,
 ): Promise<NormalizedSnapshot> {
   const captured = captureDocument(doc, name)
   const repository = documentAssets(doc)
@@ -48,8 +47,7 @@ export async function captureSnapshot(
       ...captured.requiredAssets,
       ...(recoveryAssets.get(doc) ?? []),
     ].filter((id) => !available.has(id))
-    if (missing.length && !allowIncomplete)
-      throw new IncompleteAssetsError(missing)
+    if (missing.length) throw new IncompleteAssetsError(missing)
     return {
       name: captured.name,
       update: captured.update,
@@ -58,5 +56,16 @@ export async function captureSnapshot(
     }
   } finally {
     pin?.release()
+  }
+}
+
+export async function captureRevisionSnapshot(name: string, doc: Doc) {
+  const captured = captureDocument(doc, name)
+  const descriptors = (await documentAssets(doc)?.list()) ?? []
+  return {
+    name: captured.name,
+    update: captured.update,
+    assets: descriptors.map((descriptor) => ({ descriptor })),
+    requiredFeatures: [],
   }
 }
