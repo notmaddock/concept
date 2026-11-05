@@ -4,7 +4,7 @@ import {
 } from './navigation-menus/menu-styles'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { RenameDocumentDialog } from './RenameDocumentDialog'
+import { RenameDocumentDialog } from './dialogs/RenameDocumentDialog'
 import { documentHash } from '#/lib/documents/document-url'
 import { ExternalLinkIcon, PencilIcon, Trash2Icon } from 'lucide-react'
 import type { ReactNode } from 'react'

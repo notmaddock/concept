@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { DocumentSaveStatus } from './status/DocumentSaveStatus'
 import { DocumentAccessStatus } from './status/DocumentAccessStatus'
-import { ProvidersDialog } from './ProvidersDialog'
+import { ProvidersDialog } from './dialogs/ProvidersDialog'
 import { Button } from '#/components/ui/button'
 import {
   Tooltip,

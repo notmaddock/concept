@@ -38,26 +38,26 @@ import { DocumentLoading } from './status/DocumentLoading'
 
 export { useDocumentWorkspace } from './document-workspace-store'
 
-const loadDocumentStorageDialog = () => import('./DocumentStorageDialog')
+const loadDocumentStorageDialog = () => import('./dialogs/DocumentStorageDialog')
 const DocumentStorageDialog = lazy(() =>
   loadDocumentStorageDialog().then((module) => ({
     default: module.DocumentStorageDialog,
   })),
 )
-const loadDocumentDetailsDialog = () => import('./DocumentDetails')
+const loadDocumentDetailsDialog = () => import('./dialogs/DocumentDetails')
 const DocumentDetailsDialog = lazy(() =>
   loadDocumentDetailsDialog().then((module) => ({
     default: module.DocumentDetailsDialog,
   })),
 )
-const loadDocumentShareDialog = () => import('./DocumentShareDialog')
+const loadDocumentShareDialog = () => import('./dialogs/DocumentShareDialog')
 const DocumentShareDialog = lazy(() =>
   loadDocumentShareDialog().then((module) => ({
     default: module.DocumentShareDialog,
   })),
 )
 const SaveToDriveDialog = lazy(() =>
-  import('./SaveToDriveDialog').then((module) => ({
+  import('./dialogs/SaveToDriveDialog').then((module) => ({
     default: module.SaveToDriveDialog,
   })),
 )
