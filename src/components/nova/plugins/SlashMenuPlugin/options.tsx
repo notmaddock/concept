@@ -11,6 +11,7 @@ import { $createParagraphNode, $getSelection, $isRangeSelection } from 'lexical'
 import type { LexicalEditor } from 'lexical'
 import {
   Heading1Icon,
+  ImageIcon,
   Heading2Icon,
   Heading3Icon,
   ListIcon,
@@ -21,6 +22,7 @@ import {
   QuoteIcon,
 } from 'lucide-react'
 import type { JSX } from 'react'
+import { INSERT_IMAGE_COMMAND } from '../../images/commands'
 
 interface BlockOptionConfig {
   title: string
@@ -55,8 +57,24 @@ const categories = {
   OTHER: 'Other',
 }
 
-export function getBlockOptions(editor: LexicalEditor): BlockOption[] {
+export function getBlockOptions(
+  editor: LexicalEditor,
+  imagesEnabled = false,
+): BlockOption[] {
   return [
+    ...(imagesEnabled
+      ? [
+          new BlockOption('image', {
+            title: 'Image',
+            category: categories.OTHER,
+            icon: <ImageIcon />,
+            keywords: ['image', 'photo', 'picture'],
+            onSelect: () => {
+              editor.dispatchCommand(INSERT_IMAGE_COMMAND, undefined)
+            },
+          }),
+        ]
+      : []),
     new BlockOption('text', {
       title: 'Text',
       icon: <PilcrowIcon />,

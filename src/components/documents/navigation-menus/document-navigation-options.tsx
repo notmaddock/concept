@@ -1,3 +1,4 @@
+import { INSERT_IMAGE_COMMAND } from '#/components/nova/images/commands'
 import { importFormats } from '#/lib/documents/import/formats'
 import type { ImportFormat } from '#/lib/documents/import/formats'
 import type { ExportFormat } from '#/lib/documents/export'
@@ -9,6 +10,7 @@ import { useDocumentWorkspace } from '../document-workspace-context'
 import { DriveIcon } from '../icons/DriveIcon'
 import {
   CopyIcon,
+  ImageIcon,
   Undo2Icon,
   Redo2Icon,
   ScissorsIcon,
@@ -71,6 +73,7 @@ type NavigationContext = {
   onDownload?: () => void | Promise<void>
   onSaveToDrive?: () => void | Promise<void>
   onExport: (format: ExportFormat) => Promise<void>
+  onInsertImage?: () => void
   onPageSetup: () => void
   onCreate: () => Promise<void>
   creating: boolean
@@ -347,7 +350,20 @@ export const documentNavigation: MenuDefinition[] = [
       },
     ],
   },
-  { label: 'Insert', items: [] },
+  {
+    label: 'Insert',
+    items: [
+      {
+        id: 'insert-image',
+        label: 'Image',
+        keywords: ['picture', 'photo'],
+        icon: ImageIcon,
+        focusAfterSelect: 'action',
+        onSelect: (context) => context.onInsertImage?.(),
+        disabled: (context) => Boolean(context.readOnly),
+      },
+    ],
+  },
   {
     label: 'Format',
     items: formatSections.map((section) => ({
@@ -425,6 +441,12 @@ export function useDocumentNavigationOptions({
     onSaveToDrive: workspace.saveToDrive,
     onExport: workspace.exportDocument,
     onPageSetup: workspace.openPageSetup,
+    onInsertImage: () => {
+      workspace.editorRef.current?.dispatchCommand(
+        INSERT_IMAGE_COMMAND,
+        undefined,
+      )
+    },
     onCreate: workspace.createDocument,
     ...useTheme(),
   }

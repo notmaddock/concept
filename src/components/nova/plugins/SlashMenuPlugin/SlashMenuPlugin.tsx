@@ -4,6 +4,7 @@ import {
 } from '@lexical/react/LexicalTypeaheadMenuPlugin'
 import { useCallback, useMemo, useState } from 'react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
+import { useDocumentMedia } from '../../media/document-media-context'
 import { getBlockOptions } from './options'
 import type { BlockOption } from './options'
 import type { OnSelectOptionCallback } from './types'
@@ -11,6 +12,7 @@ import { SlashMenuPluginMenu } from './SlashMenuPluginMenu'
 
 export function SlashMenuPlugin() {
   const [editor] = useLexicalComposerContext()
+  const media = useDocumentMedia()
   const [queryString, setQueryString] = useState<string | null>(null)
 
   const triggerFunction = useBasicTypeaheadTriggerMatch('/', {
@@ -19,7 +21,7 @@ export function SlashMenuPlugin() {
   })
 
   const options = useMemo<BlockOption[]>(() => {
-    const base = getBlockOptions(editor)
+    const base = getBlockOptions(editor, Boolean(media))
 
     if (!queryString) return base
 
@@ -30,7 +32,7 @@ export function SlashMenuPlugin() {
         o.title.toLowerCase().includes(query) ||
         o.keywords?.some((k) => k.toLowerCase().includes(query)),
     )
-  }, [editor, queryString])
+  }, [editor, queryString, media])
 
   const onSelectOption = useCallback<OnSelectOptionCallback<BlockOption>>(
     (selectedOption, queryNode, closeMenu, _) => {
