@@ -18,3 +18,6 @@ minimumReleaseAgeExclude:
   - better-auth@1.7.17
   - better-call@1.4.5
   - '@cloudflare/workers-types@5.20261104.1'
+
+patchedDependencies:
+  vite@8.3.5: patches/vite@8.3.5.patch
