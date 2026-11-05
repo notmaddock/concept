@@ -79,6 +79,7 @@ const length = (value: unknown, maximum: number): value is number =>
   (value as number) >= 0 &&
   (value as number) <= maximum
 const pathFor = (id: AssetId) => `assets/${id.slice(7)}`
+const compareIds = (a: AssetId, b: AssetId) => (a < b ? -1 : a > b ? 1 : 0)
 
 function validateUpdate(update: Uint8Array, limits: PackageLimits) {
   if (update.byteLength > limits.documentBytes)
@@ -539,7 +540,7 @@ export async function snapshotRevision(
       mediaType: descriptor.mediaType,
       byteLength: descriptor.byteLength,
     }))
-    .sort((a, b) => a.id.localeCompare(b.id))
+    .sort((a, b) => compareIds(a.id, b.id))
   const requiredFeatures = [...snapshot.requiredFeatures].sort()
   const canonical = JSON.stringify({
     format: 'concept',
@@ -570,7 +571,7 @@ export async function writePackage(
   const required = collectReferences(update)
   const assets = snapshot.assets
     .map(({ descriptor, blob }) => ({ descriptor: { ...descriptor }, blob }))
-    .sort((a, b) => a.descriptor.id.localeCompare(b.descriptor.id))
+    .sort((a, b) => compareIds(a.descriptor.id, b.descriptor.id))
   const manifestAssets: Manifest['assets'] = []
   const payloads: Record<string, Uint8Array> = Object.create(null) as Record<
     string,
