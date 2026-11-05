@@ -249,3 +249,51 @@ it('rejects insertion into a replaced repository session after the original dura
     replacement.close()
   }
 })
+
+it('stores a complete batch before its one commit and reports post-commit durability failure', async () => {
+  const { insertDocumentAssets } = await import('./asset-session')
+  const committed: string[] = []
+  const save = vi.fn()
+  const outcome = await insertDocumentAssets({
+    doc,
+    blobs: [new Blob(['one']), new Blob(['two'])],
+    canEdit: () => true,
+    insert: (descriptors) => {
+      expect(descriptors).toHaveLength(2)
+      descriptors.forEach((descriptor) => committed.push(descriptor.id))
+      doc.getMap('references').set('assets', committed)
+    },
+    flush: async () => {
+      throw new Error('disk unavailable')
+    },
+    requestSave: save,
+  })
+  expect(outcome.status).toBe('durability-failed')
+  expect(committed).toHaveLength(2)
+  for (const descriptor of outcome.descriptors)
+    expect(await repository.get(descriptor.id)).toBeDefined()
+  expect(save).toHaveBeenCalledOnce()
+  expect(doc.getMap('references').get('assets')).toEqual(committed)
+})
+
+it('leaves the document unchanged when storing a later batch member fails', async () => {
+  const { insertDocumentAssets } = await import('./asset-session')
+  const originalPut = repository.put.bind(repository)
+  let count = 0
+  vi.spyOn(repository, 'put').mockImplementation((blob, signal) => {
+    if (++count === 2) return Promise.reject(new Error('quota'))
+    return originalPut(blob, signal)
+  })
+  const insert = vi.fn()
+  await expect(
+    insertDocumentAssets({
+      doc,
+      blobs: [new Blob(['one']), new Blob(['two'])],
+      canEdit: () => true,
+      insert,
+      flush: async () => {},
+      requestSave: vi.fn(),
+    }),
+  ).rejects.toThrow('quota')
+  expect(insert).not.toHaveBeenCalled()
+})

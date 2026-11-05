@@ -56,6 +56,56 @@ export async function insertDocumentAsset({
   return descriptor
 }
 
+export type AssetInsertionOutcome =
+  | { status: 'inserted'; descriptors: ReadonlyArray<AssetDescriptor> }
+  | {
+      status: 'durability-failed'
+      descriptors: ReadonlyArray<AssetDescriptor>
+      error: unknown
+    }
+
+export async function insertDocumentAssets({
+  doc,
+  blobs,
+  insert,
+  canEdit,
+  flush,
+  requestSave,
+  signal,
+  isAlive = () => !doc.isDestroyed,
+}: Omit<InsertDocumentAssetOptions, 'blob' | 'insert'> & {
+  blobs: ReadonlyArray<Blob>
+  insert: (descriptors: ReadonlyArray<AssetDescriptor>) => void
+}): Promise<AssetInsertionOutcome> {
+  const ensureEditable = () => {
+    signal?.throwIfAborted()
+    if (!isAlive()) throw new AssetInsertionError('closed')
+    if (!canEdit()) throw new AssetInsertionError('read-only')
+  }
+  ensureEditable()
+  const repository = documentAssets(doc)
+  if (!repository) throw new AssetInsertionError('storage-unavailable')
+  const descriptors: AssetDescriptor[] = []
+  for (const blob of blobs) {
+    descriptors.push(await repository.put(blob, signal))
+    ensureEditable()
+  }
+  if (repository.closed || documentAssets(doc) !== repository)
+    throw new AssetInsertionError('closed')
+  // The caller must use a discrete editor update so its binding synchronizes
+  // before this transaction ends and before persistence is flushed.
+  doc.transact(() => insert(descriptors))
+  try {
+    await flush()
+    requestSave()
+    return { status: 'inserted', descriptors }
+  } catch (error) {
+    // The visible edit and its bytes already exist; never retry the insertion.
+    requestSave()
+    return { status: 'durability-failed', descriptors, error }
+  }
+}
+
 export type AssetFailureKind =
   | 'missing'
   | 'offline'
