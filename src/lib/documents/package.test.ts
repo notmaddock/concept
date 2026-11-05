@@ -234,3 +234,57 @@ it('rejects invalid Yjs, corrupt CRCs, duplicate paths, truncation, and cancella
       duplicate[i + 12] = 'n'.charCodeAt(0)
   await expect(readPackage(duplicate)).rejects.toThrow('duplicate')
 })
+
+it('blocks unknown persisted node semantics for both legacy and ZIP inputs', async () => {
+  const doc = new Doc()
+  const node = new XmlText()
+  node.setAttribute('__type', 'future-unknown-node')
+  doc.get('root', XmlText).insertEmbed(0, node)
+  try {
+    const legacy = new TextEncoder().encode(serializeConcept('Future', doc))
+    expect(await readPackage(legacy)).toMatchObject({
+      kind: 'unsupported',
+      reason: 'features',
+      features: ['node:future-unknown-node'],
+    })
+    const update = encodeStateAsUpdate(doc)
+    const bytes = await rewrite(documentSnapshot(), (files) => {
+      files['document.yjs'] = update
+      manifest(files, (value) => {
+        ;(value.document as Record<string, unknown>).byteLength = update.length
+      })
+    })
+    const files = unzipSync(bytes)
+    const hash = await assetId(update)
+    manifest(files, (value) => {
+      ;(value.document as Record<string, unknown>).sha256 = hash
+    })
+    expect(await readPackage(zipSync(files, { level: 0 }))).toMatchObject({
+      kind: 'unsupported',
+      reason: 'features',
+      features: ['node:future-unknown-node'],
+    })
+  } finally {
+    doc.destroy()
+  }
+})
+
+it('rejects unsafe lengths and malformed asset identities rather than recovering hostile manifests', async () => {
+  const snapshot = await withAssets()
+  for (const change of [
+    (value: Record<string, unknown>) => {
+      ;(value.assets as Record<string, unknown>[])[0].byteLength =
+        Number.MAX_SAFE_INTEGER + 1
+    },
+    (value: Record<string, unknown>) => {
+      ;(value.assets as Record<string, unknown>[])[0].byteLength = -1
+    },
+    (value: Record<string, unknown>) => {
+      ;(value.assets as Record<string, unknown>[])[0].id =
+        `sha256:${'A'.repeat(64)}`
+    },
+  ])
+    await expect(
+      readPackage(await rewrite(snapshot, (files) => manifest(files, change))),
+    ).rejects.toThrow('descriptor')
+})
