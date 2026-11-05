@@ -90,9 +90,10 @@ beforeEach(() => {
 
 it('restores the session on mount without probing it again on focus', async () => {
   mocks.refresh.mockResolvedValue(new Set())
-  await act(() =>
-    root.render(<DocumentWorkspaceProvider>{null}</DocumentWorkspaceProvider>),
-  )
+  await act(async () => {
+    root.render(<DocumentWorkspaceProvider>{null}</DocumentWorkspaceProvider>)
+    await Promise.resolve()
+  })
   expect(mocks.prepareAuth).toHaveBeenCalledOnce()
   await act(() => {
     window.dispatchEvent(new Event('focus'))
@@ -224,13 +225,14 @@ it('preserves current state and does not navigate when picker is cancelled', asy
     workspace = useDocumentWorkspace()
     return null
   }
-  await act(() =>
+  await act(async () => {
     root.render(
       <DocumentWorkspaceProvider>
         <Harness />
       </DocumentWorkspaceProvider>,
-    ),
-  )
+    )
+    await Promise.resolve()
+  })
 
   await act(async () => {
     await workspace.openGoogleDrivePicker()
@@ -251,13 +253,14 @@ it('navigates to selected Drive document and registers it in storage even with d
     workspace = useDocumentWorkspace()
     return null
   }
-  await act(() =>
+  await act(async () => {
     root.render(
       <DocumentWorkspaceProvider>
         <Harness />
       </DocumentWorkspaceProvider>,
-    ),
-  )
+    )
+    await Promise.resolve()
+  })
 
   await act(async () => {
     await workspace.openGoogleDrivePicker()
@@ -277,13 +280,14 @@ it('shows toast error when picker fails to open', async () => {
     workspace = useDocumentWorkspace()
     return null
   }
-  await act(() =>
+  await act(async () => {
     root.render(
       <DocumentWorkspaceProvider>
         <Harness />
       </DocumentWorkspaceProvider>,
-    ),
-  )
+    )
+    await Promise.resolve()
+  })
 
   await act(async () => {
     await workspace.openGoogleDrivePicker()
@@ -300,13 +304,14 @@ it('retries the editor after selecting the active document again', async () => {
     workspace = useDocumentWorkspace()
     return null
   }
-  await act(() =>
+  await act(async () => {
     root.render(
       <DocumentWorkspaceProvider id="Gactive">
         <Harness />
       </DocumentWorkspaceProvider>,
-    ),
-  )
+    )
+    await Promise.resolve()
+  })
   const previousRevision = workspace.connectionRevision
   await act(async () => workspace.openGoogleDrivePicker())
   expect(workspace.connectionRevision).toBe(previousRevision + 1)
@@ -322,13 +327,14 @@ it('retains the current document and reports one error when selected file regist
     workspace = useDocumentWorkspace()
     return null
   }
-  await act(() =>
+  await act(async () => {
     root.render(
       <DocumentWorkspaceProvider>
         <Harness />
       </DocumentWorkspaceProvider>,
-    ),
-  )
+    )
+    await Promise.resolve()
+  })
   await act(async () => workspace.openGoogleDrivePicker())
   expect(mocks.navigate).not.toHaveBeenCalled()
   expect(error).toHaveBeenCalledExactlyOnceWith('Access denied', {
