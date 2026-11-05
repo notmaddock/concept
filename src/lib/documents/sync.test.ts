@@ -880,3 +880,17 @@ it('uses foreground asset polling instead of rapid network retries after missing
     visibility.mockRestore()
   }
 })
+
+it('leaves explicit recovery failures to the calling action to report once', async () => {
+  await start()
+  referenceAsset(await assetRecord('unavailable during export'))
+  read.mockRejectedValueOnce(
+    new DriveError(503, 'Drive temporarily unavailable'),
+  )
+  await expect(session.recoverAssets()).rejects.toMatchObject({
+    code: 'incomplete-assets',
+  })
+  expect(toast.error).not.toHaveBeenCalled()
+  expect(write).not.toHaveBeenCalled()
+  expect(info.drive?.dirty).toBe(true)
+})

@@ -109,6 +109,7 @@ export class DocumentSync {
   private missingTimer?: ReturnType<typeof setTimeout>
   private missingAttempts = 0
   private waitingForAssets = false
+  private actionRecovery = 0
   private urgent = false
   private reconcileAgain = false
   private unsubscribeAuth?: () => void
@@ -582,6 +583,7 @@ export class DocumentSync {
   }
 
   private fail(error: unknown, notify = true) {
+    notify &&= this.actionRecovery === 0
     if (error instanceof IncompleteAssetsError) {
       this.waitingForAssets = true
       this.publish('missing-assets')
@@ -655,8 +657,13 @@ export class DocumentSync {
     } catch (error) {
       if (!(error instanceof IncompleteAssetsError) || !this.info.drive)
         throw error
-      await this.sync(true)
-      await captureSnapshot(documentName(this.doc, this.info.name), this.doc)
+      this.actionRecovery++
+      try {
+        await this.sync(true)
+        await captureSnapshot(documentName(this.doc, this.info.name), this.doc)
+      } finally {
+        this.actionRecovery--
+      }
     }
   }
 
