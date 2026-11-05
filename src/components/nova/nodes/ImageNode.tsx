@@ -36,12 +36,14 @@ export class ImageNode extends DecoratorNode<ReactElement> {
     return 'image'
   }
   static clone(node: ImageNode) {
-    return new ImageNode(
+    const clone = new ImageNode(
       node.__source,
       node.__altText,
       node.__displayWidth,
       node.__key,
     )
+    clone.__imageVersion = node.__imageVersion
+    return clone
   }
 
   constructor(
@@ -74,6 +76,8 @@ export class ImageNode extends DecoratorNode<ReactElement> {
   }
 
   exportJSON(): SerializedImageNode {
+    if (this.getLatest().__imageVersion !== 1)
+      throw new Error('Unsupported image node version')
     return {
       ...super.exportJSON(),
       type: 'image',
