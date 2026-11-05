@@ -6,7 +6,7 @@ import type { useFormatActions } from './use-format-actions'
 
 import type { EditAction, useEditActions } from './use-edit-actions'
 import { useDocumentWorkspace } from '../document-workspace-context'
-import { DriveIcon } from '../DriveIcon'
+import { DriveIcon } from '../icons/DriveIcon'
 import {
   CopyIcon,
   Undo2Icon,

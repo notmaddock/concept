@@ -47,7 +47,7 @@ import { DocumentNavigation } from './DocumentNavigation'
 import { DocumentList } from './DocumentList'
 import { DocumentLoading } from './status/DocumentLoading'
 import { DocumentEditor } from './DocumentEditor'
-import { DriveIcon } from './DriveIcon'
+import { DriveIcon } from './icons/DriveIcon'
 import { AppToaster } from '#/components/app-toaster'
 
 export function DocumentWorkspace({ id }: { id?: string }) {
