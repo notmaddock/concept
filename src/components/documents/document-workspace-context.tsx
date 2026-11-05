@@ -220,7 +220,8 @@ function useWorkspaceState(id?: string) {
           'Open a document and wait for it to load before downloading.',
         )
       const source = { name: document.name, doc: documentRef.current }
-      downloadConcept(source.name, source.doc)
+      await documentSessions.get(document.id)?.recoverAssets()
+      await downloadConcept(source.name, source.doc)
     } catch (cause) {
       toast.error(
         cause instanceof Error

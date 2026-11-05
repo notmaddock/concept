@@ -1,8 +1,13 @@
 import { publishDocumentChange, subscribeToLibrary } from '../library-channel'
 import type { IndexeddbPersistence } from 'y-indexeddb'
 import { Doc, encodeStateAsUpdate } from 'yjs'
-import { documentRevision } from '../revision'
-import { serializeConcept } from '../serialization'
+import { snapshotRevision } from '../package'
+import { openAssetRepository, deleteDocumentAssets } from '../assets'
+import {
+  attachDocumentAssets,
+  setDocumentRecoveryAssets,
+  captureSnapshot,
+} from '../working'
 import type {
   DocumentInfo,
   DocumentPersistence,
@@ -105,6 +110,17 @@ function withDocumentLock<T>(id: string, task: () => Promise<T>): Promise<T> {
 function openDocument(id: string, doc: Doc): DocumentPersistence {
   const sessions = activeSessions.get(id) ?? new Set<DocumentPersistence>()
   activeSessions.set(id, sessions)
+  const assets = openAssetRepository(id, {
+    async assertWritable() {
+      if (
+        !(await query<DocumentInfo | undefined>('readonly', (store) =>
+          store.get(id),
+        ))
+      )
+        throw new Error('Document not found')
+    },
+  })
+  const detachAssets = attachDocumentAssets(doc, assets)
   let persistence: IndexeddbPersistence | undefined
   let closed = false
   let closing: Promise<void> | undefined
@@ -138,6 +154,7 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
       (store) => store.get(id),
     )
     if (!document) throw new Error('Document not found')
+    setDocumentRecoveryAssets(doc, document.recoveryMissingAssets ?? [])
     ensureOpen()
     const { IndexeddbPersistence } = await import('y-indexeddb')
     ensureOpen()
@@ -156,6 +173,7 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
     whenSynced,
     async flush() {
       await whenSynced
+      await assets.flush()
       const db = persistence?.db
       if (!db) throw new Error('Local storage is unavailable.')
       await new Promise<void>((resolve, reject) => {
@@ -179,6 +197,8 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
     },
     destroy() {
       closed = true
+      detachAssets()
+      assets.close()
       closing ??= (
         started
           ? whenSynced.catch(() => {}).then(() => persistence?.destroy())
@@ -187,6 +207,8 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
         .then(() => {})
         .finally(() => {
           void contentLock.finally(() => releaseContentLock?.()).catch(() => {})
+          detachAssets()
+          assets.close()
           sessions.delete(session)
           if (sessions.size === 0 && activeSessions.get(id) === sessions)
             activeSessions.delete(id)
@@ -199,6 +221,7 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
 }
 
 export const localDocumentStorage: DocumentStorage & {
+  createStaged: () => Promise<DocumentInfo>
   put: (document: DocumentInfo) => Promise<void>
   patch: (
     id: string,
@@ -207,9 +230,19 @@ export const localDocumentStorage: DocumentStorage & {
   ) => Promise<DocumentInfo>
   clearContent: (id: string) => Promise<void>
 } = {
+  async createStaged() {
+    const document: DocumentInfo = {
+      id: crypto.randomUUID(),
+      name: 'Untitled document',
+      updatedAt: Date.now(),
+      importing: true,
+    }
+    await query('readwrite', (store) => store.add(document))
+    return document
+  },
   async put(document) {
     await query('readwrite', (store) => store.put(document))
-    publishDocumentChange({ type: 'upsert', document })
+    if (!document.importing) publishDocumentChange({ type: 'upsert', document })
   },
   async patch(id, update, initial) {
     const db = await database()
@@ -233,7 +266,7 @@ export const localDocumentStorage: DocumentStorage & {
       transaction.onabort = transaction.onerror = () =>
         reject(transaction.error ?? new Error('Document not found'))
     })
-    publishDocumentChange({ type: 'upsert', document })
+    if (!document.importing) publishDocumentChange({ type: 'upsert', document })
     return document
   },
   async clearContent(id) {
@@ -252,6 +285,8 @@ export const localDocumentStorage: DocumentStorage & {
           const doc = new Doc()
           const { IndexeddbPersistence } = await import('y-indexeddb')
           const cached = new IndexeddbPersistence(documentDatabaseName(id), doc)
+          const assets = openAssetRepository(id)
+          const detachAssets = attachDocumentAssets(doc, assets)
           let matches = false
           try {
             await cached.whenSynced
@@ -259,10 +294,12 @@ export const localDocumentStorage: DocumentStorage & {
               doc.getMap<string>('metadata').get('name') ?? document.name
             matches =
               encodeStateAsUpdate(doc).byteLength === 2 ||
-              (await documentRevision(serializeConcept(name, doc))) ===
+              (await snapshotRevision(await captureSnapshot(name, doc))) ===
                 document.drive.savedRevision
           } finally {
             await cached.destroy()
+            detachAssets()
+            assets.close()
             doc.destroy()
           }
           // A new open can queue behind our exclusive content lock while the
@@ -285,18 +322,20 @@ export const localDocumentStorage: DocumentStorage & {
     const documents = await query<Array<DocumentInfo>>('readonly', (store) =>
       store.getAll(),
     )
-    return documents.sort((a, b) => b.updatedAt - a.updatedAt)
+    return documents
+      .filter((document) => !document.importing)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
   },
   get: (id) =>
     query<DocumentInfo | undefined>('readonly', (store) => store.get(id)),
   async create() {
-    const document = {
+    const document: DocumentInfo = {
       id: crypto.randomUUID(),
       name: 'Untitled document',
       updatedAt: Date.now(),
     }
     await query('readwrite', (store) => store.add(document))
-    publishDocumentChange({ type: 'upsert', document })
+    if (!document.importing) publishDocumentChange({ type: 'upsert', document })
     return document
   },
   rename(id, name) {
@@ -314,6 +353,7 @@ export const localDocumentStorage: DocumentStorage & {
       )
       if (!document) throw new Error('Document not found')
       await removeDocumentContent(id)
+      await deleteDocumentAssets(id, { alreadyLocked: true })
       await query('readwrite', (store) => store.delete(id))
       publishDocumentChange({ type: 'delete', id })
     })

@@ -1,18 +1,22 @@
 import { Doc } from 'yjs'
 import type { LucideIcon } from 'lucide-react'
 import { storageLocations } from './storage-locations'
-import type { ConceptFile } from './concept-file'
+import type { AssetId } from './assets'
+import type { NormalizedSnapshot } from './package'
+import { writePackage } from './package'
+import { captureSnapshot } from './working'
 import type { DocumentInfo } from './storage'
-import { importConcept, parseConcept, serializeConcept } from './concept-file'
+import { importConcept } from './concept-file'
 import { localDocumentStorage } from './storage'
 import { initializeDocument } from './initial-document'
 
 export interface SelectedDocument {
-  file: ConceptFile
+  file: NormalizedSnapshot
   filename: string
   size: number
   origin: string
   existingId?: string
+  missingAssets?: AssetId[]
 }
 
 interface SourceInfo {
@@ -33,7 +37,11 @@ export type DocumentSource = SourceInfo &
   )
 
 export interface DocumentSaveProvider extends SourceInfo {
-  save: (file: ConceptFile, name: string) => Promise<DocumentInfo>
+  save: (
+    file: NormalizedSnapshot,
+    name: string,
+    missingAssets?: AssetId[],
+  ) => Promise<DocumentInfo>
 }
 
 export const documentSources: Array<DocumentSource> = [
@@ -51,11 +59,12 @@ export const documentSources: Array<DocumentSource> = [
       try {
         await session.whenSynced
         if (!doc.share.has('root')) initializeDocument(doc)
-        const text = serializeConcept(document.name, doc)
+        const snapshot = await captureSnapshot(document.name, doc)
+        const content = await writePackage(snapshot)
         return {
-          file: parseConcept(text),
+          file: snapshot,
           filename: document.name,
-          size: new Blob([text]).size,
+          size: content.byteLength,
           origin: storageLocations.local.label,
           existingId: document.id,
         }
@@ -70,6 +79,7 @@ export const documentSources: Array<DocumentSource> = [
 export const documentSaveProviders: Array<DocumentSaveProvider> = [
   {
     ...storageLocations.local,
-    save: (file, name) => importConcept(file, name),
+    save: (file, name, missingAssets) =>
+      importConcept(file, name, missingAssets),
   },
 ]

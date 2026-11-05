@@ -48,7 +48,10 @@ export function exportFilename(name: string, extension: string) {
   return `${safeName || 'Untitled document'}.${extension}`
 }
 
-export function downloadExport(name: string, file: ExportFile) {
+export function downloadExport(
+  name: string,
+  file: Omit<ExportFile, 'content'> & { content: string | Blob },
+) {
   const url = URL.createObjectURL(new Blob([file.content], { type: file.mime }))
   const link = document.createElement('a')
   link.href = url

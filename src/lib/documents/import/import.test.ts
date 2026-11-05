@@ -44,10 +44,7 @@ async function converted(
       transaction.origin === binding,
     ),
   )
-  applyUpdate(
-    doc,
-    Uint8Array.from(atob(file.update), (character) => character.charCodeAt(0)),
-  )
+  applyUpdate(doc, file.update)
   await Promise.resolve()
   const state = editor.getEditorState().toJSON()
   const text = editor.getEditorState().read(() => $getRoot().getTextContent())

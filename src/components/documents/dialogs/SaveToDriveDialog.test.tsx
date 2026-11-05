@@ -56,6 +56,7 @@ function repository(
   assets: AssetRecord[] = [],
 ): AssetRepository {
   return {
+    closed: false,
     documentId,
     async list() {
       return assets.map((asset) => asset.descriptor)

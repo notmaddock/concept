@@ -1,3 +1,4 @@
+import type { AssetId } from './assets'
 import type { Doc } from 'yjs'
 
 export interface DocumentInfo {
@@ -5,6 +6,8 @@ export interface DocumentInfo {
   name: string
   updatedAt: number
   readOnly?: boolean
+  recoveryMissingAssets?: AssetId[]
+  importing?: boolean
   drive?: {
     fileId: string
     offlineAvailable: boolean

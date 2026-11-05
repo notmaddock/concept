@@ -11,7 +11,7 @@ import { createYjsBinding, syncLexicalUpdateToYjs } from '@lexical/yjs'
 import { Doc } from 'yjs'
 import type { ImportFormat } from './formats'
 import { importFormats } from './formats'
-import { parseConcept, serializeConcept } from '../concept-file'
+import { captureSnapshot } from '../working'
 import { LocalProvider } from '../local-provider'
 
 export async function convertImport(file: File, format: ImportFormat) {
@@ -83,7 +83,7 @@ export async function convertImport(file: File, format: ImportFormat) {
       },
       { discrete: true },
     )
-    return parseConcept(serializeConcept(name, doc))
+    return await captureSnapshot(name, doc)
   } finally {
     unregister()
     provider.destroy()

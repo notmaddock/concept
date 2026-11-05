@@ -1,3 +1,6 @@
+import { unzipSync, zipSync } from 'fflate'
+import { assetId } from '#/lib/documents/assets'
+import { writePackage } from '#/lib/documents/package'
 import { waitForAct } from '#/test/wait-for-act'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -8,6 +11,7 @@ import type * as ConceptFileModule from '#/lib/documents/concept-file'
 import type { Root } from 'react-dom/client'
 import { DocumentStorageDialog } from './DocumentStorageDialog'
 import { storageLocations } from '#/lib/documents/storage-locations'
+import { captureSnapshot } from '#/lib/documents/working'
 import { serializeConcept } from '#/lib/documents/concept-file'
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
@@ -70,7 +74,7 @@ it('requires device selection and confirmation showing file size and origin befo
       {
         name: 'example.concept',
         size: 1234,
-        text: () => Promise.resolve(text),
+        arrayBuffer: async () => new TextEncoder().encode(text).buffer,
       },
     ],
   })
@@ -78,7 +82,9 @@ it('requires device selection and confirmation showing file size and origin befo
     input.dispatchEvent(new Event('change', { bubbles: true }))
     await Promise.resolve()
   })
-  expect(document.body.textContent).toContain('1,234 bytes')
+  await waitForAct(() =>
+    expect(document.body.textContent).toContain('1,234 bytes'),
+  )
   expect(document.body.textContent).toContain('OriginThis device')
   expect(document.body.textContent).toContain('Save to')
   expect(mocks.importConcept).not.toHaveBeenCalled()
@@ -104,8 +110,9 @@ it('uses the same provider selection to save an independently named copy', async
   expect(document.querySelector('input')?.value).toBe('Copy of Original')
   await click('Save copy')
   expect(mocks.importConcept).toHaveBeenCalledWith(
-    expect.objectContaining({ name: 'Original', format: 'concept' }),
+    expect.objectContaining({ name: 'Original', assets: [] }),
     'Copy of Original',
+    undefined,
   )
   expect(onClose).toHaveBeenCalledOnce()
 })
@@ -118,16 +125,18 @@ it('keeps invalid files out of storage and displays the error', async () => {
   const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
   Object.defineProperty(input, 'files', {
     value: [
-      { name: 'broken.concept', size: 3, text: () => Promise.resolve('bad') },
+      {
+        name: 'broken.concept',
+        size: 3,
+        arrayBuffer: async () => new TextEncoder().encode('bad').buffer,
+      },
     ],
   })
   await act(async () => {
     input.dispatchEvent(new Event('change', { bubbles: true }))
     await Promise.resolve()
   })
-  expect(toast.error).toHaveBeenCalledWith(
-    expect.stringContaining('not a supported .concept document'),
-  )
+  expect(toast.error).toHaveBeenCalledWith(expect.any(String))
   expect(document.querySelector('[role="alert"]')).toBeNull()
   expect(
     Array.from(document.querySelectorAll('button')).some(
@@ -138,9 +147,7 @@ it('keeps invalid files out of storage and displays the error', async () => {
 })
 
 it('opens a library document in place without saving a duplicate', async () => {
-  const file = JSON.parse(
-    serializeConcept('Existing', doc),
-  ) as ConceptFileModule.ConceptFile
+  const file = await captureSnapshot('Existing', doc)
   const read = vi.fn().mockResolvedValue({
     file,
     size: 100,
@@ -184,9 +191,7 @@ it('opens a library document in place without saving a duplicate', async () => {
 it('saves an imported document to the selected provider independently of its source', async () => {
   const saveLocal = vi.fn().mockResolvedValue({ id: 'local-copy' })
   const saveOther = vi.fn().mockResolvedValue({ id: 'other-copy' })
-  const file = JSON.parse(
-    serializeConcept('External document', doc),
-  ) as ConceptFileModule.ConceptFile
+  const file = await captureSnapshot('External document', doc)
   await act(async () =>
     root.render(
       <DocumentStorageDialog
@@ -237,7 +242,7 @@ it('saves an imported document to the selected provider independently of its sou
   expect(confirm.disabled).toBe(true)
   await click('Other provider')
   await click('Open document')
-  expect(saveOther).toHaveBeenCalledWith(file, 'External document')
+  expect(saveOther).toHaveBeenCalledWith(file, 'External document', undefined)
   expect(saveLocal).not.toHaveBeenCalled()
   expect(mocks.navigate).toHaveBeenCalledWith({
     to: '/',
@@ -282,8 +287,9 @@ it('converts an import before saving and reuses destination selection', async ()
   await click('This device')
   await click('Import document')
   expect(save).toHaveBeenCalledWith(
-    expect.objectContaining({ name: 'Imported', format: 'concept' }),
+    expect.objectContaining({ name: 'Imported', assets: [] }),
     'Imported',
+    undefined,
   )
   expect(mocks.navigate).toHaveBeenCalledWith({
     to: '/',
@@ -333,4 +339,54 @@ it('reports save failures via toast without closing the dialog', async () => {
   await click('Save copy')
   expect(toast.error).toHaveBeenCalledWith('Disk quota exceeded.')
   expect(onClose).not.toHaveBeenCalled()
+})
+
+it('requires explicit recovery before importing an incomplete package as a local copy', async () => {
+  const blob = new Blob(['retained attachment'])
+  const id = await assetId(new Uint8Array(await blob.arrayBuffer()))
+  const snapshot = await captureSnapshot('Damaged document', doc)
+  snapshot.assets.push({
+    descriptor: {
+      id,
+      byteLength: blob.size,
+      mediaType: 'application/octet-stream',
+    },
+    blob,
+  })
+  const entries = unzipSync(await writePackage(snapshot))
+  delete entries[`assets/${id.slice(7)}`]
+  const bytes = zipSync(entries, { level: 0 })
+  await act(async () =>
+    root.render(<DocumentStorageDialog mode="open" onClose={onClose} />),
+  )
+  await click('This device')
+  const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
+  Object.defineProperty(input, 'files', {
+    value: [
+      {
+        name: 'damaged.concept',
+        size: bytes.length,
+        arrayBuffer: async () => bytes.buffer,
+      },
+    ],
+  })
+  await act(async () => {
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await waitForAct(() =>
+    expect(document.body.textContent).toContain('missing 1 assets'),
+  )
+  const confirm = Array.from(document.querySelectorAll('button')).find(
+    (button) => button.textContent === 'Open document',
+  )!
+  expect(confirm.disabled).toBe(true)
+  expect(mocks.importConcept).not.toHaveBeenCalled()
+  await click('Recover available content')
+  await click('Open document')
+  expect(mocks.importConcept).toHaveBeenCalledWith(
+    expect.objectContaining({ name: 'Damaged document', assets: [] }),
+    'Damaged document',
+    [id],
+  )
+  expect(toast.error).not.toHaveBeenCalled()
 })

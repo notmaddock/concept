@@ -127,6 +127,7 @@ beforeEach(() => {
   records = new Map()
   const listeners = new Set<(id: AssetRecord['descriptor']['id']) => void>()
   repository = {
+    closed: false,
     documentId: 'test',
     async put(blob) {
       const descriptor = await describeAsset(blob)

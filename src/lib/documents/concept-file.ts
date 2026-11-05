@@ -1,7 +1,10 @@
 import { applyUpdate, Doc } from 'yjs'
 import { downloadExport } from './export'
 import { localDocumentStorage } from './storage'
-import { serializeConcept } from './serialization'
+import { readPackage, writePackage } from './package'
+import type { AssetId } from './assets'
+import type { NormalizedSnapshot } from './package'
+import { captureSnapshot, documentAssets } from './working'
 
 export { serializeConcept } from './serialization'
 
@@ -64,18 +67,47 @@ export function decodeUpdate(file: ConceptFile) {
   )
 }
 
-export async function importConcept(file: ConceptFile, name = file.name) {
-  const created = await localDocumentStorage.create()
+export async function readConcept(input: Blob | Uint8Array) {
+  const result = await readPackage(input)
+  if (result.kind === 'unsupported')
+    throw new Error(
+      'This document requires a newer version of Concept. The original has not been changed.',
+    )
+  return result
+}
+
+export function normalizeLegacy(file: ConceptFile): NormalizedSnapshot {
+  return {
+    name: file.name,
+    update: decodeUpdate(file),
+    assets: [],
+    requiredFeatures: [],
+  }
+}
+
+export async function importConcept(
+  file: ConceptFile | NormalizedSnapshot,
+  name = file.name,
+  missingAssets?: AssetId[],
+) {
+  const snapshot = 'version' in file ? normalizeLegacy(file) : file
+  const created = await localDocumentStorage.createStaged()
   const doc = new Doc()
   const session = localDocumentStorage.open(created.id, doc)
   try {
     await session.whenSynced
-    applyUpdate(doc, decodeUpdate(file))
+    await documentAssets(doc)!.importAssets(snapshot.assets)
+    applyUpdate(doc, snapshot.update)
     doc
       .getMap<string>('metadata')
       .set('name', name.trim() || 'Untitled document')
     await session.flush?.()
-    return await localDocumentStorage.rename(created.id, name)
+    return await localDocumentStorage.patch(created.id, (current) => ({
+      ...current,
+      name: name.trim() || 'Untitled document',
+      importing: undefined,
+      recoveryMissingAssets: missingAssets,
+    }))
   } catch (error) {
     await session.destroy()
     await localDocumentStorage.delete(created.id)
@@ -86,10 +118,12 @@ export async function importConcept(file: ConceptFile, name = file.name) {
   }
 }
 
-export function downloadConcept(name: string, doc: Doc) {
+export async function downloadConcept(name: string, doc: Doc) {
+  const snapshot = await captureSnapshot(name, doc)
+  const content = await writePackage(snapshot)
   downloadExport(name, {
-    content: serializeConcept(name, doc),
+    content: new Blob([content as Uint8Array<ArrayBuffer>]),
     extension: 'concept',
-    mime: 'application/vnd.concept+json',
+    mime: 'application/vnd.concept+zip',
   })
 }
