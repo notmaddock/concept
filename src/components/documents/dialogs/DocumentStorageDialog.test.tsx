@@ -1,3 +1,4 @@
+import { waitForAct } from '#/test/wait-for-act'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Doc, XmlText } from 'yjs'
@@ -35,7 +36,7 @@ beforeEach(() => {
   doc.get('root', XmlText).insert(0, 'Document content')
 })
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
   container.remove()
   doc.destroy()
 })
@@ -52,7 +53,7 @@ async function click(label: string) {
 }
 
 it('requires device selection and confirmation showing file size and origin before opening', async () => {
-  await act(() =>
+  await act(async () =>
     root.render(<DocumentStorageDialog mode="open" onClose={onClose} />),
   )
   expect(document.querySelector('input[type="file"]')).toBeNull()
@@ -91,7 +92,7 @@ it('requires device selection and confirmation showing file size and origin befo
 })
 
 it('uses the same provider selection to save an independently named copy', async () => {
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentStorageDialog
         mode="copy"
@@ -110,7 +111,7 @@ it('uses the same provider selection to save an independently named copy', async
 })
 
 it('keeps invalid files out of storage and displays the error', async () => {
-  await act(() =>
+  await act(async () =>
     root.render(<DocumentStorageDialog mode="open" onClose={onClose} />),
   )
   await click('This device')
@@ -147,7 +148,7 @@ it('opens a library document in place without saving a duplicate', async () => {
     origin: 'Local library',
     existingId: 'existing-id',
   })
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentStorageDialog
         mode="open"
@@ -186,7 +187,7 @@ it('saves an imported document to the selected provider independently of its sou
   const file = JSON.parse(
     serializeConcept('External document', doc),
   ) as ConceptFileModule.ConceptFile
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentStorageDialog
         mode="open"
@@ -246,7 +247,7 @@ it('saves an imported document to the selected provider independently of its sou
 
 it('converts an import before saving and reuses destination selection', async () => {
   const save = vi.fn().mockResolvedValue({ id: 'destination' })
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentStorageDialog
         mode="import"
@@ -267,11 +268,8 @@ it('converts an import before saving and reuses destination selection', async ()
   await act(async () => {
     input.dispatchEvent(new Event('change', { bubbles: true }))
   })
-  await vi.waitFor(
+  await waitForAct(
     async () => {
-      await act(async () => {
-        await Promise.resolve()
-      })
       expect(document.body.textContent).toContain('Save to')
     },
     { timeout: 5000 },
@@ -295,7 +293,7 @@ it('converts an import before saving and reuses destination selection', async ()
 })
 
 it('reports library listing failures via toast and suppresses the empty message', async () => {
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentStorageDialog
         mode="open"
@@ -323,7 +321,7 @@ it('reports library listing failures via toast and suppresses the empty message'
 
 it('reports save failures via toast without closing the dialog', async () => {
   mocks.importConcept.mockRejectedValueOnce(new Error('Disk quota exceeded.'))
-  await act(() =>
+  await act(async () =>
     root.render(
       <DocumentStorageDialog
         mode="copy"

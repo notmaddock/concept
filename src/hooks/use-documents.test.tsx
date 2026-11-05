@@ -42,7 +42,7 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
-  await act(() => root.unmount())
+  await act(async () => root.unmount())
   container.remove()
 })
 
@@ -70,7 +70,7 @@ it('uses one creation action and suppresses duplicate concurrent requests', asyn
 
 it('returns to the library when deleting the open document', async () => {
   await mount()
-  await act(() => actions.deleteDocument('first'))
+  await act(async () => actions.deleteDocument('first'))
   expect(storage.delete).toHaveBeenCalledWith('first')
   expect(actions.documents).toEqual([second])
   expect(navigate).toHaveBeenCalledWith({ to: '/' })
@@ -78,7 +78,7 @@ it('returns to the library when deleting the open document', async () => {
 
 it('keeps the current editor open when deleting another document', async () => {
   await mount()
-  await act(() => actions.deleteDocument('second'))
+  await act(async () => actions.deleteDocument('second'))
   expect(actions.document).toEqual(first)
   expect(navigate).not.toHaveBeenCalled()
 })
@@ -86,7 +86,7 @@ it('keeps the current editor open when deleting another document', async () => {
 it('preserves documents and reports a storage deletion failure', async () => {
   vi.mocked(storage.delete).mockRejectedValue(new Error('Storage unavailable'))
   await mount()
-  await act(() => actions.deleteDocument('first'))
+  await act(async () => actions.deleteDocument('first'))
   expect(actions.documents).toEqual([first, second])
   expect(actions.error).toContain('Could not delete')
   expect(navigate).not.toHaveBeenCalled()
@@ -97,10 +97,10 @@ it('updates document titles and closes a remotely deleted document without windo
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
   const renamed = { ...first, name: 'Renamed in another tab' }
   vi.mocked(storage.list).mockResolvedValue([renamed, second])
-  await act(() => listener({ type: 'upsert', document: renamed }))
+  await act(async () => listener({ type: 'upsert', document: renamed }))
   expect(actions.document?.name).toBe(renamed.name)
   vi.mocked(storage.list).mockResolvedValue([second])
-  await act(() => listener({ type: 'delete', id: first.id }))
+  await act(async () => listener({ type: 'delete', id: first.id }))
   expect(actions.document).toBeUndefined()
   expect(navigate).toHaveBeenCalledWith({ to: '/' })
 })
@@ -146,7 +146,7 @@ it('rejects blank names and reports failed renames without changing documents', 
 it('uses change payloads without rereading the library', async () => {
   await mount()
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
-  await act(() => {
+  await act(async () => {
     listener({ type: 'upsert', document: { ...first, name: 'Updated' } })
     listener({ type: 'delete', id: second.id })
   })
@@ -164,7 +164,7 @@ it('preserves changes received while a library reconciliation is in flight', asy
   await mount()
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
   const renamed = { ...first, name: 'Changed during read' }
-  await act(() => {
+  await act(async () => {
     listener({ type: 'upsert', document: renamed })
     listener({ type: 'delete', id: second.id })
     window.dispatchEvent(new Event('focus'))
@@ -180,12 +180,12 @@ it('retains its library subscription across document navigation', async () => {
     actions = useDocuments(id, storage)
     return null
   }
-  await act(() => root.render(<Harness id="first" />))
-  await act(() => root.render(<Harness id="second" />))
+  await act(async () => root.render(<Harness id="first" />))
+  await act(async () => root.render(<Harness id="second" />))
   expect(storage.subscribe).toHaveBeenCalledTimes(1)
   expect(storage.list).toHaveBeenCalledTimes(1)
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
-  await act(() => listener({ type: 'delete', id: second.id }))
+  await act(async () => listener({ type: 'delete', id: second.id }))
   expect(navigate).toHaveBeenCalledWith({ to: '/' })
 })
 
@@ -194,13 +194,13 @@ it('keeps the root as a library without selecting an existing document', async (
     actions = useDocuments(undefined, storage)
     return null
   }
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
   expect(actions.loaded).toBe(true)
   expect(actions.document).toBeUndefined()
   expect(storage.create).not.toHaveBeenCalled()
   expect(navigate).not.toHaveBeenCalled()
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
-  await act(() =>
+  await act(async () =>
     listener({ type: 'upsert', document: { ...first, updatedAt: 10 } }),
   )
   expect(actions.document).toBeUndefined()
@@ -212,12 +212,12 @@ it('keeps an empty root library empty until a document is explicitly created', a
     actions = useDocuments(undefined, storage)
     return null
   }
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
   expect(actions.loaded).toBe(true)
   expect(actions.document).toBeUndefined()
   expect(storage.create).not.toHaveBeenCalled()
   expect(navigate).not.toHaveBeenCalled()
-  await act(() => actions.createDocument())
+  await act(async () => actions.createDocument())
   expect(storage.create).toHaveBeenCalledTimes(1)
   expect(navigate).toHaveBeenCalledWith({ to: '/', hash: 'Lnew' })
 })
@@ -227,9 +227,9 @@ it('closes the document when navigating back to the root', async () => {
     actions = useDocuments(id, storage)
     return null
   }
-  await act(() => root.render(<Harness id="first" />))
+  await act(async () => root.render(<Harness id="first" />))
   expect(actions.document).toEqual(first)
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
   expect(actions.document).toBeUndefined()
   expect(actions.loaded).toBe(true)
   expect(storage.create).not.toHaveBeenCalled()
@@ -251,7 +251,7 @@ it('resolves a direct Drive identity missing from the current library', async ()
   await mount(drive.id)
   expect(storage.get).toHaveBeenCalledExactlyOnceWith(drive.id)
   expect(actions.loaded).toBe(false)
-  await act(() => resolveLookup(drive))
+  await act(async () => resolveLookup(drive))
   expect(actions.document).toEqual(drive)
   expect(actions.loaded).toBe(true)
   expect(storage.create).not.toHaveBeenCalled()
@@ -279,7 +279,7 @@ it('reports a failed direct lookup without retrying in a render loop', async () 
   expect(actions.error).toBe('Reconnect Google Drive')
   expect(storage.get).toHaveBeenCalledOnce()
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
-  await act(() =>
+  await act(async () =>
     listener({ type: 'upsert', document: { ...first, id: 'Gdisconnected' } }),
   )
   expect(actions.error).toBe('')
@@ -297,9 +297,9 @@ it('ignores a direct lookup that finishes after navigation', async () => {
     actions = useDocuments(id, storage)
     return null
   }
-  await act(() => root.render(<Harness id="Gslow" />))
-  await act(() => root.render(<Harness id="second" />))
-  await act(() => resolveLookup({ ...first, id: 'Gslow' }))
+  await act(async () => root.render(<Harness id="Gslow" />))
+  await act(async () => root.render(<Harness id="second" />))
+  await act(async () => resolveLookup({ ...first, id: 'Gslow' }))
   expect(actions.document).toEqual(second)
   expect(actions.documents.some((item) => item.id === 'Gslow')).toBe(false)
   expect(actions.loaded).toBe(true)
@@ -310,11 +310,11 @@ it('does not open another document when deleting documents from the root', async
     actions = useDocuments(undefined, storage)
     return null
   }
-  await act(() => root.render(<Harness />))
-  await act(() => actions.deleteDocument(second.id))
+  await act(async () => root.render(<Harness />))
+  await act(async () => actions.deleteDocument(second.id))
   expect(actions.document).toBeUndefined()
   const listener = vi.mocked(storage.subscribe).mock.calls[0][0]
-  await act(() => listener({ type: 'delete', id: first.id }))
+  await act(async () => listener({ type: 'delete', id: first.id }))
   expect(actions.document).toBeUndefined()
   expect(storage.create).not.toHaveBeenCalled()
   expect(navigate).not.toHaveBeenCalled()
