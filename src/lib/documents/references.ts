@@ -20,7 +20,14 @@ export type AssetReferenceCollector = (node: PersistedNode) => Iterable<AssetId>
 // Built-in collectors are initialized here so headless package operations and HMR
 // use the same registry without importing editor rendering code.
 const collectors = new Map<string, AssetReferenceCollector>([
-  ['image', (node) => [validateImageSource(node.get('__source')).assetId]],
+  [
+    'image',
+    (node) => {
+      if (node.get('__imageVersion') !== 1)
+        throw new UnsupportedNodeError('image version')
+      return [validateImageSource(node.get('__source')).assetId]
+    },
+  ],
 ])
 const referenceFreeTypes = new Set([
   'root',

@@ -6,7 +6,7 @@ import {
   syncLexicalUpdateToYjs,
   syncYjsChangesToLexical,
 } from '@lexical/yjs'
-import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
+import { applyUpdate, Doc, encodeStateAsUpdate, XmlElement, XmlText } from 'yjs'
 import { LocalProvider } from '@/lib/documents/local-provider'
 import { collectReferences } from '@/lib/documents/references'
 import { validateImageSource } from '@/lib/documents/image-schema'
@@ -186,5 +186,28 @@ it('merges concurrent replacements as complete source records and presentation i
   } finally {
     a.close()
     b.close()
+  }
+})
+
+it('rejects unsupported image versions in headless package snapshots', () => {
+  const { doc, editor, close } = client()
+  try {
+    editor.update(
+      () => {
+        $getRoot().append($createImageNode(source('a')))
+      },
+      { discrete: true },
+    )
+    const persisted = doc.get('root', XmlText).toDelta()[0].insert
+    expect(persisted).toBeInstanceOf(XmlElement)
+    ;(persisted as XmlElement).setAttribute(
+      '__imageVersion',
+      2 as unknown as string,
+    )
+    expect(() => collectReferences(encodeStateAsUpdate(doc))).toThrow(
+      'requires support',
+    )
+  } finally {
+    close()
   }
 })

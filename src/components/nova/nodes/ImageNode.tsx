@@ -27,6 +27,7 @@ export type SerializedImageNode = Spread<
 >
 
 export class ImageNode extends DecoratorNode<ReactElement> {
+  __imageVersion = 1
   __source: ImageSource
   __altText: string
   __displayWidth: number | null
@@ -60,7 +61,10 @@ export class ImageNode extends DecoratorNode<ReactElement> {
   }
 
   static importJSON(serialized: SerializedImageNode): ImageNode {
-    if (Number(serialized.version) !== 1 || typeof serialized.altText !== 'string')
+    if (
+      Number(serialized.version) !== 1 ||
+      typeof serialized.altText !== 'string'
+    )
       throw new Error('Unsupported or invalid image node')
     return $createImageNode(
       validateImageSource(serialized.source),
