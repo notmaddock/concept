@@ -20,7 +20,8 @@ export const defaultEditorTheme: EditorThemeClasses = {
   list: {
     ul: 'list-disc list-inside mb-2',
     ol: 'list-decimal list-inside mb-2',
-    checklist: 'list-none! pl-0! ml-1 my-2 space-y-1.5 [&_ul]:ml-6 [&_ul]:my-1',
+    checklist:
+      'list-none! pl-0! ml-1 my-2 space-y-1.5 [&_ul]:ml-6 [&_ul]:my-1 [&_ol]:ml-6 [&_ol]:my-1',
     listitem: 'ml-4',
     listitemChecked: 'editor-checklist-item-checked',
     listitemUnchecked: 'editor-checklist-item-unchecked',
