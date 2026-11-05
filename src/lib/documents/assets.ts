@@ -15,6 +15,7 @@ export interface AssetRecord {
 
 export interface AssetRepository {
   readonly documentId: string
+  readonly closed: boolean
   put: (blob: Blob, signal?: AbortSignal) => Promise<AssetDescriptor>
   get: (id: AssetId, signal?: AbortSignal) => Promise<Blob | undefined>
   list: () => Promise<ReadonlyArray<AssetDescriptor>>
@@ -326,6 +327,9 @@ export function openAssetRepository(
     })
   const repository: AssetRepository = {
     documentId,
+    get closed() {
+      return closed
+    },
     put(blob, signal) {
       return track(
         (async () => {

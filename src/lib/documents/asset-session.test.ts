@@ -217,3 +217,35 @@ it('coalesces concurrent missing requests even when a remote check completes imm
   await Promise.all([resolver.resolve(first.id), resolver.resolve(second.id)])
   expect(recover).toHaveBeenCalledOnce()
 })
+
+it('rejects a reference when the storage session closes after bytes commit while its Doc stays alive', async () => {
+  const stop = repository.subscribe(() => repository.close())
+  const options = insertionOptions()
+  await expect(insertDocumentAsset(options)).rejects.toMatchObject({
+    code: 'closed',
+  })
+  expect(doc.isDestroyed).toBe(false)
+  expect(repository.closed).toBe(true)
+  expect(options.insert).not.toHaveBeenCalled()
+  expect(options.requestSave).not.toHaveBeenCalled()
+  stop()
+})
+
+it('rejects insertion into a replaced repository session after the original durable commit', async () => {
+  const replacement = openAssetRepository('replacement')
+  const stop = repository.subscribe(() =>
+    attachDocumentAssets(doc, replacement),
+  )
+  const options = insertionOptions()
+  try {
+    await expect(insertDocumentAsset(options)).rejects.toMatchObject({
+      code: 'closed',
+    })
+    expect(repository.closed).toBe(false)
+    expect(options.insert).not.toHaveBeenCalled()
+    expect(options.requestSave).not.toHaveBeenCalled()
+  } finally {
+    stop()
+    replacement.close()
+  }
+})

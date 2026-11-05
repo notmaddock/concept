@@ -46,6 +46,8 @@ export async function insertDocumentAsset({
   if (!repository) throw new AssetInsertionError('storage-unavailable')
   const descriptor = await repository.put(blob, signal)
   ensureEditable()
+  if (repository.closed || documentAssets(doc) !== repository)
+    throw new AssetInsertionError('closed')
   doc.transact(() => insert(descriptor))
   await flush()
   signal?.throwIfAborted()
