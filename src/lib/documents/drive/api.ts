@@ -124,13 +124,15 @@ async function request(
     invalidateGoogleDriveSession()
     throw new GoogleDriveAuthError()
   }
-  if (!response.ok)
+  if (!response.ok) {
+    await response.body?.cancel()
     throw new DriveError(
       response.status,
       response.status === 412
         ? 'Google Drive has newer changes.'
         : `Google Drive request failed (${response.status}).`,
     )
+  }
   return response
 }
 
