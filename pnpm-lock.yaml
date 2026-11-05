@@ -244,6 +244,9 @@ importers:
       cn:
         specifier: ^0.5.2
         version: 0.5.2
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       lexical:
         specifier: ^0.53.0
         version: 0.53.0(typescript@6.0.3)
@@ -2925,6 +2928,9 @@ packages:
 
   fflate@0.4.9:
     resolution: {integrity: sha512-zdxgIEddhfsyCaWpJ2SdXEP8ZMrKJ6+5jl4OupODcywU0IhRk6gdXuVGcPICyfx2H97hVK7xmJtRLPjkxAX8Vw==}
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   file-entry-cache@11.1.5:
     resolution: {integrity: sha512-+PFTHITI08JIGhnNpGNI8T8inUpgZfk3GNEqfT9R2zZV2iFXg3CvqzSl/uEhs7TSGujYRELEANyDvS8Fj7+S7Q==}
@@ -6293,6 +6299,8 @@ snapshots:
   fetchdts@0.2.0: {}
 
   fflate@0.4.9: {}
+
+  fflate@0.8.3: {}
 
   file-entry-cache@11.1.5:
     dependencies:
