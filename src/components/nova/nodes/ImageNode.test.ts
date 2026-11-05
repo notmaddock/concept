@@ -1,0 +1,190 @@
+// @vitest-environment node
+import { expect, it, vi } from 'vitest'
+import { $getNodeByKey, $getRoot, createEditor } from 'lexical'
+import {
+  createYjsBinding,
+  syncLexicalUpdateToYjs,
+  syncYjsChangesToLexical,
+} from '@lexical/yjs'
+import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
+import { LocalProvider } from '@/lib/documents/local-provider'
+import { collectReferences } from '@/lib/documents/references'
+import { validateImageSource } from '@/lib/documents/image-schema'
+import { $createImageNode, ImageNode } from './ImageNode'
+import type { AssetId } from '@/lib/documents/assets'
+
+vi.mock('./ImageBlock', () => ({ ImageBlock: () => null }))
+const source = (letter: string, width = 640, height = 480) => ({
+  assetId: `sha256:${letter.repeat(64)}` as AssetId,
+  intrinsicWidth: width,
+  intrinsicHeight: height,
+})
+function client() {
+  const doc = new Doc()
+  const editor = createEditor({
+    nodes: [ImageNode],
+    onError: (error) => {
+      throw error
+    },
+  })
+  const provider = new LocalProvider('image-test', doc, {
+    whenSynced: Promise.resolve(),
+    destroy: async () => {},
+  })
+  const binding = createYjsBinding({
+    editor,
+    id: 'image-test',
+    doc,
+    docMap: new Map([['image-test', doc]]),
+  })
+  const unregister = editor.registerUpdateListener(
+    ({
+      prevEditorState,
+      editorState,
+      dirtyElements,
+      dirtyLeaves,
+      normalizedNodes,
+      tags,
+    }) =>
+      syncLexicalUpdateToYjs(
+        binding,
+        provider,
+        prevEditorState,
+        editorState,
+        dirtyElements,
+        dirtyLeaves,
+        normalizedNodes,
+        tags,
+      ),
+  )
+  binding.root.getSharedType().observeDeep((events, transaction) => {
+    if (transaction.origin !== binding)
+      syncYjsChangesToLexical(binding, provider, events, false)
+  })
+  return {
+    doc,
+    editor,
+    close: () => {
+      unregister()
+      provider.destroy()
+      binding.root.destroy(binding)
+      doc.destroy()
+    },
+  }
+}
+it('round trips image placement JSON and rejects invalid or future fields', () => {
+  const { editor, close } = client()
+  try {
+    editor.update(
+      () => {
+        $getRoot().append($createImageNode(source('a'), 'A photo', 200))
+      },
+      { discrete: true },
+    )
+    const json = editor.getEditorState().toJSON()
+    const parsed = editor.parseEditorState(json)
+    expect(parsed.toJSON()).toEqual(json)
+    expect(parsed.read(() => $getRoot().getTextContent())).toBe(
+      '[Image: A photo]',
+    )
+    const image = json.root.children[0]
+    expect(() =>
+      editor.parseEditorState({
+        ...json,
+        root: { ...json.root, children: [{ ...image, version: 2 }] },
+      }),
+    ).toThrow()
+    expect(() => validateImageSource(source('z'))).toThrow()
+    expect(() => validateImageSource(source('a', 0))).toThrow()
+    expect(() => validateImageSource(source('a', 16000, 16000))).toThrow()
+  } finally {
+    close()
+  }
+})
+it('discovers actual binding references before React mounts and keeps frozen snapshots', () => {
+  const { doc, editor, close } = client()
+  try {
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createImageNode(source('a')),
+          $createImageNode(source('a'), 'Other', 100),
+        )
+      },
+      { discrete: true },
+    )
+    const snapshot = encodeStateAsUpdate(doc)
+    expect([...collectReferences(snapshot)]).toEqual([source('a').assetId])
+    editor.update(
+      () => {
+        $getRoot().clear()
+      },
+      { discrete: true },
+    )
+    expect([...collectReferences(encodeStateAsUpdate(doc))]).toEqual([])
+    expect([...collectReferences(snapshot)]).toEqual([source('a').assetId])
+  } finally {
+    close()
+  }
+})
+it('merges concurrent replacements as complete source records and presentation independently', async () => {
+  const a = client()
+  const b = client()
+  const getImage = () => {
+    const node = $getRoot().getFirstChildOrThrow()
+    if (!(node instanceof ImageNode)) throw new Error('Expected image')
+    return node
+  }
+  try {
+    a.editor.update(
+      () => {
+        $getRoot().append($createImageNode(source('a')))
+      },
+      { discrete: true },
+    )
+    applyUpdate(b.doc, encodeStateAsUpdate(a.doc))
+    await Promise.resolve()
+    a.editor.update(
+      () => {
+        getImage()
+          .setSource(source('b', 100, 200))
+          .setAltText('Updated alt')
+      },
+      { discrete: true },
+    )
+    b.editor.update(
+      () => {
+        getImage()
+          .setSource(source('c', 300, 400))
+          .setDisplayWidth(150)
+      },
+      { discrete: true },
+    )
+    applyUpdate(a.doc, encodeStateAsUpdate(b.doc))
+    applyUpdate(b.doc, encodeStateAsUpdate(a.doc))
+    await Promise.resolve()
+    const read = (c: typeof a) =>
+      c.editor.getEditorState().read(() => {
+        const image = getImage()
+        expect($getNodeByKey(image.getKey())).toBe(image)
+        return {
+          source: image.getSource(),
+          alt: image.getAltText(),
+          width: image.getDisplayWidth(),
+        }
+      })
+    const result = read(a)
+    expect(read(b)).toEqual(result)
+    expect([source('b', 100, 200), source('c', 300, 400)]).toContainEqual(
+      result.source,
+    )
+    expect(result.alt).toBe('Updated alt')
+    expect(result.width).toBe(150)
+    expect([...collectReferences(encodeStateAsUpdate(a.doc))]).toEqual([
+      result.source.assetId,
+    ])
+  } finally {
+    a.close()
+    b.close()
+  }
+})

@@ -7,6 +7,7 @@ import {
   XmlText,
 } from 'yjs'
 import { isAssetId } from './assets'
+import { validateImageSource } from './image-schema'
 import type { AssetId } from './assets'
 
 export interface PersistedNode {
@@ -16,7 +17,11 @@ export interface PersistedNode {
 
 export type AssetReferenceCollector = (node: PersistedNode) => Iterable<AssetId>
 
-const collectors = new Map<string, AssetReferenceCollector>()
+// Built-in collectors are initialized here so headless package operations and HMR
+// use the same registry without importing editor rendering code.
+const collectors = new Map<string, AssetReferenceCollector>([
+  ['image', (node) => [validateImageSource(node.get('__source')).assetId]],
+])
 const referenceFreeTypes = new Set([
   'root',
   'paragraph',
