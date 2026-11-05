@@ -67,8 +67,9 @@ export async function handleDriveToken(
   bindings: Cloudflare.Env,
 ): Promise<Response> {
   const url = new URL(request.url)
-  const sessionRequest = url.pathname === '/api/drive/session'
-  const tokenRequest = url.pathname === '/api/drive/token'
+  const pathname = url.pathname.replace(/\/+$/, '')
+  const sessionRequest = pathname === '/api/drive/session'
+  const tokenRequest = pathname === '/api/drive/token'
   const responseHeaders = new Headers({
     'Cache-Control': 'no-store',
     Vary: 'Cookie',
@@ -128,7 +129,13 @@ export async function handleDriveToken(
     })
     forwardCookies(tokens.headers, responseHeaders)
     const { accessToken, accessTokenExpiresAt } = tokens.response
-    const expiresAt = accessTokenExpiresAt?.getTime()
+    const expiresAt =
+      accessTokenExpiresAt instanceof Date
+        ? accessTokenExpiresAt.getTime()
+        : typeof accessTokenExpiresAt === 'string' ||
+            typeof accessTokenExpiresAt === 'number'
+          ? new Date(accessTokenExpiresAt).getTime()
+          : undefined
     if (
       !accessToken ||
       !expiresAt ||
