@@ -147,7 +147,7 @@ it('rejects operation bytes before reading any payload', async () => {
       ({
         size: imageLimits.operationBytes / 4 + 1,
         arrayBuffer: read,
-      }) as Blob,
+      }) as unknown as Blob,
   )
   await expect(prepareImages(files)).rejects.toMatchObject({ code: 'size' })
   expect(read).not.toHaveBeenCalled()
