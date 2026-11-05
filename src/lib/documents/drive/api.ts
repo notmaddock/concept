@@ -1,3 +1,4 @@
+import { packageLimits } from '../limits'
 import {
   getGoogleDriveToken,
   GoogleDriveAuthError,
@@ -8,7 +9,9 @@ const api = 'https://www.googleapis.com/drive/v3/files'
 // v2 exposes the file ETag in JSON for conditional uploads.
 const conditionalApi = 'https://www.googleapis.com/drive/v2/files'
 const uploadApi = 'https://www.googleapis.com/upload/drive/v2/files'
-const mimeType = 'application/vnd.concept+json'
+export const conceptMimeType = 'application/vnd.concept+zip'
+export const legacyConceptMimeType = 'application/vnd.concept+json'
+const mimeType = conceptMimeType
 const fields =
   'id,name,mimeType,modifiedTime,size,version,headRevisionId,capabilities(canEdit,canModifyContent,canComment,canCopy)'
 const conditionalFields =
@@ -163,7 +166,7 @@ export async function getFileMetadata(id: string, signal?: AbortSignal) {
 
 export async function listConceptFiles(): Promise<Array<DriveFile>> {
   const parameters = new URLSearchParams({
-    q: `trashed = false and (mimeType = '${mimeType}' or name contains '.concept')`,
+    q: `trashed = false and (mimeType = '${mimeType}' or mimeType = '${legacyConceptMimeType}' or name contains '.concept')`,
     fields: `nextPageToken,files(${fields})`,
     pageSize: '100',
     includeItemsFromAllDrives: 'true',
@@ -182,6 +185,7 @@ export async function listConceptFiles(): Promise<Array<DriveFile>> {
       ...(result.files ?? []).filter(
         (file) =>
           file.mimeType === mimeType ||
+          file.mimeType === legacyConceptMimeType ||
           file.name.toLowerCase().endsWith('.concept'),
       ),
     )
@@ -215,11 +219,59 @@ export async function listFolders(
   return files
 }
 
+async function readMedia(response: Response, signal?: AbortSignal) {
+  const limit = packageLimits.packageBytes
+  const claimedLength = response.headers.get('Content-Length')
+  if (claimedLength !== null && Number(claimedLength) > limit) {
+    await response.body?.cancel()
+    throw new DriveError(
+      413,
+      'Concept package exceeds the configured size limit.',
+    )
+  }
+  const reader = response.body?.getReader()
+  if (!reader) return new Uint8Array()
+  const chunks: Array<Uint8Array> = []
+  let byteLength = 0
+  const abort = () => {
+    void reader.cancel(signal?.reason).catch(() => {})
+  }
+  signal?.addEventListener('abort', abort, { once: true })
+  try {
+    signal?.throwIfAborted()
+    for (;;) {
+      const { done, value } = await reader.read()
+      signal?.throwIfAborted()
+      if (done) break
+      byteLength += value.byteLength
+      if (byteLength > limit)
+        throw new DriveError(
+          413,
+          'Concept package exceeds the configured size limit.',
+        )
+      chunks.push(value)
+    }
+    const content = new Uint8Array(byteLength)
+    let offset = 0
+    for (const chunk of chunks) {
+      content.set(chunk, offset)
+      offset += chunk.byteLength
+    }
+    return content
+  } catch (error) {
+    await reader.cancel().catch(() => {})
+    throw error
+  } finally {
+    signal?.removeEventListener('abort', abort)
+    reader.releaseLock()
+  }
+}
+
 export async function readConceptFile(
   id: string,
   signal?: AbortSignal,
   initial?: DriveFileVersion,
-): Promise<DriveFileVersion & { content: string }> {
+): Promise<DriveFileVersion & { content: Uint8Array }> {
   if (!id.trim()) throw new DriveError(400, 'Invalid file ID.')
   // Bind downloaded bytes to their validator even if another writer saves mid-read.
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -230,7 +282,7 @@ export async function readConceptFile(
       `${api}/${encodeURIComponent(id)}?alt=media`,
       { signal },
     )
-    const content = await response.text()
+    const content = await readMedia(response, signal)
     const after = await getFileMetadata(id, signal)
     if (etag === requiredEtag(after.etag))
       return { file: after.file, etag, content }
@@ -242,12 +294,20 @@ async function upload(
   method: 'POST' | 'PUT',
   id: string | undefined,
   name: string,
-  content: string,
+  content: Uint8Array | string,
   etag?: string,
   parentId = 'root',
   filename?: string,
   signal?: AbortSignal,
 ): Promise<DriveFileVersion> {
+  const media = new Blob([
+    typeof content === 'string' ? content : new Uint8Array(content),
+  ])
+  if (media.size > packageLimits.packageBytes)
+    throw new DriveError(
+      413,
+      'Concept package exceeds the configured size limit.',
+    )
   const headers = new Headers()
   if (method === 'PUT') headers.set('If-Match', requiredEtag(etag))
   const boundary = `concept_${crypto.randomUUID()}`
@@ -262,8 +322,8 @@ async function upload(
   const body = new Blob([
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
     JSON.stringify(metadata),
-    `\r\n--${boundary}\r\nContent-Type: ${mimeType}; charset=UTF-8\r\n\r\n`,
-    content,
+    `\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`,
+    media,
     `\r\n--${boundary}--\r\n`,
   ])
   const response = await request(
@@ -282,7 +342,7 @@ async function upload(
 
 export function createConceptFile(
   name: string,
-  content: string,
+  content: Uint8Array | string,
   parentId = 'root',
 ) {
   return upload('POST', undefined, name, content, undefined, parentId)
@@ -291,7 +351,7 @@ export function createConceptFile(
 export function updateConceptFile(
   id: string,
   name: string,
-  content: string,
+  content: Uint8Array | string,
   etag: string,
   filename?: string,
   signal?: AbortSignal,
