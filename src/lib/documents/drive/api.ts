@@ -294,15 +294,13 @@ async function upload(
   method: 'POST' | 'PUT',
   id: string | undefined,
   name: string,
-  content: Uint8Array | string,
+  content: Uint8Array,
   etag?: string,
   parentId = 'root',
   filename?: string,
   signal?: AbortSignal,
 ): Promise<DriveFileVersion> {
-  const media = new Blob([
-    typeof content === 'string' ? content : new Uint8Array(content),
-  ])
+  const media = new Blob([new Uint8Array(content)])
   if (media.size > packageLimits.packageBytes)
     throw new DriveError(
       413,
@@ -342,7 +340,7 @@ async function upload(
 
 export function createConceptFile(
   name: string,
-  content: Uint8Array | string,
+  content: Uint8Array,
   parentId = 'root',
 ) {
   return upload('POST', undefined, name, content, undefined, parentId)
@@ -351,7 +349,7 @@ export function createConceptFile(
 export function updateConceptFile(
   id: string,
   name: string,
-  content: Uint8Array | string,
+  content: Uint8Array,
   etag: string,
   filename?: string,
   signal?: AbortSignal,

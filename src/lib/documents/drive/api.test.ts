@@ -30,6 +30,7 @@ const file = {
   mimeType: 'application/vnd.concept+json',
 }
 const fetchMock = vi.fn<typeof fetch>()
+const bytes = (text: string) => new TextEncoder().encode(text)
 
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
@@ -55,7 +56,7 @@ function metadata(etag?: string) {
 it('uploads content and metadata atomically with the supplied If-Match', async () => {
   fetchMock.mockResolvedValueOnce(metadata('"next"'))
   await expect(
-    updateConceptFile('drive-id', 'Renamed', '{"data":1}', '"base"'),
+    updateConceptFile('drive-id', 'Renamed', bytes('{"data":1}'), '"base"'),
   ).resolves.toEqual({ file, etag: '"next"' })
   const [url, init] = fetchMock.mock.calls[0]
   expect(String(url)).toContain(
@@ -78,7 +79,7 @@ it('preserves an explicit raw Drive filename without adding an extension', async
   await updateConceptFile(
     'drive-id',
     'Display name',
-    '{}',
+    bytes('{}'),
     '"base"',
     'Externally renamed',
   )
@@ -89,15 +90,15 @@ it('preserves an explicit raw Drive filename without adding an extension', async
 
 it('never uploads without a strong ETag and preserves conflict status', async () => {
   await expect(
-    updateConceptFile('drive-id', 'Test', '{}', ''),
+    updateConceptFile('drive-id', 'Test', bytes('{}'), ''),
   ).rejects.toBeInstanceOf(DriveError)
   await expect(
-    updateConceptFile('drive-id', 'Test', '{}', 'W/"weak"'),
+    updateConceptFile('drive-id', 'Test', bytes('{}'), 'W/"weak"'),
   ).rejects.toThrow('strong ETag')
   expect(fetchMock).not.toHaveBeenCalled()
   fetchMock.mockResolvedValueOnce(new Response(null, { status: 412 }))
   await expect(
-    updateConceptFile('drive-id', 'Test', '{}', '"stale"'),
+    updateConceptFile('drive-id', 'Test', bytes('{}'), '"stale"'),
   ).rejects.toMatchObject({ status: 412 })
 })
 
@@ -170,7 +171,7 @@ it('fails closed when Drive omits the response ETag', async () => {
 
 it('creates in the selected folder and rejects credentials still invalid after refresh', async () => {
   fetchMock.mockResolvedValueOnce(metadata('"created"'))
-  await createConceptFile('Test', '{}', 'folder-id')
+  await createConceptFile('Test', bytes('{}'), 'folder-id')
   const body = await (fetchMock.mock.calls[0][1]?.body as NodeBlob).text()
   expect(body).toContain('"parents":[{"id":"folder-id"}]')
   fetchMock.mockResolvedValue(new Response(null, { status: 401 }))
@@ -219,7 +220,7 @@ it('trashes with a fresh validator and leaves conflicts for the caller', async (
 
 it('retains the created file identity when its validator is missing', async () => {
   fetchMock.mockResolvedValueOnce(metadata())
-  const created = createConceptFile('Test', '{}')
+  const created = createConceptFile('Test', bytes('{}'))
   await expect(created).rejects.toBeInstanceOf(DriveCreatedFileError)
   await expect(created).rejects.toMatchObject({ file })
   expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -234,7 +235,7 @@ it('refreshes a Google-rejected token once and replays the identical conditional
   fetchMock
     .mockResolvedValueOnce(new Response(null, { status: 401 }))
     .mockResolvedValueOnce(metadata('"saved"'))
-  await updateConceptFile('drive-id', 'Test', '{}', '"base"')
+  await updateConceptFile('drive-id', 'Test', bytes('{}'), '"base"')
   expect(getGoogleDriveToken).toHaveBeenCalledWith(
     expect.objectContaining({ forceRefresh: true }),
   )

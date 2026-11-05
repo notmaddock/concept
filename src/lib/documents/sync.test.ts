@@ -93,10 +93,8 @@ function legacyBytes(name: string, doc: Doc) {
   return new Uint8Array(new TextEncoder().encode(serializeConcept(name, doc)))
 }
 
-async function mergePackage(doc: Doc, content: Uint8Array | string) {
-  const result = await readPackage(
-    typeof content === 'string' ? new TextEncoder().encode(content) : content,
-  )
+async function mergePackage(doc: Doc, content: Uint8Array) {
+  const result = await readPackage(content)
   if (result.kind !== 'complete')
     throw new Error('Expected complete saved package')
   applyUpdate(doc, result.snapshot.update)
@@ -590,7 +588,7 @@ it('unions retained inventories through conflict retries, including unreferenced
   write.mockRejectedValueOnce(new DriveError(412, 'conflict'))
   await session.sync()
   expect(write).toHaveBeenCalledTimes(2)
-  const result = await readPackage(write.mock.calls[1][2] as Uint8Array)
+  const result = await readPackage(write.mock.calls[1][2])
   expect(result.kind).toBe('complete')
   if (result.kind !== 'complete') throw new Error('Expected complete package')
   expect(
@@ -628,13 +626,13 @@ it('does not acknowledge an asset replacement that occurs during an older upload
   uploading.resolve(version('"first-save"'))
   await saving
   expect(getSaveStatus(info.id).phase).toBe('pending')
-  const first = await readPackage(write.mock.calls[0][2] as Uint8Array)
+  const first = await readPackage(write.mock.calls[0][2])
   if (first.kind !== 'complete') throw new Error('Expected complete package')
   expect(first.snapshot.assets.map((asset) => asset.descriptor.id)).toEqual([
     original.descriptor.id,
   ])
   await session.sync()
-  const second = await readPackage(write.mock.calls[1][2] as Uint8Array)
+  const second = await readPackage(write.mock.calls[1][2])
   if (second.kind !== 'complete') throw new Error('Expected complete package')
   expect(
     second.snapshot.assets.map((asset) => asset.descriptor.id).sort(),
