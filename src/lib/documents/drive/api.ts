@@ -172,11 +172,11 @@ export async function listConceptFiles(): Promise<Array<DriveFile>> {
     if (pageToken) parameters.set('pageToken', pageToken)
     const response = await request(`${api}?${parameters}`)
     const result = (await response.json()) as {
-      files: Array<DriveFile>
+      files?: Array<DriveFile>
       nextPageToken?: string
     }
     files.push(
-      ...result.files.filter(
+      ...(result.files ?? []).filter(
         (file) =>
           file.mimeType === mimeType ||
           file.name.toLowerCase().endsWith('.concept'),
@@ -203,10 +203,10 @@ export async function listFolders(
     if (pageToken) parameters.set('pageToken', pageToken)
     const response = await request(`${api}?${parameters}`)
     const result = (await response.json()) as {
-      files: Array<DriveFile>
+      files?: Array<DriveFile>
       nextPageToken?: string
     }
-    files.push(...result.files)
+    files.push(...(result.files ?? []))
     pageToken = result.nextPageToken
   } while (pageToken)
   return files
