@@ -431,3 +431,5 @@ Tested against the local Vite server with the integrated Chromium browser:
 - At a 390-pixel viewport, images remain within the content viewport. Temporary offline and viewport overrides were restored after testing.
 
 The browser's file-drop automation API does not expose external drop dispatch; mounted behavioral tests cover that path. Live Drive/two-account recovery, other browser engines, constrained-device performance, and full offline application-shell reload remain outside this smoke evidence. The existing package/storage/sync regression suites pass; no new remote storage or application-shell capability is claimed.
+
+Final repository validation passed: `pnpm run check`, `pnpm run lint`, `pnpm run typecheck`, `pnpm run test` (384 tests across 54 files), and `pnpm run build`.
