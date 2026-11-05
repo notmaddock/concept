@@ -65,9 +65,10 @@ it('keeps the destination menu open when hover skips a menu', async () => {
       triggers[index].dispatchEvent(
         new MouseEvent('mousemove', { bubbles: true }),
       )
-      await new Promise((resolve) => setTimeout(resolve, 0))
     })
-    expect(triggers[index].getAttribute('aria-expanded')).toBe('true')
+    await vi.waitFor(() => {
+      expect(triggers[index].getAttribute('aria-expanded')).toBe('true')
+    })
   }
 })
 

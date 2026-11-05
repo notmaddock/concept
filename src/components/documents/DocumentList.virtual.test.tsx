@@ -29,6 +29,7 @@ const documents = Array.from({ length: 1000 }, (_, index) => ({
 }))
 
 beforeEach(() => {
+  vi.useFakeTimers()
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.stubGlobal(
     'ResizeObserver',
@@ -51,6 +52,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(() => root.unmount())
   container.remove()
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
@@ -77,7 +79,7 @@ it('bounds mounted rows while preserving list positions and scroll extent', asyn
   await act(async () => {
     container.scrollTop = 17000
     container.dispatchEvent(new Event('scroll'))
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    vi.advanceTimersByTime(10)
   })
   expect(list.textContent).toContain('Document 500')
   expect(list.textContent).not.toContain('Document 0')
@@ -102,7 +104,7 @@ it('supports keyboard traversal across virtual windows and keeps focused rows mo
         cancelable: true,
       }),
     )
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    vi.advanceTimersByTime(10)
   })
   expect(document.activeElement?.textContent).toBe('Document 999')
   await act(async () => {
@@ -114,13 +116,13 @@ it('supports keyboard traversal across virtual windows and keeps focused rows mo
         cancelable: true,
       }),
     )
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    vi.advanceTimersByTime(10)
   })
   expect(document.activeElement?.textContent).toBe('Document 998')
   await act(async () => {
     container.scrollTop = 0
     container.dispatchEvent(new Event('scroll'))
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    vi.advanceTimersByTime(10)
   })
   expect(document.activeElement?.textContent).toBe('Document 998')
   expect(list.querySelectorAll('li').length).toBeLessThan(30)
