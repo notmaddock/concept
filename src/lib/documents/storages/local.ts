@@ -1,3 +1,4 @@
+import { withDocumentLock } from '../lifecycle-lock'
 import { publishDocumentChange, subscribeToLibrary } from '../library-channel'
 import type { IndexeddbPersistence } from 'y-indexeddb'
 import { Doc, encodeStateAsUpdate } from 'yjs'
@@ -6,7 +7,7 @@ import { openAssetRepository, deleteDocumentAssets } from '../assets'
 import {
   attachDocumentAssets,
   setDocumentRecoveryAssets,
-  captureSnapshot,
+  captureRevisionSnapshot,
 } from '../working'
 import type {
   DocumentInfo,
@@ -87,24 +88,6 @@ async function removeDocumentContent(id: string) {
         ),
       )
   })
-}
-
-const lifecycleTasks = new Map<string, Promise<unknown>>()
-
-// Serialize opens with deletion so a stale tab cannot recreate a dropped database.
-function withDocumentLock<T>(id: string, task: () => Promise<T>): Promise<T> {
-  if (typeof navigator !== 'undefined' && 'locks' in navigator) {
-    return navigator.locks.request(`concept-document-lifecycle:${id}`, task)
-  }
-  const previous = lifecycleTasks.get(id) ?? Promise.resolve()
-  const current = previous.catch(() => {}).then(task)
-  lifecycleTasks.set(id, current)
-  void current
-    .finally(() => {
-      if (lifecycleTasks.get(id) === current) lifecycleTasks.delete(id)
-    })
-    .catch(() => {})
-  return current
 }
 
 function openDocument(id: string, doc: Doc): DocumentPersistence {
@@ -294,8 +277,9 @@ export const localDocumentStorage: DocumentStorage & {
               doc.getMap<string>('metadata').get('name') ?? document.name
             matches =
               encodeStateAsUpdate(doc).byteLength === 2 ||
-              (await snapshotRevision(await captureSnapshot(name, doc))) ===
-                document.drive.savedRevision
+              (await snapshotRevision(
+                await captureRevisionSnapshot(name, doc),
+              )) === document.drive.savedRevision
           } finally {
             await cached.destroy()
             detachAssets()

@@ -1,3 +1,4 @@
+import { withDocumentLock } from './lifecycle-lock'
 import { packageLimits } from './limits'
 
 export type AssetId = string & { readonly __assetId: unique symbol }
@@ -98,7 +99,6 @@ interface FactoryState {
   repositories: Map<string, Set<AssetRepository>>
   listeners: Map<string, Set<(id: AssetId) => void>>
   channel?: BroadcastChannel
-  tasks: Map<string, Promise<unknown>>
 }
 
 const factories = new WeakMap<IDBFactory, FactoryState>()
@@ -109,7 +109,6 @@ function factoryState(factory: IDBFactory): FactoryState {
     state = {
       repositories: new Map(),
       listeners: new Map(),
-      tasks: new Map(),
     }
     factories.set(factory, state)
   }
@@ -146,25 +145,6 @@ function database(factory: IDBFactory, state: FactoryState) {
     })
   }
   return state.database
-}
-
-async function withLifecycleLock<T>(
-  state: FactoryState,
-  id: string,
-  task: () => Promise<T>,
-): Promise<T> {
-  const name = `concept-document-lifecycle:${id}`
-  if (typeof navigator !== 'undefined' && 'locks' in navigator)
-    return navigator.locks.request(name, task)
-  const previous = state.tasks.get(id) ?? Promise.resolve()
-  const current = previous.catch(() => {}).then(task)
-  state.tasks.set(id, current)
-  void current
-    .finally(() => {
-      if (state.tasks.get(id) === current) state.tasks.delete(id)
-    })
-    .catch(() => {})
-  return current
 }
 
 function notify(state: FactoryState, message: AvailabilityMessage) {
@@ -251,7 +231,8 @@ export function openAssetRepository(
     return task
   }
   const maxAssetBytes = options.maxAssetBytes ?? packageLimits.assetBytes
-  const maxConcurrentHashes = options.maxConcurrentHashes ?? 2
+  const maxConcurrentHashes =
+    options.maxConcurrentHashes ?? packageLimits.concurrentHashes
   if (
     !Number.isSafeInteger(maxAssetBytes) ||
     maxAssetBytes < 0 ||
@@ -281,7 +262,7 @@ export function openAssetRepository(
     records: ReadonlyArray<AssetRecord>,
     signal?: AbortSignal,
   ) =>
-    withLifecycleLock(state, documentId, async () => {
+    withDocumentLock(documentId, async () => {
       ensureOpen(signal)
       await options.assertWritable?.()
       ensureOpen(signal)
@@ -375,7 +356,7 @@ export function openAssetRepository(
           ensureOpen()
           return records
             .map((record) => ({ ...record.descriptor }))
-            .sort((a, b) => a.id.localeCompare(b.id))
+            .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
         })(),
       )
     },
@@ -488,7 +469,7 @@ export async function deleteDocumentAssets(
     })
   }
   if (options.alreadyLocked) await remove()
-  else await withLifecycleLock(state, documentId, remove)
+  else await withDocumentLock(documentId, remove)
 }
 
 export async function copyDocumentAssets(
