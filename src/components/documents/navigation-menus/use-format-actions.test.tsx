@@ -70,9 +70,10 @@ afterEach(async () => {
 })
 
 async function apply(action: FormatAction) {
-  await act(() =>
-    editor.update(() => $applyFormatAction(action), { discrete: true }),
-  )
+  await act(async () => {
+    editor.update(() => $applyFormatAction(action), { discrete: true })
+    await Promise.resolve()
+  })
 }
 it('styles only selected characters and preserves surrounding text', async () => {
   await apply({ kind: 'style', property: 'color', value: '#dc2626' })
@@ -133,9 +134,10 @@ it('exposes multiple active styles and updates their state', async () => {
 it('disables formatting in read-only editors', async () => {
   await act(() => editor.setEditable(false))
   expect(actions.disabled).toBe(true)
-  await act(() =>
-    actions.run({ kind: 'style', property: 'color', value: '#dc2626' }),
-  )
+  await act(async () => {
+    await actions.run({ kind: 'style', property: 'color', value: '#dc2626' })
+    await Promise.resolve()
+  })
   editor
     .getEditorState()
     .read(() => expect($getRoot().getAllTextNodes()[0].getStyle()).toBe(''))
@@ -155,17 +157,29 @@ it('persists paragraph formatting through JSON reload and renders it', async () 
   })
 })
 it('runs list, alignment, and indentation commands through menu actions', async () => {
-  await act(() => actions.run({ kind: 'align', value: 'center' }))
+  await act(async () => {
+    await actions.run({ kind: 'align', value: 'center' })
+    await Promise.resolve()
+  })
   editor.getEditorState().read(() => {
     const node = $getRoot().getFirstChildOrThrow()
     expect($isElementNode(node) && node.getFormatType()).toBe('center')
   })
-  await act(() => actions.run({ kind: 'list', value: 'bullet' }))
+  await act(async () => {
+    await actions.run({ kind: 'list', value: 'bullet' })
+    await Promise.resolve()
+  })
   editor
     .getEditorState()
     .read(() => expect($getRoot().getFirstChild()?.getType()).toBe('list'))
-  await act(() => actions.run({ kind: 'list', value: 'none' }))
-  await act(() => actions.run({ kind: 'indent', value: 'increase' }))
+  await act(async () => {
+    await actions.run({ kind: 'list', value: 'none' })
+    await Promise.resolve()
+  })
+  await act(async () => {
+    await actions.run({ kind: 'indent', value: 'increase' })
+    await Promise.resolve()
+  })
   editor.getEditorState().read(() => {
     const node = $getRoot().getFirstChildOrThrow()
     expect($isElementNode(node) && node.getIndent()).toBe(1)
@@ -239,7 +253,10 @@ it('returns focus from a menu before committing formatting and preserves the sel
   editable.tabIndex = 0
   const menu = document.createElement('button')
   document.body.append(editable, menu)
-  editor.setRootElement(editable)
+  await act(async () => {
+    editor.setRootElement(editable)
+    await Promise.resolve()
+  })
   menu.focus()
   const warn = vi.spyOn(console, 'warn')
   const focusOnCommit: boolean[] = []
@@ -248,9 +265,14 @@ it('returns focus from a menu before committing formatting and preserves the sel
       focusOnCommit.push(document.activeElement === editable)
   })
   try {
-    await act(() =>
-      actions.run({ kind: 'style', property: 'font-family', value: 'Georgia' }),
-    )
+    await act(async () => {
+      await actions.run({
+        kind: 'style',
+        property: 'font-family',
+        value: 'Georgia',
+      })
+      await Promise.resolve()
+    })
     expect(focusOnCommit).toEqual([true])
     editor.getEditorState().read(() => {
       expect($getSelection()?.getTextContent()).toBe('hello')
@@ -262,7 +284,10 @@ it('returns focus from a menu before committing formatting and preserves the sel
   } finally {
     unregister()
     warn.mockRestore()
-    editor.setRootElement(null)
+    await act(async () => {
+      editor.setRootElement(null)
+      await Promise.resolve()
+    })
     editable.remove()
     menu.remove()
   }

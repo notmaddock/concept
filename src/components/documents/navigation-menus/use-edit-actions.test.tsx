@@ -57,7 +57,10 @@ afterEach(async () => {
 })
 
 it('clears formatting only from the selected text', async () => {
-  await act(() => actions.run('clear-formatting'))
+  await act(async () => {
+    actions.run('clear-formatting')
+    await Promise.resolve()
+  })
   editor.getEditorState().read(() => {
     const nodes = $getRoot().getAllTextNodes()
     expect(
@@ -70,11 +73,17 @@ it('clears formatting only from the selected text', async () => {
 })
 
 it('selects the whole document and deletes the selection', async () => {
-  await act(() => actions.run('select-all'))
+  await act(async () => {
+    actions.run('select-all')
+    await Promise.resolve()
+  })
   editor.getEditorState().read(() => {
     expect($getSelection()?.getTextContent()).toBe('hello world')
   })
-  await act(() => actions.run('delete-selection'))
+  await act(async () => {
+    actions.run('delete-selection')
+    await Promise.resolve()
+  })
   editor
     .getEditorState()
     .read(() => expect($getRoot().getTextContent()).toBe(''))
@@ -98,7 +107,10 @@ it('pastes plain text without inheriting formatting', async () => {
     platform: 'Linux',
     clipboard: { readText: async () => 'pasted' },
   })
-  await act(() => actions.run('paste-plain'))
+  await act(async () => {
+    actions.run('paste-plain')
+    await Promise.resolve()
+  })
   editor.getEditorState().read(() => {
     expect($getRoot().getTextContent()).toBe('pasted world')
     const selection = $getSelection()
@@ -115,7 +127,10 @@ it('preserves text and reports denied clipboard access', async () => {
       },
     },
   })
-  await act(() => actions.run('paste'))
+  await act(async () => {
+    actions.run('paste')
+    await Promise.resolve()
+  })
   expect(onError).toHaveBeenCalledWith(expect.stringContaining('Ctrl+V'))
   editor
     .getEditorState()
@@ -128,8 +143,9 @@ it('clears formatting with the displayed keyboard shortcut', async () => {
     ctrlKey: true,
     cancelable: true,
   })
-  await act(() => {
+  await act(async () => {
     editor.dispatchCommand(KEY_DOWN_COMMAND, event)
+    await Promise.resolve()
   })
   expect(event.defaultPrevented).toBe(true)
   editor.getEditorState().read(() => {
