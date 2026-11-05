@@ -8,6 +8,7 @@ import {
   $getRoot,
   $selectAll,
   PASTE_COMMAND,
+  COPY_COMMAND,
 } from 'lexical'
 import type { LexicalEditor } from 'lexical'
 import { QuoteNode } from '@lexical/rich-text'
@@ -24,7 +25,10 @@ import { ImageClipboardPlugin } from './ImageClipboardPlugin'
 import { DocumentMediaContext } from '../media/document-media-context'
 import { assetId, openAssetRepository } from '#/lib/documents/assets'
 import { attachDocumentAssets } from '#/lib/documents/working'
-import { insertDocumentAssets } from '#/lib/documents/asset-session'
+import {
+  insertDocumentAssets,
+  createDocumentAssetResolver,
+} from '#/lib/documents/asset-session'
 import { collectReferences } from '#/lib/documents/references'
 import { LocalProvider } from '#/lib/documents/local-provider'
 import { imageDataUrl } from '#/lib/documents/image-transfer'
@@ -48,7 +52,9 @@ it('owns transferred bytes before inserting the entire selected tree into a boun
     expect(await repository.get(ids[0])).toBeDefined()
   })
   const requestSave = vi.fn()
+  const resolver = createDocumentAssetResolver({ repository })
   const media = {
+    resolver,
     doc,
     documentId: repository.documentId,
     signal,
@@ -199,8 +205,10 @@ it('owns transferred bytes before inserting the entire selected tree into a boun
           cancelable: true,
         }) as unknown as ClipboardEvent,
       )
-      for (let i = 0; i < 20 && !requestSave.mock.calls.length; i++)
-        await new Promise((resolve) => setTimeout(resolve, 0))
+      await vi.waitFor(() => expect(requestSave).toHaveBeenCalledOnce(), {
+        timeout: 3000,
+        interval: 10,
+      })
     })
     expect(requestSave).toHaveBeenCalledOnce()
     expect(
@@ -217,6 +225,53 @@ it('owns transferred bytes before inserting the entire selected tree into a boun
     ).not.toContain('replace me')
     expect((await repository.list()).length).toBe(1)
     expect([...collectReferences(encodeStateAsUpdate(doc))]).toEqual([id])
+    editor.update(
+      () => {
+        $selectAll()
+      },
+      { discrete: true },
+    )
+    const release = vi.fn()
+    const originalPin = repository.pin
+    const pin = vi.spyOn(repository, 'pin').mockImplementation((ids) => {
+      const held = originalPin(ids)
+      return {
+        release: () => {
+          release()
+          held.release()
+        },
+      }
+    })
+    let publish!: () => void
+    const publication = new Promise<void>((resolve) => {
+      publish = resolve
+    })
+    class TestClipboardItem {
+      constructor(readonly data: Record<string, Blob | Promise<Blob>>) {}
+    }
+    vi.stubGlobal('ClipboardItem', TestClipboardItem)
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        write: async (items: TestClipboardItem[]) => {
+          await Promise.all(Object.values(items[0].data))
+          await publication
+        },
+      },
+    })
+    await act(async () => {
+      editor.dispatchCommand(COPY_COMMAND, null)
+    })
+    expect(pin).toHaveBeenCalledOnce()
+    expect(release).not.toHaveBeenCalled()
+    await act(async () => {
+      publish()
+      await vi.waitFor(() => expect(release).toHaveBeenCalledOnce(), {
+        timeout: 3000,
+        interval: 10,
+      })
+    })
+    expect(release).toHaveBeenCalledOnce()
+    pin.mockRestore()
     editor.update(
       () => {
         $selectAll()
@@ -258,6 +313,7 @@ it('owns transferred bytes before inserting the entire selected tree into a boun
     expect(requestSave).not.toHaveBeenCalled()
     expect(editor.getEditorState().toJSON()).toEqual(before)
   } finally {
+    resolver.close()
     stop()
     provider.destroy()
     binding.root.destroy(binding)

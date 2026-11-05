@@ -32,6 +32,7 @@ import {
   resolveImageData,
 } from '#/lib/documents/image-transfer'
 import { assetId } from '#/lib/documents/assets'
+import { documentAssets } from '#/lib/documents/working'
 import {
   fragmentHtml,
   fragmentReferences,
@@ -75,22 +76,25 @@ export function ImageClipboardPlugin() {
       cut: boolean,
     ) => {
       const snapshot = editor.getEditorState()
-      const captured = snapshot.read(() => {
-        const selection = $getSelection()
-        if (!selection) return null
-        const { nodes } = $generateJSONFromSelectedNodes<BaseSerializedNode>(
-          editor,
-          selection,
-        )
-        const ids = fragmentReferences(nodes)
-        if (!ids.size) return null
-        return {
-          nodes,
-          ids,
-          html: $generateHtmlFromNodes(editor, selection),
-          text: selection.getTextContent(),
-        }
-      })
+      const captured = snapshot.read(
+        () => {
+          const selection = $getSelection()
+          if (!selection) return null
+          const { nodes } = $generateJSONFromSelectedNodes<BaseSerializedNode>(
+            editor,
+            selection,
+          )
+          const ids = fragmentReferences(nodes)
+          if (!ids.size) return null
+          return {
+            nodes,
+            ids,
+            html: $generateHtmlFromNodes(editor, selection),
+            text: selection.getTextContent(),
+          }
+        },
+        { editor },
+      )
       if (!captured) return false
       event?.preventDefault()
       const bookmark = captureImageBookmark(editor)
@@ -117,6 +121,13 @@ export function ImageClipboardPlugin() {
         )
         return true
       }
+      let pin: { release: () => void } | undefined
+      try {
+        pin = documentAssets(media.doc)?.pin(captured.ids)
+      } catch (error) {
+        report(error)
+        return true
+      }
       // Promise-backed items preserve the user activation while durable bytes load.
       const html = prepare().then(
         (value) => new Blob([value], { type: 'text/html' }),
@@ -131,10 +142,11 @@ export function ImageClipboardPlugin() {
           }),
         ])
       } catch (error) {
-        void html.catch(() => {})
+        void html.finally(() => pin?.release()).catch(() => {})
         report(error)
         return true
       }
+      void Promise.allSettled([html, write]).then(() => pin?.release())
       void write
         .then(() => {
           if (unavailable)
