@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   fragmentHtml,
   fragmentReferences,
@@ -95,6 +95,7 @@ it('keeps surrounding HTML content without fetching external images and rejects 
     '<p>Before</p><blockquote><img src="https://private.example/a.png" alt="Private" onerror="alert(1)"></blockquote><p>After</p><script>bad()</script>',
   )
   expect(html.querySelector('[onerror],script')).toBeNull()
+  expect(html.querySelector('[src],[srcset]')).toBeNull()
   const result = await prepareHtmlImages(html)
   expect(result.images).toEqual([])
   expect(result.unsupported).toBe(1)
@@ -103,4 +104,42 @@ it('keeps surrounding HTML content without fetching external images and rejects 
     '<img src="data:image/png;base64,iVBORw0KGgo=">'.repeat(65),
   )
   await expect(prepareHtmlImages(excess)).rejects.toThrow('Too many')
+})
+
+it('parses untrusted HTML inside a template before giving it a document owner', async () => {
+  const { sanitizedHtml } = await import('./html')
+  const parser = vi.spyOn(DOMParser.prototype, 'parseFromString')
+  try {
+    const html = sanitizedHtml(
+      '<img src="https://private.example/image.png" srcset="https://private.example/large.png 2x"><video poster="https://private.example/poster.png"></video><p style="background-image:url(https://private.example/background.png)">Text</p>',
+    )
+    expect(parser).not.toHaveBeenCalled()
+    expect(html.querySelector('[src],[srcset],[poster],[style]')).toBeNull()
+    expect(html.body.textContent).toBe('Text')
+  } finally {
+    parser.mockRestore()
+  }
+})
+
+it('distinguishes a bounded future Concept fragment from malformed content', async () => {
+  const { UnsupportedFragmentVersionError } = await import('./fragment')
+  expect(() =>
+    parseImageFragment(
+      JSON.stringify({ version: 2, nodes: [paragraph], assets: {} }),
+    ),
+  ).toThrow(UnsupportedFragmentVersionError)
+  expect(() =>
+    parseImageFragment(
+      JSON.stringify({ version: 2, nodes: [null], assets: {} }),
+    ),
+  ).toThrow('Invalid')
+  expect(() =>
+    parseImageFragment(
+      JSON.stringify({
+        version: 2,
+        nodes: [paragraph],
+        assets: { broken: 42 },
+      }),
+    ),
+  ).toThrow('Invalid')
 })

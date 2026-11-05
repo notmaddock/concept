@@ -54,17 +54,60 @@ export function fragmentReferences(nodes: BaseSerializedNode[]) {
   return ids
 }
 
+export class UnsupportedFragmentVersionError extends Error {
+  constructor() {
+    super('This Concept clipboard version is newer than this editor.')
+  }
+}
+
 export function parseImageFragment(value: string): ImageFragment {
   if (value.length > imageTransferLimits.bytes * 1.5)
     throw new Error('Clipboard content is too large.')
   const fragment = JSON.parse(value) as Partial<ImageFragment>
   if (
-    fragment.version !== 1 ||
     !Array.isArray(fragment.nodes) ||
     !fragment.assets ||
-    typeof fragment.assets !== 'object'
+    typeof fragment.assets !== 'object' ||
+    Array.isArray(fragment.assets)
   )
-    throw new Error('Unsupported Concept clipboard format.')
+    throw new Error('Invalid Concept clipboard format.')
+  if (fragment.version !== 1) {
+    if (
+      !Number.isInteger(fragment.version) ||
+      typeof fragment.version !== 'number' ||
+      fragment.version <= 1
+    )
+      throw new Error('Invalid Concept clipboard version.')
+    let count = 0
+    const validateTree = (node: unknown, depth: number) => {
+      if (
+        ++count > imageTransferLimits.nodes ||
+        depth > imageTransferLimits.depth
+      )
+        throw new Error('Clipboard content is too complex.')
+      if (
+        !node ||
+        typeof node !== 'object' ||
+        typeof (node as BaseSerializedNode).type !== 'string'
+      )
+        throw new Error('Invalid Concept clipboard content.')
+      const children = (node as BaseSerializedNode).children
+      if (children !== undefined) {
+        if (!Array.isArray(children))
+          throw new Error('Invalid Concept clipboard content.')
+        children.forEach((child) => validateTree(child, depth + 1))
+      }
+    }
+    fragment.nodes.forEach((node) => validateTree(node, 0))
+    if (
+      Object.keys(fragment.assets).length > imageTransferLimits.assets ||
+      Object.values(fragment.assets).some(
+        (asset) => asset !== null && typeof asset !== 'string',
+      )
+    )
+      throw new Error('Invalid Concept clipboard assets.')
+    throw new UnsupportedFragmentVersionError()
+  }
   const ids = fragmentReferences(fragment.nodes)
   const keys = Object.keys(fragment.assets)
   if (

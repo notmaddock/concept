@@ -36,6 +36,7 @@ import {
   fragmentHtml,
   fragmentReferences,
   parseImageFragment,
+  UnsupportedFragmentVersionError,
 } from './fragment'
 import { prepareHtmlImages, sanitizedHtml } from './html'
 
@@ -214,8 +215,19 @@ export function ImageClipboardPlugin() {
             let unsupported = 0
             let commit: () => void
             const blobs: Blob[] = []
-            if (encoded) {
-              const fragment = parseImageFragment(encoded)
+            let compatibilityFallback = false
+            const fragment = (() => {
+              if (!encoded) return null
+              try {
+                return parseImageFragment(encoded)
+              } catch (error) {
+                if (!(error instanceof UnsupportedFragmentVersionError))
+                  throw error
+                compatibilityFallback = true
+                return null
+              }
+            })()
+            if (fragment) {
               // Parse every registered node before obtaining destination ownership.
               editor.parseEditorState({
                 root: {
@@ -281,7 +293,11 @@ export function ImageClipboardPlugin() {
                 updateAtBookmark(bookmark, commit)
               })
               if (result.status === 'durability-failed') report(result.error)
-              if (unsupported)
+              if (compatibilityFallback)
+                toast.info(
+                  'This clipboard version is newer. Pasted the supported HTML representation.',
+                )
+              else if (unsupported)
                 toast.info('External images were pasted as alt text.')
               return
             }
