@@ -7,6 +7,8 @@ export const imageLimits = {
   dimension: 16384,
   pixels: 40_000_000,
   files: 16,
+  operationBytes: Math.min(64 * 1024 * 1024, packageLimits.packageBytes),
+  operationPixels: 80_000_000,
   concurrentPreparations: 2,
   animatedBytes: 8 * 1024 * 1024,
   animationFrames: 100,
@@ -263,6 +265,11 @@ export async function prepareImages(
   signal?: AbortSignal,
 ) {
   if (blobs.length > imageLimits.files) throw new ImagePreparationError('count')
+  if (
+    blobs.reduce((total, blob) => total + blob.size, 0) >
+    imageLimits.operationBytes
+  )
+    throw new ImagePreparationError('size')
   const results: Array<PreparedImage | undefined> = new Array(blobs.length)
   const failures: Array<unknown> = new Array(blobs.length)
   let next = 0
@@ -282,6 +289,16 @@ export async function prepareImages(
       },
     ),
   )
+  let pixels = 0
+  for (let index = 0; index < results.length; index++) {
+    const image = results[index]
+    if (!image) continue
+    const area = image.width * image.height
+    if (pixels + area > imageLimits.operationPixels) {
+      failures[index] = new ImagePreparationError('dimensions')
+      results[index] = undefined
+    } else pixels += area
+  }
   return {
     images: results.filter((value): value is PreparedImage => Boolean(value)),
     rejected: failures.filter((value) => value !== undefined),

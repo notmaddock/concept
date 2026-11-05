@@ -138,3 +138,56 @@ it('bounds preparations across operations and cancels queued work immediately', 
   decoding.forEach((finish) => finish())
   await Promise.all([first, second])
 })
+
+it('rejects operation bytes before reading any payload', async () => {
+  const read = vi.fn(async () => new ArrayBuffer(0))
+  const files = Array.from(
+    { length: 4 },
+    () =>
+      ({
+        size: imageLimits.operationBytes / 4 + 1,
+        arrayBuffer: read,
+      }) as Blob,
+  )
+  await expect(prepareImages(files)).rejects.toMatchObject({ code: 'size' })
+  expect(read).not.toHaveBeenCalled()
+})
+
+it('accepts images within aggregate area in original order despite decode completion order', async () => {
+  vi.stubGlobal('Blob', NodeBlob)
+  const resources = new Map<string, Blob>()
+  let nextUrl = 0
+  vi.stubGlobal('URL', {
+    createObjectURL: (blob: Blob) => {
+      const url = `blob:${nextUrl++}`
+      resources.set(url, blob)
+      return url
+    },
+    revokeObjectURL: (url: string) => resources.delete(url),
+  })
+  vi.stubGlobal(
+    'Image',
+    class {
+      src = ''
+      naturalWidth = 0
+      naturalHeight = 0
+      decode = async () => {
+        const bytes = await resources.get(this.src)!.arrayBuffer()
+        const view = new DataView(bytes)
+        this.naturalWidth = view.getUint32(16)
+        this.naturalHeight = view.getUint32(20)
+        if (this.naturalHeight === 4000)
+          await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+    },
+  )
+  const result = await prepareImages([
+    png(10000, 4000),
+    png(10000, 3000),
+    png(10000, 2000),
+    png(10000, 500),
+  ])
+  expect(result.images.map((image) => image.height)).toEqual([4000, 3000, 500])
+  expect(result.rejected).toMatchObject([{ code: 'dimensions' }])
+  expect(resources.size).toBe(0)
+})

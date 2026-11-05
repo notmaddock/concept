@@ -1,6 +1,6 @@
 # Image embedding
 
-Status: proposed implementation design. The blob document format is implemented; this document specifies its first editor consumer. No image behavior is implemented by this document.
+Status: implemented in the editor. This document retains the feature contract; the implementation decisions and verification appendix records the chosen policies, established evidence, and remaining service/browser acceptance checks.
 
 ## Scope
 
@@ -382,6 +382,8 @@ The initial limits are conservative application defaults, not the result of a mo
 | Intrinsic area                        | 40,000,000 pixels                                                |
 | Animation frames                      | 100                                                              |
 | Aggregate animation frame area        | 160,000,000 pixels                                               |
+| Insertion operation bytes             | 64 MiB, also bounded by the generic package limit                |
+| Accepted insertion operation area     | 80,000,000 pixels                                                |
 | Files per insertion operation         | 16                                                               |
 | Concurrent preparations               | 2 across operations and rendering                                |
 | Minimum resize control width          | 32 CSS pixels                                                    |
@@ -390,7 +392,7 @@ The initial limits are conservative application defaults, not the result of a mo
 | Clipboard tree                        | 10,000 nodes, depth 64                                           |
 | Clipboard/export aggregate image area | 80,000,000 pixels                                                |
 
-Ingestion inspects signatures rather than filenames or supplied MIME, preflights available PNG/JPEG/GIF/WebP dimension headers and animation records, then requires browser decoding. The stored bytes are preserved exactly, including animation and embedded metadata such as EXIF. This avoids silent conversion or quality loss, but it also preserves location and other embedded metadata; sanitization remains a future explicit processing policy.
+An operation exceeding the aggregate byte budget is rejected before any payload reads or decode. After preparation, images exceeding the accepted aggregate area are rejected in original input order, while later images that fit can still be accepted. Ingestion inspects signatures rather than filenames or supplied MIME, preflights available PNG/JPEG/GIF/WebP dimension headers and animation records, then requires browser decoding. The stored bytes are preserved exactly, including animation and embedded metadata such as EXIF. This avoids silent conversion or quality loss, but it also preserves location and other embedded metadata; sanitization remains a future explicit processing policy.
 
 Natural dimensions come from the browser's orientation-aware image decoder, and rendering/export use the same original bytes. JPEG header dimensions serve as orientation-independent budget checks; final placement dimensions use decoded orientation. Automated tests exercise an oriented decoder result, but they do not establish real EXIF behavior across browsers. Render resolution independently revalidates supported bytes, decode success, and agreement with placement dimensions before showing the image. A mismatch produces a local typed metadata/decode failure and preserves the node, without mutating source metadata or repeatedly downloading the same bytes. Temporary decode URLs and rendered URLs are released on completion, failure, replacement, and unmount. Cancelled queued preparations are removed immediately.
 
@@ -415,3 +417,17 @@ Rich-paste tests cover complete destination asset storage before tree commit, or
 Authenticated Drive upload/download, two-account concurrent image insertion, reference-before-publication recovery without real-time transport, fresh offline package import after a Drive round trip, and cross-tab native clipboard transfer after source closure require their acceptance runs. Existing generic package/synchronization infrastructure is reused, but its tests alone do not prove these image-specific service scenarios.
 
 The release browser/device matrix, real EXIF fixtures across browsers, native clipboard permission denial, low-memory animation performance, touch/pointer resize cancellation, and all keyboard/read-only transitions also require explicit browser evidence. Do not infer those outcomes from the DOM test suite.
+
+### Integrated-browser smoke results (2026-11-05)
+
+Tested against the local Vite server with the integrated Chromium browser:
+
+- Insert menu picker and slash-menu click insertion decoded PNG and EXIF-oriented JPEG fixtures. The orientation-6 JPEG reports and renders 80 × 120 from its stored 120 × 80 raster.
+- Native image-file paste and rich HTML plus an image-file preview insert one chosen representation, preserving surrounding paragraphs without duplicating the preview.
+- Native Ctrl+C/Ctrl+V carries self-contained HTML, full selected content, and images. Same-document and cross-document paste survive destination reload; paste undoes in one step. Copy/paste also works after network access is disabled on the loaded editor.
+- Alt text, numeric width, pointer resize, replacement/undo, and keyboard deletion/undo work after a clean page load. Development hot replacement of node classes requires reloading the page before retesting existing node instances.
+- A downloaded `.concept` package opens as a fresh local document with all three image placements and edited alt text intact.
+- HTML export contains three data-image sources and zero blob URLs. Opened independently, all three images decode, including the oriented JPEG.
+- At a 390-pixel viewport, images remain within the content viewport. Temporary offline and viewport overrides were restored after testing.
+
+The browser's file-drop automation API does not expose external drop dispatch; mounted behavioral tests cover that path. Live Drive/two-account recovery, other browser engines, constrained-device performance, and full offline application-shell reload remain outside this smoke evidence. The existing package/storage/sync regression suites pass; no new remote storage or application-shell capability is claimed.
