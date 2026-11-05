@@ -133,14 +133,16 @@ export class DocumentSync {
     const version = ++this.metadataVersion
     const content = this.content()
     const bytes = new TextEncoder().encode(content)
-    void documentRevision(content).then((revision) => {
-      if (this.stopped || version !== this.metadataVersion) return
-      setSaveStatus(this.info.id, {
-        ...getSaveStatus(this.info.id),
-        size: bytes.byteLength,
-        revision,
+    void documentRevision(content)
+      .then((revision) => {
+        if (this.stopped || version !== this.metadataVersion) return
+        setSaveStatus(this.info.id, {
+          ...getSaveStatus(this.info.id),
+          size: bytes.byteLength,
+          revision,
+        })
       })
-    })
+      .catch(() => {})
   }
 
   async start() {
@@ -279,10 +281,6 @@ export class DocumentSync {
     const snapshot = new Doc()
     try {
       const embeddedName = mergeConcept(snapshot, remote.content)
-      this.acknowledged = serializeConcept(
-        documentName(snapshot, embeddedName),
-        snapshot,
-      )
       const remoteName = remote.file.name.replace(/\.concept$/i, '')
       const previousName = this.remoteFilename?.replace(/\.concept$/i, '')
       const localName = documentName(this.doc, this.info.name)
@@ -293,8 +291,14 @@ export class DocumentSync {
           ? localName
           : remoteName
       mergeConcept(this.doc, remote.content)
-      if (this.doc.getMap<string>('metadata').get('name') !== name)
+      if (this.doc.getMap<string>('metadata').get('name') !== name) {
         this.doc.getMap<string>('metadata').set('name', name)
+        snapshot.getMap<string>('metadata').set('name', name)
+      }
+      this.acknowledged = serializeConcept(
+        documentName(snapshot, embeddedName),
+        snapshot,
+      )
       this.remoteFilename = remote.file.name
       this.etag = remote.etag
       const isReadOnly = isDriveFileReadOnly(remote.file)
@@ -439,11 +443,20 @@ export class DocumentSync {
       documentName(this.doc, this.info.name) !==
         this.remoteFilename!.replace(/\.concept$/i, '')
     if (!this.stopped) {
-      if (renameFailed)
-        toast.error('Could not rename the file on Google Drive.', {
-          id: `drive-rename:${this.info.id}`,
-        })
-      else if (notify && !auth && navigator.onLine)
+      if (renameFailed) {
+        if (
+          notify &&
+          !auth &&
+          (typeof navigator === 'undefined' || navigator.onLine)
+        )
+          toast.error('Could not rename the file on Google Drive.', {
+            id: `drive-rename:${this.info.id}`,
+          })
+      } else if (
+        notify &&
+        !auth &&
+        (typeof navigator === 'undefined' || navigator.onLine)
+      )
         toast.error(message, {
           id: `drive-sync:${this.info.id}`,
         })
