@@ -8,6 +8,7 @@ import {
   documentSessions,
 } from './sync'
 import {
+  DriveError,
   getFileMetadata,
   isDriveFileReadOnly,
   listConceptFiles,
@@ -102,7 +103,16 @@ export const documentStorage: DocumentStorage = {
   async delete(id) {
     const info = await localDocumentStorage.get(id)
     if (info?.drive && !info.readOnly && !info.drive.readOnly) {
-      await trashConceptFile(info.drive.fileId)
+      try {
+        await trashConceptFile(info.drive.fileId)
+      } catch (error) {
+        if (
+          !(error instanceof DriveError && error.status === 404) &&
+          (error as { status?: number })?.status !== 404
+        ) {
+          throw error
+        }
+      }
     }
     await localDocumentStorage.delete(id)
     clearSaveStatus(id)
