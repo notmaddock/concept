@@ -211,3 +211,40 @@ it('rejects unsupported image versions in headless package snapshots', () => {
     close()
   }
 })
+
+it('reloads edited placement metadata and source from a persisted binding snapshot', async () => {
+  const original = client()
+  const reloaded = client()
+  try {
+    original.editor.update(
+      () => {
+        $getRoot().append($createImageNode(source('a')))
+      },
+      { discrete: true },
+    )
+    original.editor.update(
+      () => {
+        const image = $getRoot().getFirstChildOrThrow()
+        if (!(image instanceof ImageNode)) throw new Error('Expected image')
+        image
+          .setAltText('Persisted photo')
+          .setDisplayWidth(321)
+          .setSource(source('b', 800, 600))
+      },
+      { discrete: true },
+    )
+    const snapshot = encodeStateAsUpdate(original.doc)
+    applyUpdate(reloaded.doc, snapshot)
+    await Promise.resolve()
+    expect(reloaded.editor.getEditorState().toJSON()).toEqual(
+      original.editor.getEditorState().toJSON(),
+    )
+    expect(
+      reloaded.editor.getEditorState().read(() => $getRoot().getTextContent()),
+    ).toBe('[Image: Persisted photo]')
+    expect([...collectReferences(snapshot)]).toEqual([source('b').assetId])
+  } finally {
+    original.close()
+    reloaded.close()
+  }
+})
