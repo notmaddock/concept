@@ -211,9 +211,7 @@ export function getGooglePickerApiKey(
   customApiKey?: string,
 ): string | undefined {
   return (
-    customApiKey?.trim() ||
-    env.VITE_GOOGLE_PICKER_API_KEY?.trim() ||
-    undefined
+    customApiKey?.trim() || env.VITE_GOOGLE_PICKER_API_KEY?.trim() || undefined
   )
 }
 

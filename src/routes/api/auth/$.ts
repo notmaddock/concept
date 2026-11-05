@@ -17,4 +17,3 @@ export const Route = createFileRoute('/api/auth/$')({
 })
 
 export const APIRoute = Route
-
