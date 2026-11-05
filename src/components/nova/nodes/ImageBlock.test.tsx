@@ -22,6 +22,13 @@ vi.mock('../images/use-renderable-image', () => ({
   useRenderableImage: () => ({ url: undefined, failure: undefined }),
 }))
 
+vi.mock('../media/use-document-asset', () => ({
+  useDocumentAsset: () => ({
+    state: { state: 'available', blob: new Blob(['image']) },
+    retry: vi.fn(),
+  }),
+}))
+
 it('commits mounted metadata controls through bidirectional Yjs and persisted reload', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const container = document.createElement('div')
@@ -107,7 +114,28 @@ it('commits mounted metadata controls through bidirectional Yjs and persisted re
     await act(async () => {
       container.querySelector<HTMLElement>('[role="button"]')!.click()
     })
-    const input = container.querySelector<HTMLInputElement>(
+    expect(container.querySelector('[aria-label="Image alt text"]')).toBeNull()
+    await act(async () => {
+      container.querySelector<HTMLElement>('[role="button"]')!.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          button: 2,
+          clientX: 10,
+          clientY: 10,
+        }),
+      )
+    })
+    await act(async () => {
+      document.querySelector<HTMLElement>('[role="menuitem"]')!.click()
+    })
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain(
+      'a'.repeat(64),
+    )
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain(
+      '5 bytes',
+    )
+    const input = document.querySelector<HTMLInputElement>(
       '[aria-label="Image alt text"]',
     )!
     expect(input).not.toBeNull()
@@ -128,7 +156,7 @@ it('commits mounted metadata controls through bidirectional Yjs and persisted re
     expect(
       container.querySelector('[aria-label="Image: Photo description"]'),
     ).not.toBeNull()
-    const width = container.querySelector<HTMLInputElement>(
+    let width = document.querySelector<HTMLInputElement>(
       '[aria-label="Image width"]',
     )!
     await act(async () => {
@@ -140,6 +168,15 @@ it('commits mounted metadata controls through bidirectional Yjs and persisted re
       width.dispatchEvent(new Event('input', { bubbles: true }))
       width.blur()
     })
+    width = document.querySelector<HTMLInputElement>(
+      '[aria-label="Image width"]',
+    )!
+    await act(async () => {
+      width.focus()
+      width.value = '0'
+      width.blur()
+    })
+    expect(width.value).toBe('123')
     const image = editor.getEditorState().toJSON().root.children[0]
     expect(image).toMatchObject({
       altText: 'Photo description',
@@ -177,6 +214,14 @@ it('commits mounted metadata controls through bidirectional Yjs and persisted re
     expect(restoredEditor.getEditorState().toJSON().root.children[0]).toEqual(
       image,
     )
+    await act(async () => editor.setEditable(false))
+    expect(document.querySelector('fieldset')!.disabled).toBe(true)
+    expect(
+      document.querySelector('[role="dialog"]')!.textContent,
+    ).not.toContain('Delete image')
+    expect(
+      document.querySelector('[role="dialog"]')!.textContent,
+    ).not.toContain('Replace image')
     restoredProvider.destroy()
     restoredBinding.root.destroy(restoredBinding)
     restoredDoc.destroy()
