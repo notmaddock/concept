@@ -51,7 +51,10 @@ async function mount(id: string | undefined = 'first') {
     actions = useDocuments(id, storage)
     return null
   }
-  await act(() => root.render(<Harness />))
+  await act(async () => {
+    root.render(<Harness />)
+    await Promise.resolve()
+  })
 }
 
 it('uses one creation action and suppresses duplicate concurrent requests', async () => {
