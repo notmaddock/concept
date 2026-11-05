@@ -38,7 +38,8 @@ import { DocumentLoading } from './status/DocumentLoading'
 
 export { useDocumentWorkspace } from './document-workspace-store'
 
-const loadDocumentStorageDialog = () => import('./dialogs/DocumentStorageDialog')
+const loadDocumentStorageDialog = () =>
+  import('./dialogs/DocumentStorageDialog')
 const DocumentStorageDialog = lazy(() =>
   loadDocumentStorageDialog().then((module) => ({
     default: module.DocumentStorageDialog,
