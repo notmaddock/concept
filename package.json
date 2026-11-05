@@ -45,7 +45,7 @@
     "@tanstack/react-router": "^1.170.46",
     "@tanstack/react-router-devtools": "^1.167.2",
     "@tanstack/react-start": "^1.169.4",
-    "better-auth": "1.7.16",
+    "better-auth": "1.7.17",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
     "cn": "^0.5.2",
@@ -66,7 +66,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.67.0",
-    "@cloudflare/workers-types": "5.20261103.1",
+    "@cloudflare/workers-types": "5.20261104.1",
     "@rolldown/plugin-babel": "^0.2.4",
     "@tailwindcss/vite": "^4.3.4",
     "@tanstack/devtools-vite": "^0.8.6",
