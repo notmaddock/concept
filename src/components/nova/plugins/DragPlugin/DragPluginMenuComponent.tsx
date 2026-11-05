@@ -10,12 +10,16 @@ export function DragPluginMenuComponent({
 }: DragPluginMenuComponentProps) {
   return (
     <div
+      role="button"
+      aria-label="Drag block"
+      tabIndex={-1}
       {...props}
       className={cn(
         className,
         'cursor-pointer text-muted-foreground text-md p-2 will-change-transform will-change-opacity active:cursor-grabbing opacity-0',
       )}
       style={{
+        ...props.style,
         transition: 'transform 100ms ease-in-out, opacity 150ms ease-in-out',
       }}
     >
