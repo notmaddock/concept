@@ -45,7 +45,7 @@ vi.mock('#/components/nova/Nova', () => ({
   ),
 }))
 
-const MediaProbe = memo(function MediaProbe() {
+const MediaProbe = memo(function AssetResolverProbe() {
   const media = useDocumentMedia()
   return <span data-media-resolver={Boolean(media?.resolver)} />
 })
