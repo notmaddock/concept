@@ -10,6 +10,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { DocumentWorkspaceContext } from './document-workspace-store'
 import { documentHash } from '#/lib/documents/document-url'
+import { downloadConcept } from '#/lib/documents/concept-file'
+import { downloadExport, serializeExport } from '#/lib/documents/export'
 import {
   connectGoogleDrive,
   prepareGoogleDriveAuth,
@@ -218,7 +220,6 @@ function useWorkspaceState(id?: string) {
           'Open a document and wait for it to load before downloading.',
         )
       const source = { name: document.name, doc: documentRef.current }
-      const { downloadConcept } = await import('#/lib/documents/concept-file')
       downloadConcept(source.name, source.doc)
     } catch (cause) {
       toast.error(
@@ -239,8 +240,6 @@ function useWorkspaceState(id?: string) {
       return
     }
     try {
-      const { serializeExport, downloadExport } =
-        await import('#/lib/documents/export')
       const file = await serializeExport(editor, document.name, format)
       downloadExport(document.name, file)
     } catch {
