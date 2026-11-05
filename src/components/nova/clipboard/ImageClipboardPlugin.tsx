@@ -61,7 +61,10 @@ export function ImageClipboardPlugin() {
         },
         { discrete: true, tag: [HISTORY_PUSH_TAG, SKIP_DOM_SELECTION_TAG] },
       )
-      if (failure) throw failure
+      if (failure)
+        throw failure instanceof Error
+          ? failure
+          : new Error('Could not insert clipboard content.')
     }
     const copy = (
       event: ClipboardEvent | KeyboardEvent | null,
@@ -174,7 +177,7 @@ export function ImageClipboardPlugin() {
               if (
                 event.clipboardData
                   .getData('application/x-lexical-editor')
-                  .includes('\"type\":\"image\"')
+                  .includes('"type":"image"')
               ) {
                 event.preventDefault()
                 report(
