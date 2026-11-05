@@ -2,6 +2,8 @@
 
 Concept is an offline-first document editor built around a simple idea: your documents should be responsive, portable, and inexpensive to serve. It combines a rich-text editor with local storage and optional Google Drive sync, using CRDTs to reconcile changes made independently.
 
+![Welcome to Concept screenshot](assets/welcome-screenshot.png)
+
 ## Contents
 
 - [What you can do](#what-you-can-do)
