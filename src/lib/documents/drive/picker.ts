@@ -196,11 +196,13 @@ export function loadGooglePickerApi(): Promise<void> {
 }
 
 export function getGooglePickerAppId(customAppId?: string): string | undefined {
-  if (customAppId) return customAppId
-  if (env.VITE_GOOGLE_PICKER_APP_ID) return env.VITE_GOOGLE_PICKER_APP_ID
-  const clientId = env.VITE_GOOGLE_CLIENT_ID
+  const custom = customAppId?.trim()
+  if (custom) return custom
+  const envAppId = env.VITE_GOOGLE_PICKER_APP_ID?.trim()
+  if (envAppId) return envAppId
+  const clientId = env.VITE_GOOGLE_CLIENT_ID?.trim()
   if (clientId && /^\d+/.test(clientId)) {
-    return clientId.split('-')[0]
+    return clientId.split('-')[0].trim()
   }
   return undefined
 }
@@ -208,7 +210,11 @@ export function getGooglePickerAppId(customAppId?: string): string | undefined {
 export function getGooglePickerApiKey(
   customApiKey?: string,
 ): string | undefined {
-  return customApiKey || env.VITE_GOOGLE_PICKER_API_KEY || undefined
+  return (
+    customApiKey?.trim() ||
+    env.VITE_GOOGLE_PICKER_API_KEY?.trim() ||
+    undefined
+  )
 }
 
 export async function openGooglePicker(
