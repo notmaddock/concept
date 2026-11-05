@@ -9,6 +9,8 @@ export const imageLimits = {
   files: 16,
   concurrentPreparations: 2,
   animatedBytes: 8 * 1024 * 1024,
+  animationFrames: 100,
+  animationPixels: 160_000_000,
 }
 
 export class ImagePreparationError extends Error {
@@ -99,6 +101,77 @@ function headerDimensions(
   }
 }
 
+function validateAnimation(bytes: Uint8Array, mediaType: string) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  let frames = 0
+  let pixels = 0
+  const addFrame = (width: number, height: number, count = 1) => {
+    frames += count
+    pixels += width * height * count
+    if (
+      frames > imageLimits.animationFrames ||
+      pixels > imageLimits.animationPixels
+    )
+      throw new ImagePreparationError('dimensions')
+  }
+  if (mediaType === 'image/png') {
+    const dimensions = headerDimensions(bytes, mediaType)
+    for (let offset = 8; offset + 12 <= bytes.length;) {
+      const length = view.getUint32(offset)
+      if (length > bytes.length - offset - 12) break
+      const name = String.fromCharCode(
+        ...bytes.subarray(offset + 4, offset + 8),
+      )
+      if (name === 'acTL' && length >= 8 && dimensions)
+        addFrame(...dimensions, view.getUint32(offset + 8))
+      offset += length + 12
+    }
+  } else if (mediaType === 'image/webp') {
+    const dimensions = headerDimensions(bytes, mediaType)
+    for (let offset = 12; offset + 8 <= bytes.length;) {
+      const length = view.getUint32(offset + 4, true)
+      if (length > bytes.length - offset - 8) break
+      if (
+        String.fromCharCode(...bytes.subarray(offset, offset + 4)) === 'ANMF' &&
+        dimensions
+      )
+        addFrame(...dimensions)
+      offset += 8 + length + (length % 2)
+    }
+  } else if (mediaType === 'image/gif' && bytes.length >= 13) {
+    let offset = 13 + (bytes[10] & 0x80 ? 3 * (1 << ((bytes[10] & 7) + 1)) : 0)
+    const skipBlocks = () => {
+      while (offset < bytes.length) {
+        const length = bytes[offset++]
+        if (!length) break
+        offset += length
+      }
+    }
+    while (offset < bytes.length) {
+      const marker = bytes[offset++]
+      if (marker === 0x3b) break
+      if (marker === 0x21) {
+        offset++
+        skipBlocks()
+      } else if (marker === 0x2c && offset + 9 <= bytes.length) {
+        addFrame(
+          view.getUint16(offset + 4, true),
+          view.getUint16(offset + 6, true),
+        )
+        const packed = bytes[offset + 8]
+        offset += 9 + (packed & 0x80 ? 3 * (1 << ((packed & 7) + 1)) : 0)
+        offset++
+        skipBlocks()
+      } else break
+    }
+  }
+  if (
+    (frames > 1 || mediaType === 'image/gif') &&
+    bytes.length > imageLimits.animatedBytes
+  )
+    throw new ImagePreparationError('size')
+}
+
 async function decodeImage(
   blob: Blob,
   signal?: AbortSignal,
@@ -128,7 +201,7 @@ async function decodeImage(
   }
 }
 
-export async function prepareImage(
+async function prepareImageBytes(
   blob: Blob,
   signal?: AbortSignal,
 ): Promise<PreparedImage> {
@@ -142,28 +215,34 @@ export async function prepareImage(
     !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(mediaType)
   )
     throw new ImagePreparationError('unsupported')
-  const animated =
-    mediaType === 'image/gif' ||
-    (mediaType === 'image/webp' &&
-      bytes[12] === 86 &&
-      bytes[15] === 88 &&
-      Boolean(bytes[20] & 2)) ||
-    (mediaType === 'image/png' &&
-      bytes.some(
-        (_, i) =>
-          bytes[i] === 97 &&
-          bytes[i + 1] === 99 &&
-          bytes[i + 2] === 84 &&
-          bytes[i + 3] === 76,
-      ))
-  if (animated && blob.size > imageLimits.animatedBytes)
-    throw new ImagePreparationError('size')
+  validateAnimation(bytes, mediaType)
   const dimensions = headerDimensions(bytes, mediaType)
   if (dimensions) validateImageDimensions(...dimensions)
   const normalized = new Blob([bytes], { type: mediaType })
   const [width, height] = await decodeImage(normalized, signal)
   validateImageDimensions(width, height)
   return { blob: normalized, width, height }
+}
+
+let activePreparations = 0
+const preparationQueue: Array<() => void> = []
+
+export async function prepareImage(
+  blob: Blob,
+  signal?: AbortSignal,
+): Promise<PreparedImage> {
+  signal?.throwIfAborted()
+  if (activePreparations >= imageLimits.concurrentPreparations)
+    await new Promise<void>((resolve) => preparationQueue.push(resolve))
+  else activePreparations++
+  try {
+    signal?.throwIfAborted()
+    return await prepareImageBytes(blob, signal)
+  } finally {
+    const next = preparationQueue.shift()
+    if (next) next()
+    else activePreparations--
+  }
 }
 
 export async function prepareImages(
