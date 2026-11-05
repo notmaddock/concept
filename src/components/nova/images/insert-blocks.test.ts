@@ -18,7 +18,11 @@ import {
   ListNode,
 } from '@lexical/list'
 import { $createQuoteNode, QuoteNode } from '@lexical/rich-text'
-import { createYjsBinding, syncLexicalUpdateToYjs } from '@lexical/yjs'
+import {
+  createYjsBinding,
+  syncLexicalUpdateToYjs,
+  syncYjsChangesToLexical,
+} from '@lexical/yjs'
 import { Doc, encodeStateAsUpdate } from 'yjs'
 import { LocalProvider } from '#/lib/documents/local-provider'
 import { collectReferences } from '#/lib/documents/references'
@@ -208,6 +212,10 @@ it('persists all bytes before binding references and synchronizes discrete updat
         tags,
       ),
   )
+  binding.root.getSharedType().observeDeep((events, transaction) => {
+    if (transaction.origin !== binding)
+      syncYjsChangesToLexical(binding, provider, events, false)
+  })
   const blobs = new Map<AssetId, Blob>()
   const repository: AssetRepository = {
     documentId: 'insertion-contract',
@@ -254,6 +262,10 @@ it('persists all bytes before binding references and synchronizes discrete updat
       },
       requestSave: save,
     })
+    await Promise.resolve()
+    expect(
+      f.json().root.children.filter((node) => node.type === 'image'),
+    ).toHaveLength(2)
     expect(outcome.status).toBe('inserted')
     expect(save).toHaveBeenCalledOnce()
   } finally {

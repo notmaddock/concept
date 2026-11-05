@@ -48,7 +48,7 @@ export async function insertDocumentAsset({
   ensureEditable()
   if (repository.closed || documentAssets(doc) !== repository)
     throw new AssetInsertionError('closed')
-  doc.transact(() => insert(descriptor))
+  insert(descriptor)
   await flush()
   signal?.throwIfAborted()
   if (!isAlive()) throw new AssetInsertionError('closed')
@@ -92,9 +92,10 @@ export async function insertDocumentAssets({
   }
   if (repository.closed || documentAssets(doc) !== repository)
     throw new AssetInsertionError('closed')
-  // The caller must use a discrete editor update so its binding synchronizes
-  // before this transaction ends and before persistence is flushed.
-  doc.transact(() => insert(descriptors))
+  // Let the editor binding own its Yjs transaction origin. An outer transaction
+  // masks that origin, so the binding mistakes its own update for a remote edit.
+  // A discrete editor update synchronizes all references before the flush below.
+  insert(descriptors)
   try {
     await flush()
     requestSave()
