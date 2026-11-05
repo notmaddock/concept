@@ -24,8 +24,10 @@ import { useDocumentMedia } from '../media/document-media-context'
 import { captureImageBookmark, restoreImageBookmark } from '../images/bookmark'
 import { INSERT_IMAGE_FILES_COMMAND } from '../images/commands'
 import { prepareImage } from '../images/ingestion'
+import { updateImageEdit } from '../images/image-edit'
 import {
   embedImageData,
+  imageTransferLimits,
   imageDataBlob,
   resolveImageData,
 } from '#/lib/documents/image-transfer'
@@ -50,7 +52,8 @@ export function ImageClipboardPlugin() {
       )
     const updateAtBookmark = (bookmark: ImageBookmark, commit: () => void) => {
       let failure: unknown
-      editor.update(
+      updateImageEdit(
+        editor,
         () => {
           try {
             restoreImageBookmark(bookmark)
@@ -90,8 +93,10 @@ export function ImageClipboardPlugin() {
       if (!captured) return false
       event?.preventDefault()
       const bookmark = captureImageBookmark(editor)
+      let unavailable = false
       const prepare = async () => {
         const data = await resolveImageData(captured.ids, media.resolver, true)
+        unavailable = [...data.values()].some((value) => value === null)
         const assets = Object.fromEntries(data)
         return fragmentHtml(embedImageData(captured.html, data), {
           version: 1,
@@ -131,6 +136,10 @@ export function ImageClipboardPlugin() {
       }
       void write
         .then(() => {
+          if (unavailable)
+            toast.info(
+              'Some copied images are unavailable. Their placements were preserved.',
+            )
           if (
             !cut ||
             !bookmark ||
@@ -218,6 +227,7 @@ export function ImageClipboardPlugin() {
                   indent: 0,
                 },
               })
+              let pixels = 0
               for (const id of fragmentReferences(fragment.nodes)) {
                 const data = fragment.assets[id]
                 if (data === null) {
@@ -228,6 +238,9 @@ export function ImageClipboardPlugin() {
                   imageDataBlob(data),
                   media.signal,
                 )
+                pixels += prepared.width * prepared.height
+                if (pixels > imageTransferLimits.pixels)
+                  throw new Error('Too many clipboard image pixels.')
                 if ((await assetId(await prepared.blob.arrayBuffer())) !== id)
                   throw new Error('Clipboard image integrity check failed.')
                 blobs.push(prepared.blob)

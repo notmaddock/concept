@@ -48,6 +48,7 @@ export async function prepareHtmlImages(
   }[] = []
   let unsupported = 0
   let bytes = 0
+  let pixels = 0
   for (const element of elements) {
     const source = element.getAttribute('src') ?? ''
     element.removeAttribute('data-concept-image-source')
@@ -66,6 +67,9 @@ export async function prepareHtmlImages(
     if (bytes > imageTransferLimits.bytes)
       throw new Error('Embedded images are too large.')
     const prepared = await prepareImage(blob, signal)
+    pixels += prepared.width * prepared.height
+    if (pixels > imageTransferLimits.pixels)
+      throw new Error('Too many embedded image pixels.')
     images.push({
       element,
       blob: prepared.blob,

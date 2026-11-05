@@ -88,3 +88,19 @@ describe('portable image fragments', () => {
     expect(() => imageDataBlob('https://example.com/image.png')).toThrow()
   })
 })
+
+it('keeps surrounding HTML content without fetching external images and rejects excess image work', async () => {
+  const { sanitizedHtml, prepareHtmlImages } = await import('./html')
+  const html = sanitizedHtml(
+    '<p>Before</p><blockquote><img src="https://private.example/a.png" alt="Private" onerror="alert(1)"></blockquote><p>After</p><script>bad()</script>',
+  )
+  expect(html.querySelector('[onerror],script')).toBeNull()
+  const result = await prepareHtmlImages(html)
+  expect(result.images).toEqual([])
+  expect(result.unsupported).toBe(1)
+  expect(html.body.textContent).toBe('Before[Image: Private]After')
+  const excess = sanitizedHtml(
+    '<img src="data:image/png;base64,iVBORw0KGgo=">'.repeat(65),
+  )
+  await expect(prepareHtmlImages(excess)).rejects.toThrow('Too many')
+})

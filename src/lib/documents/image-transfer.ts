@@ -7,6 +7,7 @@ export const imageTransferLimits = {
   assets: 64,
   nodes: 10000,
   depth: 64,
+  pixels: 80_000_000,
 }
 
 export async function imageDataUrl(blob: Blob): Promise<string> {
@@ -44,6 +45,7 @@ export async function resolveImageData(
     )
   const result = new Map<AssetId, string | null>()
   let bytes = 0
+  let pixels = 0
   for (const id of unique) {
     const state = await resolver?.resolve(id)
     if (state?.state !== 'available') {
@@ -56,12 +58,15 @@ export async function resolveImageData(
     }
     const { prepareImage } = await import('#/components/nova/images/ingestion')
     try {
-      await prepareImage(state.blob)
+      const image = await prepareImage(state.blob)
+      pixels += image.width * image.height
     } catch (error) {
       if (!allowMissing) throw error
       result.set(id, null)
       continue
     }
+    if (pixels > imageTransferLimits.pixels)
+      throw new Error('Too many image pixels to transfer.')
     bytes += state.blob.size
     if (bytes > imageTransferLimits.bytes)
       throw new Error(
