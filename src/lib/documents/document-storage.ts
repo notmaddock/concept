@@ -108,7 +108,12 @@ export const documentStorage: DocumentStorage = {
       } catch (error) {
         if (
           !(error instanceof DriveError && error.status === 404) &&
-          (error as { status?: number })?.status !== 404
+          !(
+            typeof error === 'object' &&
+            error !== null &&
+            'status' in error &&
+            error.status === 404
+          )
         ) {
           throw error
         }

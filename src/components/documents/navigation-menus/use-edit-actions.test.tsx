@@ -58,7 +58,7 @@ afterEach(async () => {
 
 it('clears formatting only from the selected text', async () => {
   await act(async () => {
-    actions.run('clear-formatting')
+    await actions.run('clear-formatting')
     await Promise.resolve()
   })
   editor.getEditorState().read(() => {
@@ -74,14 +74,14 @@ it('clears formatting only from the selected text', async () => {
 
 it('selects the whole document and deletes the selection', async () => {
   await act(async () => {
-    actions.run('select-all')
+    await actions.run('select-all')
     await Promise.resolve()
   })
   editor.getEditorState().read(() => {
     expect($getSelection()?.getTextContent()).toBe('hello world')
   })
   await act(async () => {
-    actions.run('delete-selection')
+    await actions.run('delete-selection')
     await Promise.resolve()
   })
   editor
@@ -108,7 +108,7 @@ it('pastes plain text without inheriting formatting', async () => {
     clipboard: { readText: async () => 'pasted' },
   })
   await act(async () => {
-    actions.run('paste-plain')
+    await actions.run('paste-plain')
     await Promise.resolve()
   })
   editor.getEditorState().read(() => {
@@ -128,7 +128,7 @@ it('preserves text and reports denied clipboard access', async () => {
     },
   })
   await act(async () => {
-    actions.run('paste')
+    await actions.run('paste')
     await Promise.resolve()
   })
   expect(onError).toHaveBeenCalledWith(expect.stringContaining('Ctrl+V'))

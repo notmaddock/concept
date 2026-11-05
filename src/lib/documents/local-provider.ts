@@ -110,7 +110,7 @@ export class LocalProvider
       }
     } else if (data.type === 'update') {
       applyUpdate(this.doc, data.update, this)
-    } else if (data.type === 'awareness' && data.update) {
+    } else {
       applyAwarenessUpdate(this.localAwareness, data.update, this)
     }
   }
