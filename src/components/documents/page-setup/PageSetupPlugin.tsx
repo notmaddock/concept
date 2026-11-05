@@ -7,7 +7,7 @@ import {
   DEFAULT_PAGE_SETUP,
   pageDimensions,
 } from '#/lib/documents/page-setup'
-import { DocumentLoading } from '../DocumentLoading'
+import { DocumentLoading } from '../status/DocumentLoading'
 import type { PageSetup } from '#/lib/documents/page-setup'
 
 function sameSetup(first: PageSetup, second: PageSetup) {

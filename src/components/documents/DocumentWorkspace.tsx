@@ -10,8 +10,8 @@ import {
   LoaderCircleIcon,
   Settings2Icon,
 } from 'lucide-react'
-import { DocumentSaveStatus } from './DocumentSaveStatus'
-import { DocumentAccessStatus } from './DocumentAccessStatus'
+import { DocumentSaveStatus } from './status/DocumentSaveStatus'
+import { DocumentAccessStatus } from './status/DocumentAccessStatus'
 import { ProvidersDialog } from './ProvidersDialog'
 import { Button } from '#/components/ui/button'
 import {
@@ -45,7 +45,7 @@ import {
 } from '#/components/ui/sidebar'
 import { DocumentNavigation } from './DocumentNavigation'
 import { DocumentList } from './DocumentList'
-import { DocumentLoading } from './DocumentLoading'
+import { DocumentLoading } from './status/DocumentLoading'
 import { DocumentEditor } from './DocumentEditor'
 import { DriveIcon } from './DriveIcon'
 import { AppToaster } from '#/components/app-toaster'

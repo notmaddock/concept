@@ -34,7 +34,7 @@ import type { Doc } from 'yjs'
 import type { ImportFormat } from '#/lib/documents/import/formats'
 import type { ExportFormat } from '#/lib/documents/export'
 import { useDocuments } from '#/hooks/use-documents'
-import { DocumentLoading } from './DocumentLoading'
+import { DocumentLoading } from './status/DocumentLoading'
 
 export { useDocumentWorkspace } from './document-workspace-store'
 

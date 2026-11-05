@@ -21,7 +21,7 @@ import {
   serializeConcept,
 } from '#/lib/documents/concept-file'
 import { DocumentEditor } from './DocumentEditor'
-import { DocumentSaveStatus } from './DocumentSaveStatus'
+import { DocumentSaveStatus } from './status/DocumentSaveStatus'
 import { DocumentWorkspaceContext } from './document-workspace-store'
 
 vi.mock('#/components/nova/Nova', () => ({
