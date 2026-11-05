@@ -211,7 +211,7 @@ export function DocumentEditor({
     <>
       {!ready && <DocumentLoading />}
       <div className={ready ? 'contents' : 'hidden'}>
-        <DocumentMediaContext value={session.media}>
+        <DocumentMediaContext value={ready ? session.media : null}>
           <LexicalCollaboration>
             <Nova
               key={session.doc.guid}

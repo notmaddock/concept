@@ -1,7 +1,7 @@
 import { waitForAct } from '#/test/wait-for-act'
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
-import { act, createRef } from 'react'
+import { act, createRef, memo } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { $getRoot, $createParagraphNode, $createTextNode } from 'lexical'
@@ -21,6 +21,7 @@ import {
   parseConcept,
   serializeConcept,
 } from '#/lib/documents/concept-file'
+import { useDocumentMedia } from '#/components/nova/media/document-media-context'
 import { DocumentEditor } from './DocumentEditor'
 import { DocumentSaveStatus } from './status/DocumentSaveStatus'
 import { DocumentWorkspaceContext } from './document-workspace-store'
@@ -37,11 +38,17 @@ vi.mock('#/components/nova/Nova', () => ({
       }}
     >
       <ContentEditable aria-label="Document content" />
+      <MediaProbe />
       {editorRef && <EditorRefPlugin editorRef={editorRef} />}
       {collaboration}
     </LexicalComposer>
   ),
 }))
+
+const MediaProbe = memo(function MediaProbe() {
+  const media = useDocumentMedia()
+  return <span data-media-resolver={Boolean(media?.resolver)} />
+})
 
 let root: Root
 let container: HTMLDivElement
@@ -296,4 +303,22 @@ it('recovers a failed Drive session when its connection changes without changing
     expect(container.querySelector('[role="status"]')).toBeNull()
   })
   expect(storageOpen).toHaveBeenCalledTimes(2)
+})
+
+it('publishes the ready asset resolver to memoized media views on initial load and reopen', async () => {
+  const saved = await localDocumentStorage.create()
+  await open(saved.id)
+  expect(
+    container
+      .querySelector('[data-media-resolver]')
+      ?.getAttribute('data-media-resolver'),
+  ).toBe('true')
+  await act(async () => root.render(null))
+  documentRef.current = null
+  await open(saved.id)
+  expect(
+    container
+      .querySelector('[data-media-resolver]')
+      ?.getAttribute('data-media-resolver'),
+  ).toBe('true')
 })
