@@ -110,3 +110,31 @@ it('rejects APNG animation work from declared frames before decoding', async () 
     code: 'dimensions',
   })
 })
+
+it('bounds preparations across operations and cancels queued work immediately', async () => {
+  vi.stubGlobal('Blob', NodeBlob)
+  vi.stubGlobal('URL', {
+    createObjectURL: () => 'blob:image',
+    revokeObjectURL: vi.fn(),
+  })
+  const decoding: Array<() => void> = []
+  vi.stubGlobal(
+    'Image',
+    class {
+      src = ''
+      naturalWidth = 2
+      naturalHeight = 3
+      decode = () => new Promise<void>((resolve) => decoding.push(resolve))
+    },
+  )
+  const first = prepareImage(png())
+  const second = prepareImage(png())
+  await vi.waitFor(() => expect(decoding).toHaveLength(2))
+  const cancelled = new AbortController()
+  const third = prepareImage(png(), cancelled.signal)
+  cancelled.abort()
+  await expect(third).rejects.toMatchObject({ name: 'AbortError' })
+  expect(decoding).toHaveLength(2)
+  decoding.forEach((finish) => finish())
+  await Promise.all([first, second])
+})

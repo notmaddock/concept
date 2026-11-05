@@ -232,9 +232,22 @@ export async function prepareImage(
   signal?: AbortSignal,
 ): Promise<PreparedImage> {
   signal?.throwIfAborted()
-  if (activePreparations >= imageLimits.concurrentPreparations)
-    await new Promise<void>((resolve) => preparationQueue.push(resolve))
-  else activePreparations++
+  if (activePreparations >= imageLimits.concurrentPreparations) {
+    await new Promise<void>((resolve, reject) => {
+      const ready = () => {
+        signal?.removeEventListener('abort', abort)
+        resolve()
+      }
+      const abort = () => {
+        const index = preparationQueue.indexOf(ready)
+        if (index !== -1) preparationQueue.splice(index, 1)
+        reject(signal?.reason)
+      }
+      preparationQueue.push(ready)
+      signal?.addEventListener('abort', abort, { once: true })
+      if (signal?.aborted) abort()
+    })
+  } else activePreparations++
   try {
     signal?.throwIfAborted()
     return await prepareImageBytes(blob, signal)
