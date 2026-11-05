@@ -1,3 +1,4 @@
+import { ImageNode, $isImageNode } from '#/components/nova/nodes/ImageNode'
 import {
   $convertToMarkdownString,
   CHECK_LIST,
@@ -20,6 +21,19 @@ export const horizontalRule: ElementTransformer = {
   type: 'element',
 }
 
+const imageFallback: ElementTransformer = {
+  dependencies: [ImageNode],
+  export: (node) => ($isImageNode(node) ? node.getTextContent() : null),
+  regExp: /$^/,
+  replace: () => {},
+  type: 'element',
+}
+
 export function exportMarkdown() {
-  return $convertToMarkdownString([horizontalRule, CHECK_LIST, ...TRANSFORMERS])
+  return $convertToMarkdownString([
+    imageFallback,
+    horizontalRule,
+    CHECK_LIST,
+    ...TRANSFORMERS,
+  ])
 }

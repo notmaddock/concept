@@ -10,7 +10,7 @@ export function exportHtml(editor: LexicalEditor, name: string) {
   const policy = output.createElement('meta')
   policy.httpEquiv = 'Content-Security-Policy'
   policy.content =
-    "default-src 'none'; style-src 'unsafe-inline'; img-src data: blob:; base-uri 'none'; form-action 'none'"
+    "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
   const style = output.createElement('style')
   const setup = $getPageSetup()
   const { width, height } = pageDimensions(setup)

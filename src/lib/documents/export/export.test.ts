@@ -112,3 +112,96 @@ describe('local export', () => {
     }
   })
 })
+
+it('captures image HTML before resolving bytes and preserves text/Markdown fallbacks', async () => {
+  const { ImageNode, $createImageNode } =
+    await import('#/components/nova/nodes/ImageNode')
+  const { assetId } = await import('../assets')
+  vi.stubGlobal(
+    'Image',
+    class {
+      naturalWidth = 20
+      naturalHeight = 10
+      src = ''
+      decoding = ''
+      decode = async () => {}
+    },
+  )
+  vi.stubGlobal('URL', {
+    createObjectURL: () => 'blob:temporary',
+    revokeObjectURL: () => {},
+  })
+  const blob = new Blob([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], {
+    type: 'image/png',
+  })
+  const id = await assetId(await blob.arrayBuffer())
+  const editor = createEditor({
+    nodes: [ImageNode],
+    onError: (error) => {
+      throw error
+    },
+  })
+  editor.update(
+    () => {
+      $getRoot().append(
+        $createImageNode(
+          { assetId: id, intrinsicWidth: 20, intrinsicHeight: 10 },
+          'Landscape',
+          200,
+        ),
+      )
+    },
+    { discrete: true },
+  )
+  let resolve!: () => void
+  const wait = new Promise<void>((done) => {
+    resolve = done
+  })
+  const resolver = {
+    resolve: async () => {
+      await wait
+      return { state: 'available' as const, blob }
+    },
+    getState: () => ({ state: 'available' as const, blob }),
+    subscribe: () => () => {},
+    retry: async () => {},
+    close: () => {},
+  }
+  const output = serializeExport(editor, 'Images', 'html', resolver)
+  await new Promise((done) => setTimeout(done, 0))
+  editor.update(
+    () => {
+      $getRoot()
+        .clear()
+        .append($createParagraphNode().append($createTextNode('Later edit')))
+    },
+    { discrete: true },
+  )
+  resolve()
+  const html = (await output).content
+  expect(html).toContain('data:image/png;base64,')
+  expect(html).toContain('Landscape')
+  expect(html).not.toContain('Later edit')
+  expect(html).not.toContain('blob:')
+  editor.update(
+    () => {
+      $getRoot().append(
+        $createImageNode(
+          { assetId: id, intrinsicWidth: 20, intrinsicHeight: 10 },
+          'Landscape',
+        ),
+      )
+    },
+    { discrete: true },
+  )
+  expect((await serializeExport(editor, 'Images', 'text')).content).toContain(
+    '[Image: Landscape]',
+  )
+  const markdown = await serializeExport(editor, 'Images', 'markdown')
+  expect(markdown.content).toContain('[Image: Landscape]')
+  expect(markdown.notice).toContain('alt text')
+  await expect(serializeExport(editor, 'Images', 'html')).rejects.toThrow(
+    'unavailable',
+  )
+  vi.unstubAllGlobals()
+})

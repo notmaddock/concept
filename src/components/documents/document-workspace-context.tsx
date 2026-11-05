@@ -241,7 +241,13 @@ function useWorkspaceState(id?: string) {
       return
     }
     try {
-      const file = await serializeExport(editor, document.name, format)
+      const file = await serializeExport(
+        editor,
+        document.name,
+        format,
+        documentSessions.get(document.id)?.assets,
+      )
+      if (file.notice) toast.info(file.notice)
       downloadExport(document.name, file)
     } catch {
       toast.error('Could not export the document. Please try again.', {
