@@ -288,3 +288,16 @@ it('rejects unsafe lengths and malformed asset identities rather than recovering
       readPackage(await rewrite(snapshot, (files) => manifest(files, change))),
     ).rejects.toThrow('descriptor')
 })
+
+it('reads compressed ZIP entries and hard-fails malformed deflate streams', async () => {
+  const snapshot = await withAssets()
+  const stored = await writePackage(snapshot)
+  expect(
+    (await readPackage(zipSync(unzipSync(stored), { level: 6 }))).kind,
+  ).toBe('complete')
+  const compressed = zipSync(unzipSync(stored), { level: 6 })
+  const view = new DataView(compressed.buffer)
+  const payload = 30 + view.getUint16(26, true) + view.getUint16(28, true)
+  compressed[payload] = 0xff
+  await expect(readPackage(compressed)).rejects.toThrow('compression')
+})

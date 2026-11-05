@@ -356,12 +356,19 @@ function expandEntry(
     })
     // Small compressed chunks bound allocations even when a hostile deflate
     // stream lies about its expanded length in the central directory.
-    for (let offset = 0; offset < compressed.length; offset += 256) {
-      checkSignal(signal)
-      inflate.push(
-        compressed.subarray(offset, offset + 256),
-        offset + 256 >= compressed.length,
-      )
+    try {
+      if (!compressed.length) inflate.push(compressed, true)
+      for (let offset = 0; offset < compressed.length; offset += 256) {
+        checkSignal(signal)
+        inflate.push(
+          compressed.subarray(offset, offset + 256),
+          offset + 256 >= compressed.length,
+        )
+      }
+    } catch (error) {
+      if (signal?.aborted || error instanceof PackageValidationError)
+        throw error
+      fail('Invalid ZIP compression stream')
     }
     output = new Uint8Array(size)
     let offset = 0
