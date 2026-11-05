@@ -148,6 +148,7 @@ function fileUrl(id: string) {
 }
 
 export async function getFileMetadata(id: string, signal?: AbortSignal) {
+  if (!id?.trim()) throw new DriveError(400, 'Invalid file ID.')
   const response = await request(`${fileUrl(id)}?fields=${conditionalFields}`, {
     signal,
   })
@@ -217,6 +218,7 @@ export async function readConceptFile(
   signal?: AbortSignal,
   initial?: DriveFileVersion,
 ): Promise<DriveFileVersion & { content: string }> {
+  if (!id?.trim()) throw new DriveError(400, 'Invalid file ID.')
   // Bind downloaded bytes to their validator even if another writer saves mid-read.
   for (let attempt = 0; attempt < 3; attempt++) {
     const before =
@@ -296,6 +298,7 @@ export function updateConceptFile(
 }
 
 export async function trashConceptFile(id: string): Promise<void> {
+  if (!id?.trim()) throw new DriveError(400, 'Invalid file ID.')
   const current = await getFileMetadata(id)
   await request(`${fileUrl(id)}?fields=id`, {
     method: 'PATCH',
