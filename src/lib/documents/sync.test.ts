@@ -673,3 +673,63 @@ it('recovers missing assets from a newer package before publishing pending text'
   expect(write).toHaveBeenCalled()
   expect(getSaveStatus(info.id).phase).toBe('synced')
 })
+
+it('recovers multiple missing references in one foreground package check when publication hints are absent', async () => {
+  const visibility = vi
+    .spyOn(document, 'visibilityState', 'get')
+    .mockReturnValue('visible')
+  try {
+    await start()
+    const first = await assetRecord('first late publication')
+    const second = await assetRecord('second late publication')
+    referenceAsset(first)
+    referenceAsset(second)
+    await session.sync()
+    expect(write).not.toHaveBeenCalled()
+    expect(read).toHaveBeenCalledTimes(2)
+    const published = version('"late-publication"')
+    metadata.mockResolvedValue(published)
+    read.mockResolvedValue({
+      ...published,
+      content: await packageBytes(remote, [first, second]),
+    })
+    await vi.advanceTimersByTimeAsync(18_001)
+    await session.sync()
+    expect(read).toHaveBeenCalledTimes(3)
+    expect(records.has(first.descriptor.id)).toBe(true)
+    expect(records.has(second.descriptor.id)).toBe(true)
+    expect(getSaveStatus(info.id).phase).toBe('synced')
+  } finally {
+    visibility.mockRestore()
+  }
+})
+
+it('pauses automatic missing-asset checks while hidden and wakes on visibility recovery', async () => {
+  const visibility = vi
+    .spyOn(document, 'visibilityState', 'get')
+    .mockReturnValue('visible')
+  try {
+    await start()
+    const arriving = await assetRecord('available after returning to tab')
+    referenceAsset(arriving)
+    await session.sync()
+    visibility.mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    metadata.mockClear()
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(metadata).not.toHaveBeenCalled()
+    const published = version('"while-hidden"')
+    metadata.mockResolvedValue(published)
+    read.mockResolvedValue({
+      ...published,
+      content: await packageBytes(remote, [arriving]),
+    })
+    visibility.mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    await session.sync()
+    expect(records.has(arriving.descriptor.id)).toBe(true)
+    expect(getSaveStatus(info.id).phase).toBe('synced')
+  } finally {
+    visibility.mockRestore()
+  }
+})
