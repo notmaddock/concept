@@ -107,6 +107,7 @@ export class DocumentSync {
   private running?: Promise<void>
   private idle?: ReturnType<typeof setTimeout>
   private deadline?: ReturnType<typeof setTimeout>
+  private initialized = false
   private accessEpoch = 0
   private version = 0
   private dirty = false
@@ -284,24 +285,8 @@ export class DocumentSync {
           error,
         }),
       })
-    if (
-      this.info.drive &&
-      (this.access.kind === 'editor' || this.access.kind === 'viewer')
-    ) {
-      this.realtime = new RealtimeClient({
-        doc: this.doc,
-        fileId: this.info.drive.fileId,
-        accountId: this.info.drive.accountId,
-        resourceKey:
-          this.info.drive.resourceKey ??
-          getDriveResourceKey(this.info.drive.fileId),
-        canWrite: () =>
-          this.access.kind === 'editor' && !this.info.drive?.quarantined,
-        onPublication: () => this.sync(true),
-        onAccess: () => this.sync(true),
-      })
-      this.realtime.start()
-    }
+    this.initialized = true
+    this.startRealtime()
     this.doc.on('update', this.changed)
     this.unsubscribeAssets = documentAssets(this.doc)?.subscribe(() => {
       if (this.isStopped()) return
@@ -504,6 +489,29 @@ export class DocumentSync {
     }
   }
 
+  private startRealtime() {
+    if (
+      !this.background &&
+      !this.realtime &&
+      this.info.drive &&
+      (this.access.kind === 'editor' || this.access.kind === 'viewer')
+    ) {
+      this.realtime = new RealtimeClient({
+        doc: this.doc,
+        fileId: this.info.drive.fileId,
+        accountId: this.info.drive.accountId,
+        resourceKey:
+          this.info.drive.resourceKey ??
+          getDriveResourceKey(this.info.drive.fileId),
+        canWrite: () =>
+          this.access.kind === 'editor' && !this.info.drive?.quarantined,
+        onPublication: () => this.sync(true),
+        onAccess: () => this.sync(true),
+      })
+      this.realtime.start()
+    }
+  }
+
   private async refreshAccess() {
     if (this.running || this.access.kind === 'unavailable') return
     const epoch = ++this.accessEpoch
@@ -541,6 +549,7 @@ export class DocumentSync {
       this.deadline = undefined
       this.urgent = false
     }
+    if (this.initialized) this.startRealtime()
   }
 
   sync(checkRemote = false): Promise<void> {
