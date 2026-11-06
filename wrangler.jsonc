@@ -1,7 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "concept",
-  "main": "@tanstack/react-start/server-entry",
+  "main": "src/worker.ts",
+  "durable_objects": {
+    "bindings": [{ "name": "REALTIME_ROOMS", "class_name": "RealtimeRoom" }],
+  },
+  "migrations": [
+    { "tag": "realtime-v1", "new_sqlite_classes": ["RealtimeRoom"] },
+  ],
   "compatibility_date": "2026-09-11",
   "observability": {
     "enabled": true,
