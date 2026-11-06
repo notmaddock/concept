@@ -27,12 +27,14 @@ function EditorModePlugin({ mode }: { mode: EditorMode }) {
 
 export function Nova({
   collaboration,
+  cursorsContainerRef,
   editorRef,
   mode = 'edit',
   pageSetupOpen = false,
   onPageSetupOpenChange = () => {},
 }: {
   editorRef?: RefObject<LexicalEditor | null>
+  cursorsContainerRef?: RefObject<HTMLDivElement | null>
   collaboration?: React.ReactNode
   mode?: EditorMode
   pageSetupOpen?: boolean
@@ -52,6 +54,13 @@ export function Nova({
       {editorRef && <EditorRefPlugin editorRef={editorRef} />}
       <div className="relative min-h-full w-full grow" ref={setAnchorElement}>
         <NovaContentEditable />
+        {cursorsContainerRef && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            ref={cursorsContainerRef}
+          />
+        )}
         {collaboration}
         <PageSetupPlugin
           open={isEditable && pageSetupOpen}

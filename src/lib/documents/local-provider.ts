@@ -74,13 +74,17 @@ export class LocalProvider
     }: { added: Array<number>; updated: Array<number>; removed: Array<number> },
     origin: unknown,
   ) => {
-    if (origin !== this)
+    // Only relay this tab's own state. Remote states injected by the realtime
+    // bridge are already shared over the socket; rebroadcasting them would
+    // duplicate every collaborator under a second client id across local tabs.
+    if (
+      origin !== this &&
+      [...added, ...updated, ...removed].includes(this.localAwareness.clientID)
+    )
       this.send({
         type: 'awareness',
         update: encodeAwarenessUpdate(this.localAwareness, [
-          ...added,
-          ...updated,
-          ...removed,
+          this.localAwareness.clientID,
         ]),
       })
   }

@@ -1,7 +1,8 @@
 import type { RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'
 import type { DocumentPersistence } from '#/lib/documents/storage'
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
+import type { Awareness } from 'y-protocols/awareness'
 import { LexicalCollaboration } from '@lexical/react/LexicalCollaborationContext'
 import { CollaborationPlugin } from '@lexical/react/LexicalCollaborationPlugin'
 import { FileTextIcon } from 'lucide-react'
@@ -29,9 +30,13 @@ import { LocalProvider } from '#/lib/documents/local-provider'
 import { DocumentMediaContext } from '#/components/nova/media/document-media-context'
 import type { DocumentMediaSession } from '#/components/nova/media/document-media-context'
 import { insertDocumentAssets } from '#/lib/documents/asset-session'
-import { documentSessions } from '#/lib/documents/sync'
+import {
+  documentSessions,
+  getRealtimeProvider,
+  subscribeRealtimeProviders,
+} from '#/lib/documents/sync'
 import { documentStorage } from '#/lib/documents/document-storage'
-import { attachEditorAwareness } from '#/lib/documents/realtime/editor-awareness'
+import { bridgeAwareness } from '#/lib/documents/realtime/awareness-bridge'
 
 export function DocumentEditor({
   documentRef,
@@ -52,6 +57,7 @@ export function DocumentEditor({
   const [error, setError] = useState('')
   const [authError, setAuthError] = useState(false)
   const [ready, setReady] = useState(false)
+  const cursorsContainerRef = useRef<HTMLDivElement | null>(null)
   const [session, setSession] = useState<{
     doc: Doc
     provider: LocalProvider
@@ -152,12 +158,30 @@ export function DocumentEditor({
 
   useEffect(() => {
     const editor = editorRef?.current
-    if (!ready || !editor) return
-    return attachEditorAwareness(
-      editor,
-      () => documentSessions.get(id)?.realtime,
-    )
-  }, [ready, id, editorRef])
+    if (!ready || !editor || !session) return
+    let unbridge: (() => void) | undefined
+    let bridged: Awareness | undefined
+
+    const attach = () => {
+      const next = getRealtimeProvider(id)?.awareness
+      if (next === bridged) return
+      unbridge?.()
+      bridged = next
+      unbridge = next
+        ? bridgeAwareness(
+            session.provider.awareness as unknown as Awareness,
+            next,
+          )
+        : undefined
+    }
+
+    attach()
+    const unsubscribe = subscribeRealtimeProviders(attach)
+    return () => {
+      unsubscribe()
+      unbridge?.()
+    }
+  }, [ready, id, editorRef, session])
 
   if (error) {
     const connectDrive =
@@ -226,6 +250,7 @@ export function DocumentEditor({
             <Nova
               key={session.doc.guid}
               editorRef={editorRef}
+              cursorsContainerRef={cursorsContainerRef}
               mode={mode}
               pageSetupOpen={pageSetupOpen}
               onPageSetupOpenChange={onPageSetupOpenChange}
@@ -236,6 +261,8 @@ export function DocumentEditor({
                     documents.set(id, session.doc)
                     return session.provider
                   }}
+                  cursorsContainerRef={cursorsContainerRef}
+                  selectionHighlight
                   shouldBootstrap={false}
                 />
               }

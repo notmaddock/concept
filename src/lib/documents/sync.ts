@@ -68,6 +68,18 @@ const emptyStatus: SaveStatus = { phase: 'loading' }
 const statuses = new Map<string, SaveStatus>()
 const listeners = new Set<() => void>()
 export const documentSessions = new Map<string, DocumentSync>()
+const realtimeProviders = new Map<string, RealtimeProvider>()
+const realtimeProviderListeners = new Set<() => void>()
+export const getRealtimeProvider = (id: string) => realtimeProviders.get(id)
+export function subscribeRealtimeProviders(listener: () => void) {
+  realtimeProviderListeners.add(listener)
+  return () => {
+    realtimeProviderListeners.delete(listener)
+  }
+}
+function notifyRealtimeProviders() {
+  realtimeProviderListeners.forEach((listener) => listener())
+}
 export const subscribeSaveStatus = (listener: () => void) => {
   listeners.add(listener)
   return () => {
@@ -136,6 +148,10 @@ export class DocumentSync {
     this.dirty = info.drive?.dirty ?? false
     this.etag = info.drive?.etag
     this.remoteFilename = info.drive?.remoteFilename
+    if (realtime && !background) {
+      realtimeProviders.set(info.id, realtime)
+      notifyRealtimeProviders()
+    }
     this.setStatus({
       phase: 'loading',
       offlineAvailable: info.drive?.offlineAvailable,
@@ -800,6 +816,14 @@ export class DocumentSync {
     this.unsubscribeRealtime?.()
     this.realtime?.detach()
     this.realtime?.close()
+    if (
+      this.realtime &&
+      !this.background &&
+      realtimeProviders.get(this.info.id) === this.realtime
+    ) {
+      realtimeProviders.delete(this.info.id)
+      notifyRealtimeProviders()
+    }
     clearTimeout(this.missingTimer)
     document.removeEventListener('visibilitychange', this.visibilityChanged)
     window.removeEventListener('focus', this.check)

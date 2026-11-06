@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Doc, XmlText, encodeStateAsUpdate } from 'yjs'
+import {
+  Awareness,
+  applyAwarenessUpdate,
+  encodeAwarenessUpdate,
+} from 'y-protocols/awareness'
 import { TestBroadcastChannel, flushBroadcasts } from '#/test/broadcast-channel'
 import { LocalProvider } from './local-provider'
 import { initializeDocument } from './initial-document'
@@ -111,4 +116,21 @@ it('restores awareness and catches up edits after reconnecting', async () => {
   expect(
     second.provider.awareness.getStates().get(first.doc.clientID)?.name,
   ).toBe('Returning tab')
+})
+
+it('does not rebroadcast awareness states owned by the realtime bridge', async () => {
+  const first = peer()
+  first.provider.connect()
+  await flushBroadcasts()
+  const sent = TestBroadcastChannel.sent
+  const remote = new Awareness(new Doc())
+  remote.setLocalState({ name: 'Remote socket peer' })
+  applyAwarenessUpdate(
+    first.provider.awareness as unknown as Awareness,
+    encodeAwarenessUpdate(remote, [remote.clientID]),
+    Symbol('realtime-bridge'),
+  )
+  await flushBroadcasts()
+  expect(TestBroadcastChannel.sent).toBe(sent)
+  remote.destroy()
 })
