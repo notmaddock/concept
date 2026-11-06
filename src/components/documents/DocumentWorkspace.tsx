@@ -1,3 +1,4 @@
+import { openContainingFolder } from './open-containing-folder'
 import {
   DocumentWorkspaceProvider,
   useDocumentWorkspace,
@@ -167,7 +168,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-sidebar">
         <header className="z-10 shrink-0 px-4 py-1.5 md:px-6">
-          <div className="flex items-center gap-3">
+          <div className="@container/document-header flex items-center gap-3">
             <SidebarTrigger />
             <DocumentName
               key={document ? `${document.id}:${document.name}` : 'library'}
@@ -183,6 +184,11 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 <DocumentSaveStatus
                   status={saveStatus}
                   provider={document.drive ? 'google-drive' : undefined}
+                  onOpenContainingFolder={
+                    document.drive
+                      ? () => void openContainingFolder(document.drive!.fileId)
+                      : undefined
+                  }
                   onRetry={syncNow}
                   onConnect={() => {
                     void connectDrive()

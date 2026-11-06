@@ -1,3 +1,4 @@
+import { openContainingFolder } from '../open-containing-folder'
 import {
   documentMenuContentClassName,
   documentMenuItemClassName,
@@ -6,7 +7,12 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { RenameDocumentDialog } from '../dialogs/RenameDocumentDialog'
 import { documentHash } from '#/lib/documents/document-url'
-import { ExternalLinkIcon, PencilIcon, Trash2Icon } from 'lucide-react'
+import {
+  ExternalLinkIcon,
+  FolderOpenIcon,
+  PencilIcon,
+  Trash2Icon,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import {
   ContextMenu,
@@ -32,8 +38,10 @@ export function DocumentContextMenu({
   name,
   onRename,
   onDelete,
+  driveFileId,
 }: {
   id: string
+  driveFileId?: string
   onRename?: (name: string) => Promise<boolean>
   children: ReactNode
   name: string
@@ -72,6 +80,14 @@ export function DocumentContextMenu({
           >
             <ExternalLinkIcon /> Open in new tab
           </ContextMenuItem>
+          {driveFileId && (
+            <ContextMenuItem
+              className={documentMenuItemClassName}
+              onClick={() => void openContainingFolder(driveFileId)}
+            >
+              <FolderOpenIcon /> Open containing folder
+            </ContextMenuItem>
+          )}
           {onRename && (
             <ContextMenuItem
               className={documentMenuItemClassName}

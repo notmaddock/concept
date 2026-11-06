@@ -369,3 +369,17 @@ export async function trashConceptFile(id: string): Promise<void> {
     body: JSON.stringify({ labels: { trashed: true } }),
   })
 }
+
+export async function getContainingFolderUrl(id: string): Promise<string> {
+  if (!id.trim()) throw new DriveError(400, 'Invalid file ID.')
+  const response = await request(
+    `${api}/${encodeURIComponent(id)}?fields=parents`,
+  )
+  const file = (await response.json()) as { parents?: Array<string> }
+  const parent = file.parents?.[0]
+  if (!parent)
+    throw new Error(
+      'Google Drive did not provide an accessible containing folder.',
+    )
+  return `https://drive.google.com/drive/folders/${encodeURIComponent(parent)}`
+}

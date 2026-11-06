@@ -117,6 +117,7 @@ export function DocumentList({
                 >
                   <DocumentContextMenu
                     id={item.id}
+                    driveFileId={item.drive?.fileId}
                     name={item.name}
                     onRename={
                       onRename && !item.readOnly && !item.drive?.readOnly
