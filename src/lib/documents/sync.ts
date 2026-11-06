@@ -1,4 +1,4 @@
-import { RealtimeClient } from '../realtime/client'
+import { RealtimeClient, realtimeOrigin } from '../realtime/client'
 import { accessTiming, canEditLocally } from './access'
 import type { DocumentAccess } from './access'
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
@@ -44,6 +44,7 @@ import type { DriveFileVersion } from './drive/api'
 export const assetReconciliation = assetRetryPolicy
 
 export const saveTiming = { idleMs: 3000, maxWaitMs: 60_000 }
+export const publicationCheckTiming = { idleMs: 30_000, missingAssetsMs: 5000 }
 
 export interface SaveStatus {
   phase:
@@ -112,6 +113,12 @@ export class DocumentSync {
   private accessEpoch = 0
   private version = 0
   private dirty = false
+  private localDirty = false
+  private localVersion = 0
+  private dirtySince?: number
+  private importingRemote = false
+  private publicationTimer?: ReturnType<typeof setTimeout>
+  private lastReconciledAt = 0
   private etag?: string
   private acknowledged?: string
   private remoteFilename?: string
@@ -151,6 +158,8 @@ export class DocumentSync {
         }
       : { kind: 'local' }
     this.dirty = info.drive?.dirty ?? false
+    this.localDirty = this.dirty
+    if (this.dirty) this.dirtySince = Date.now()
     this.etag = info.drive?.etag
     this.remoteFilename = info.drive?.remoteFilename
     this.setStatus({
@@ -251,6 +260,8 @@ export class DocumentSync {
             this.info.drive.savedRevision)
       ) {
         this.dirty = true
+        this.localDirty = true
+        this.dirtySince ??= Date.now()
         await this.persistMetadata()
       }
       try {
@@ -305,12 +316,13 @@ export class DocumentSync {
     this.startRealtime()
     this.doc.on('update', this.changed)
     this.unsubscribeAssets = documentAssets(this.doc)?.subscribe(() => {
-      if (this.isStopped()) return
+      if (this.isStopped() || this.importingRemote) return
       this.changed()
       this.requestUrgentSave()
     })
-    this.unsubscribePublication = this.publication?.subscribe(() => {
-      if (this.info.drive && isGoogleDriveConnected()) this.check()
+    this.unsubscribePublication = this.publication?.subscribe((hint) => {
+      if (hint.validator === this.etag) return
+      if (this.info.drive && isGoogleDriveConnected()) this.publicationHint()
     })
     document.addEventListener('visibilitychange', this.visibilityChanged)
     this.scheduleMissingCheck()
@@ -321,7 +333,18 @@ export class DocumentSync {
     if (this.info.drive)
       this.permissionTimer = setInterval(() => {
         if (document.visibilityState !== 'hidden') {
-          if (this.dirty) void this.refreshAccess()
+          if (
+            this.dirty &&
+            this.dirtySince !== undefined &&
+            Date.now() >= this.dirtySince + saveTiming.maxWaitMs
+          ) {
+            void this.sync()
+          } else if (
+            this.publicationTimer &&
+            Date.now() >= this.publicationDeadline()
+          ) {
+            void this.sync(true, true)
+          } else if (this.dirty) void this.refreshAccess()
           else this.check()
         }
       }, accessTiming.refreshMs)
@@ -330,7 +353,7 @@ export class DocumentSync {
     if (!this.background) documentSessions.set(this.info.id, this)
   }
 
-  private changed = () => {
+  private changed = (_update?: Uint8Array, origin?: unknown) => {
     ++this.version
     if (this.isReadOnly) {
       this.scheduleMissingCheck()
@@ -338,6 +361,11 @@ export class DocumentSync {
     }
     const wasDirty = this.dirty
     this.dirty = true
+    this.dirtySince ??= Date.now()
+    if (origin !== realtimeOrigin) {
+      this.localDirty = true
+      ++this.localVersion
+    }
     if (!this.info.drive) {
       const version = this.version
       this.publish('saving')
@@ -358,7 +386,7 @@ export class DocumentSync {
       void this.persistMetadata().catch((error: unknown) => this.fail(error))
     }
     if (!this.running) this.publish('pending')
-    this.schedule()
+    this.schedule(origin !== realtimeOrigin)
     this.scheduleMissingCheck()
   }
 
@@ -399,16 +427,46 @@ export class DocumentSync {
     } else this.publish(this.dirty ? 'pending' : 'synced')
   }
 
-  private schedule() {
+  private schedule(resetIdle = true) {
     if (this.stopped || !this.info.drive || this.isReadOnly) return
-    clearTimeout(this.idle)
-    this.idle = setTimeout(() => {
-      void this.sync()
-    }, saveTiming.idleMs)
-    this.deadline ??= setTimeout(() => {
-      this.deadline = undefined
-      void this.sync()
-    }, saveTiming.maxWaitMs)
+    if (this.localDirty && resetIdle) {
+      clearTimeout(this.idle)
+      this.idle = setTimeout(() => {
+        void this.sync()
+      }, saveTiming.idleMs)
+    }
+    this.deadline ??= setTimeout(
+      () => {
+        this.deadline = undefined
+        void this.sync()
+      },
+      Math.max(
+        0,
+        (this.dirtySince ?? Date.now()) + saveTiming.maxWaitMs - Date.now(),
+      ),
+    )
+  }
+
+  private publicationDeadline() {
+    return (
+      this.lastReconciledAt +
+      (this.waitingForAssets
+        ? publicationCheckTiming.missingAssetsMs
+        : publicationCheckTiming.idleMs)
+    )
+  }
+
+  private publicationHint = () => {
+    if (this.stopped || !this.info.drive || this.access.kind === 'unavailable')
+      return
+    clearTimeout(this.publicationTimer)
+    this.publicationTimer = setTimeout(
+      () => {
+        this.publicationTimer = undefined
+        if (!this.running) void this.sync(true, true)
+      },
+      Math.max(0, this.publicationDeadline() - Date.now()),
+    )
   }
 
   private check = () => {
@@ -418,6 +476,7 @@ export class DocumentSync {
   private async download(initial?: DriveFileVersion) {
     this.assertAccount()
     const epoch = ++this.accessEpoch
+    this.lastReconciledAt = Date.now()
     const remote = await readConceptFile(
       this.info.drive!.fileId,
       this.abort.signal,
@@ -435,10 +494,15 @@ export class DocumentSync {
     if (parsed.kind !== 'complete')
       throw new IncompleteAssetsError(parsed.missingAssets)
     const incoming = parsed.snapshot
-    await documentAssets(this.doc)?.importAssets(
-      incoming.assets,
-      this.abort.signal,
-    )
+    this.importingRemote = true
+    try {
+      await documentAssets(this.doc)?.importAssets(
+        incoming.assets,
+        this.abort.signal,
+      )
+    } finally {
+      this.importingRemote = false
+    }
     if (this.isStopped() || epoch !== this.accessEpoch) return
     this.assertAccount()
     // Canonicalize the remote snapshot separately: local edits must never become
@@ -456,9 +520,12 @@ export class DocumentSync {
         remoteName === previousName
           ? localName
           : remoteName
-      applyUpdate(this.doc, incoming.update)
+      applyUpdate(this.doc, incoming.update, realtimeOrigin)
       if (this.doc.getMap<string>('metadata').get('name') !== name) {
-        this.doc.getMap<string>('metadata').set('name', name)
+        this.doc.transact(
+          () => this.doc.getMap<string>('metadata').set('name', name),
+          realtimeOrigin,
+        )
         snapshot.getMap<string>('metadata').set('name', name)
       }
       this.acknowledged = await snapshotRevision({
@@ -474,6 +541,10 @@ export class DocumentSync {
       const generation = this.version
       this.dirty = await this.differsFrom(this.acknowledged)
       this.dirty ||= generation !== this.version
+      if (!this.dirty) {
+        this.localDirty = false
+        this.dirtySince = undefined
+      }
       const lastSyncedAt = this.dirty ? undefined : Date.now()
       const savedRevision = this.dirty ? undefined : this.acknowledged
       const info = await this.persistMetadata(
@@ -516,7 +587,7 @@ export class DocumentSync {
           this.access.kind === 'editor' &&
           this.info.drive?.accountId === getGoogleDriveAccountId() &&
           !this.info.drive?.quarantined,
-        onPublication: () => this.sync(true),
+        onPublication: this.publicationHint,
         onAccess: () => this.sync(true),
       })
       this.realtime.start()
@@ -577,17 +648,22 @@ export class DocumentSync {
     if (this.initialized) this.startRealtime()
   }
 
-  sync(checkRemote = false): Promise<void> {
+  sync(checkRemote = false, deferRemoteSave = false): Promise<void> {
     if (this.running) {
       if (checkRemote) this.reconcileAgain = true
       return this.running
     }
     if (this.stopped || !this.info.drive || (!this.dirty && !checkRemote))
       return Promise.resolve()
+    if (checkRemote) {
+      this.lastReconciledAt = Date.now()
+      clearTimeout(this.publicationTimer)
+      this.publicationTimer = undefined
+    }
     clearTimeout(this.idle)
     clearTimeout(this.deadline)
     this.deadline = undefined
-    this.running = this.run(checkRemote)
+    this.running = this.run(checkRemote, deferRemoteSave)
       .catch((error: unknown) => this.fail(error))
       .finally(() => {
         this.running = undefined
@@ -615,7 +691,7 @@ export class DocumentSync {
     )
   }
 
-  private async run(checkRemote: boolean) {
+  private async run(checkRemote: boolean, deferRemoteSave: boolean) {
     this.assertAccount()
     if (checkRemote || this.dirty || !this.etag) {
       const epoch = ++this.accessEpoch
@@ -636,6 +712,15 @@ export class DocumentSync {
         await this.download(current)
       }
     }
+    if (
+      deferRemoteSave &&
+      !this.localDirty &&
+      this.dirty &&
+      Date.now() < (this.dirtySince ?? Date.now()) + saveTiming.maxWaitMs
+    ) {
+      this.publishSyncState()
+      return
+    }
     for (
       let attempt = 0;
       this.dirty && !this.stopped && !this.isReadOnly;
@@ -645,6 +730,7 @@ export class DocumentSync {
         throw new Error('Drive keeps changing. Try syncing again.')
       this.publish('saving')
       await this.persistence.flush?.()
+      const localGeneration = this.localVersion
       let snapshot
       try {
         snapshot = await captureSnapshot(
@@ -704,6 +790,8 @@ export class DocumentSync {
         const generation = this.version
         this.dirty = await this.differsFrom(revision)
         this.dirty ||= generation !== this.version
+        if (localGeneration === this.localVersion) this.localDirty = false
+        this.dirtySince = this.dirty ? Date.now() : undefined
         this.retryCount = 0
         const lastSyncedAt = Date.now()
         const savedRevision = revision
@@ -833,6 +921,8 @@ export class DocumentSync {
   requestUrgentSave() {
     if (this.stopped || this.isReadOnly) return
     this.dirty = true
+    this.localDirty = true
+    this.dirtySince ??= Date.now()
     if (this.running) this.urgent = true
     else void this.sync()
   }
@@ -939,6 +1029,7 @@ export class DocumentSync {
     this.stopped = true
     this.abort.abort()
     this.realtime?.stop()
+    clearTimeout(this.publicationTimer)
     clearInterval(this.permissionTimer)
     clearTimeout(this.idle)
     clearTimeout(this.deadline)

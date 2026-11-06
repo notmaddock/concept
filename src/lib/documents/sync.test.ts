@@ -1,3 +1,6 @@
+import type * as RealtimeModule from '../realtime/client'
+import { RealtimeClient, realtimeOrigin } from '../realtime/client'
+import type { PublicationTransport } from './publication'
 import type * as DriveApi from './drive/api'
 import { assetRetryPolicy } from './limits'
 import {
@@ -28,6 +31,25 @@ import {
 } from './drive/api'
 import type { DriveCapabilities } from './drive/api'
 import type { DocumentInfo } from './storage'
+
+vi.mock('../realtime/client', async (importOriginal) => {
+  const original = await importOriginal<typeof RealtimeModule>()
+  return {
+    ...original,
+    RealtimeClient: vi.fn(
+      class {
+        constructor(
+          readonly options: ConstructorParameters<
+            typeof original.RealtimeClient
+          >[0],
+        ) {}
+        start() {}
+        stop() {}
+        publish() {}
+      },
+    ),
+  }
+})
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 
@@ -91,12 +113,17 @@ async function mergePackage(doc: Doc, content: Uint8Array) {
   applyUpdate(doc, result.snapshot.update)
 }
 
-async function start() {
-  session = new DocumentSync(info, local, {
-    whenSynced: Promise.resolve(),
-    flush,
-    destroy: async () => {},
-  })
+async function start(publication?: PublicationTransport) {
+  session = new DocumentSync(
+    info,
+    local,
+    {
+      whenSynced: Promise.resolve(),
+      flush,
+      destroy: async () => {},
+    },
+    publication,
+  )
   await session.start()
 }
 
@@ -1000,4 +1027,159 @@ it('never applies a downloaded package after the signed-in account changes', asy
   } finally {
     account.mockRestore()
   }
+})
+
+it('persists realtime edits locally without starting the local idle Drive save timer', async () => {
+  await start()
+  flush.mockClear()
+  local.transact(
+    () => local.getMap('settings').set('peer', true),
+    realtimeOrigin,
+  )
+  await vi.advanceTimersByTimeAsync(2999)
+  expect(flush).toHaveBeenCalled()
+  expect(info.drive?.dirty).toBe(true)
+  expect(write).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(1)
+  expect(metadata).not.toHaveBeenCalled()
+  expect(write).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(57_000)
+  await session.sync()
+  expect(write).toHaveBeenCalledOnce()
+  const saved = new Doc()
+  try {
+    await mergePackage(saved, write.mock.calls[0][2])
+    expect(saved.getMap('settings').get('peer')).toBe(true)
+  } finally {
+    saved.destroy()
+  }
+})
+
+it('keeps local idle saving independent from further realtime typing', async () => {
+  await start()
+  local.getMap('settings').set('local', true)
+  for (let second = 0; second < 3; second++) {
+    local.transact(
+      () => local.getMap('settings').set('peer', second),
+      realtimeOrigin,
+    )
+    await vi.advanceTimersByTimeAsync(1000)
+  }
+  await session.sync()
+  expect(write).toHaveBeenCalledOnce()
+})
+
+it('coalesces websocket and local publication hints without republishing remote-only changes', async () => {
+  const listeners = new Set<Parameters<PublicationTransport['subscribe']>[0]>()
+  await start({
+    publish: vi.fn(),
+    close: vi.fn(),
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+  })
+  const options = vi.mocked(RealtimeClient).mock.calls[0][0]
+  const published = version('"published"')
+  const notify = () => {
+    options.onPublication()
+    for (const listener of listeners)
+      listener({
+        protocol: 1,
+        storage: 'google-drive',
+        fileId: info.drive!.fileId,
+        validator: published.etag,
+        revision: 'a'.repeat(64),
+      })
+  }
+  local.transact(
+    () => local.getMap('settings').set('peer', true),
+    realtimeOrigin,
+  )
+  for (let second = 0; second < 29; second++) {
+    notify()
+    await vi.advanceTimersByTimeAsync(1000)
+  }
+  expect(metadata).not.toHaveBeenCalled()
+  expect(read).toHaveBeenCalledOnce()
+  expect(write).not.toHaveBeenCalled()
+  metadata.mockResolvedValue(published)
+  read.mockResolvedValue({ ...published, content: legacyBytes('Test', remote) })
+  notify()
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(metadata).toHaveBeenCalledOnce()
+  expect(read).toHaveBeenCalledTimes(2)
+  expect(write).not.toHaveBeenCalled()
+  // A publication containing an already observed validator adds no HTTP work.
+  for (const listener of listeners)
+    listener({
+      protocol: 1,
+      storage: 'google-drive',
+      fileId: info.drive!.fileId,
+      validator: published.etag,
+      revision: 'a'.repeat(64),
+    })
+  await vi.advanceTimersByTimeAsync(5000)
+  expect(metadata).toHaveBeenCalledOnce()
+  expect(write).not.toHaveBeenCalled()
+})
+
+it('does not turn downloaded asset imports into urgent Drive publications or realtime echoes', async () => {
+  await start()
+  const imported = await assetRecord('new package asset')
+  const origins: unknown[] = []
+  local.on('update', (_update, origin) => origins.push(origin))
+  remote.getMap('settings').set('published', true)
+  metadata.mockResolvedValue(version('"published"'))
+  read.mockResolvedValue({
+    ...version('"published"'),
+    content: await packageBytes(remote, [imported]),
+  })
+  await session.sync(true)
+  await vi.advanceTimersByTimeAsync(5000)
+  expect(write).not.toHaveBeenCalled()
+  expect(metadata).toHaveBeenCalledOnce()
+  expect(origins.length).toBeGreaterThan(0)
+  expect(origins.every((origin) => origin === realtimeOrigin)).toBe(true)
+  expect(records.has(imported.descriptor.id)).toBe(true)
+})
+
+it('keeps a bounded fallback deadline while realtime typing and publication hints continue', async () => {
+  await start()
+  const options = vi.mocked(RealtimeClient).mock.calls[0][0]
+  for (let second = 0; second < 60; second++) {
+    local.transact(
+      () => local.getMap('settings').set('peer', second),
+      realtimeOrigin,
+    )
+    options.onPublication()
+    await vi.advanceTimersByTimeAsync(1000)
+    if (second < 59) expect(write).not.toHaveBeenCalled()
+  }
+  await session.sync()
+  expect(write).toHaveBeenCalledOnce()
+  expect(metadata).toHaveBeenCalledTimes(2)
+})
+
+it('checks an image publication sooner while preserving the no-upload watcher policy', async () => {
+  await start()
+  const asset = await assetRecord('image published by peer')
+  local.transact(() => referenceAsset(asset), realtimeOrigin)
+  await vi.advanceTimersByTimeAsync(0)
+  const published = version('"with-image"')
+  metadata.mockResolvedValue(published)
+  read.mockResolvedValue({
+    ...published,
+    content: await packageBytes(remote, [asset]),
+  })
+  vi.mocked(RealtimeClient).mock.calls[0][0].onPublication()
+  await vi.advanceTimersByTimeAsync(4999)
+  expect(metadata).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(1)
+  expect(metadata).toHaveBeenCalledOnce()
+  await session.sync()
+  expect(records.has(asset.descriptor.id)).toBe(true)
+  expect(write).not.toHaveBeenCalled()
 })
