@@ -191,10 +191,11 @@ it('owns transferred bytes before inserting the entire selected tree into a boun
       nodes,
       assets: { [id]: await imageDataUrl(blob) },
     })
+    let clipboardFiles: File[] = []
     class PasteEvent extends Event {
       clipboardData = {
         getData: (type: string) => (type === 'text/html' ? html : ''),
-        files: [],
+        files: clipboardFiles,
       }
     }
     vi.stubGlobal('ClipboardEvent', PasteEvent)
@@ -312,6 +313,36 @@ it('owns transferred bytes before inserting the entire selected tree into a boun
     })
     expect(requestSave).not.toHaveBeenCalled()
     expect(editor.getEditorState().toJSON()).toEqual(before)
+    html =
+      '<p>Before sticker</p><img src="blob:https://web.whatsapp.com/sticker" alt="Sticker"><p>After sticker</p>'
+    clipboardFiles = [new File([blob], 'sticker.png', { type: 'image/png' })]
+    await act(async () => {
+      editor.dispatchCommand(
+        PASTE_COMMAND,
+        new PasteEvent('paste', {
+          cancelable: true,
+        }) as unknown as ClipboardEvent,
+      )
+      await vi.waitFor(() => expect(requestSave).toHaveBeenCalledOnce(), {
+        timeout: 3000,
+        interval: 10,
+      })
+    })
+    expect(
+      editor
+        .getEditorState()
+        .toJSON()
+        .root.children.map((node) => node.type),
+    ).toEqual(['paragraph', 'image', 'paragraph'])
+    const pastedText = editor
+      .getEditorState()
+      .read(() => $getRoot().getTextContent())
+    expect(pastedText).toContain('Before sticker')
+    expect(pastedText).toContain('After sticker')
+    expect(editor.getEditorState().toJSON().root.children[1]).toMatchObject({
+      source: { assetId: id },
+      altText: 'Sticker',
+    })
   } finally {
     resolver.close()
     stop()

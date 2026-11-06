@@ -247,6 +247,9 @@ importers:
       cn:
         specifier: ^0.5.2
         version: 0.5.2
+      dompurify:
+        specifier: ^3.4.17
+        version: 3.4.17
       fflate:
         specifier: ^0.8.3
         version: 0.8.3

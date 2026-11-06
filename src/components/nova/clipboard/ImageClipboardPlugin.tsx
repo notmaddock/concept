@@ -217,6 +217,7 @@ export function ImageClipboardPlugin() {
           }
           const bookmark = captureImageBookmark(editor)
           if (!bookmark) return false
+          const clipboardFiles = [...event.clipboardData.files]
           event.preventDefault()
           const paste = async () => {
             const document = sanitizedHtml(html)
@@ -279,7 +280,11 @@ export function ImageClipboardPlugin() {
                   )
               }
             } else {
-              const prepared = await prepareHtmlImages(document, media.signal)
+              const prepared = await prepareHtmlImages(
+                document,
+                media.signal,
+                clipboardFiles,
+              )
               unsupported = prepared.unsupported
               blobs.push(...prepared.images.map((image) => image.blob))
               commit = () => {

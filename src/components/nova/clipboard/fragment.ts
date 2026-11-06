@@ -63,7 +63,10 @@ export class UnsupportedFragmentVersionError extends Error {
 export function parseImageFragment(value: string): ImageFragment {
   if (value.length > imageTransferLimits.bytes * 1.5)
     throw new Error('Clipboard content is too large.')
-  const fragment = JSON.parse(value) as Partial<ImageFragment>
+  const parsed: unknown = JSON.parse(value)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    throw new Error('Invalid Concept clipboard format.')
+  const fragment = parsed as Partial<ImageFragment>
   if (
     !Array.isArray(fragment.nodes) ||
     !fragment.assets ||

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   fragmentHtml,
   fragmentReferences,
@@ -106,19 +106,35 @@ it('keeps surrounding HTML content without fetching external images and rejects 
   await expect(prepareHtmlImages(excess)).rejects.toThrow('Too many')
 })
 
-it('parses untrusted HTML inside a template before giving it a document owner', async () => {
+it('removes network attributes and unsafe styles while preserving typography', async () => {
   const { sanitizedHtml } = await import('./html')
-  const parser = vi.spyOn(DOMParser.prototype, 'parseFromString')
-  try {
-    const html = sanitizedHtml(
-      '<img src="https://private.example/image.png" srcset="https://private.example/large.png 2x"><video poster="https://private.example/poster.png"></video><p style="background-image:url(https://private.example/background.png)">Text</p>',
-    )
-    expect(parser).not.toHaveBeenCalled()
-    expect(html.querySelector('[src],[srcset],[poster],[style]')).toBeNull()
-    expect(html.body.textContent).toBe('Text')
-  } finally {
-    parser.mockRestore()
-  }
+  const html = sanitizedHtml(
+    '<img src="https://private.example/image.png" srcset="https://private.example/large.png 2x"><video poster="https://private.example/poster.png"></video><p style="background-image:url(https://private.example/background.png)">Text</p><span style="color: red; font-weight: bold; position: fixed">Formatted</span>',
+  )
+  expect(html.querySelector('[src],[srcset],[poster]')).toBeNull()
+  expect(html.querySelector('p')!.hasAttribute('style')).toBe(false)
+  expect(html.querySelector('span')!.style.color).toBe('red')
+  expect(html.querySelector('span')!.style.fontWeight).toBe('bold')
+  expect(html.querySelector('span')!.style.position).toBe('')
+  expect(html.body.textContent).toBe('TextFormatted')
+})
+
+it('sanitizes executable markup and URL schemes without reinterpreting encoded text', async () => {
+  const { sanitizedHtml } = await import('./html')
+  const html = sanitizedHtml(
+    '<p>&lt;img src=x onerror=alert(1)&gt;</p><a href="javascript:alert(1)">Unsafe</a><a href="https://example.com">Safe</a><svg><a onload="alert(1)">bad</a></svg><img src="data:image/png;base64,iVBORw0KGgo=" onerror="alert(1)"><form id="attributes"><input name="children"></form>',
+  )
+  expect(html.querySelector('p')!.textContent).toBe(
+    '<img src=x onerror=alert(1)>',
+  )
+  expect(html.querySelectorAll('img')).toHaveLength(1)
+  expect(
+    html.querySelector('[onerror],svg,[href^="javascript:"],#attributes'),
+  ).toBeNull()
+  expect(html.querySelector('a[href="https://example.com"]')).not.toBeNull()
+  expect(
+    html.querySelector('img')!.getAttribute('data-concept-input-src'),
+  ).toBe('data:image/png;base64,iVBORw0KGgo=')
 })
 
 it('distinguishes a bounded future Concept fragment from malformed content', async () => {
@@ -142,4 +158,11 @@ it('distinguishes a bounded future Concept fragment from malformed content', asy
       }),
     ),
   ).toThrow('Invalid')
+})
+
+it('rejects non-object clipboard records with a format error', () => {
+  for (const value of ['null', 'false', '12', '"string"', '[]'])
+    expect(() => parseImageFragment(value)).toThrow(
+      'Invalid Concept clipboard format',
+    )
 })
