@@ -1234,3 +1234,18 @@ it('registers an authenticated publisher independently of realtime and tolerates
     connected.mockRestore()
   }
 })
+
+it('stops scheduled reconciliation and remote-save fallback after confirmed access loss', async () => {
+  await start()
+  local.transact(
+    () => local.getMap('settings').set('peer', true),
+    realtimeOrigin,
+  )
+  metadata.mockRejectedValue(new DriveError(404, 'Access unavailable'))
+  await session.sync(true)
+  await vi.advanceTimersByTimeAsync(60_000)
+  await session.sync(true)
+  expect(metadata).toHaveBeenCalledOnce()
+  expect(write).not.toHaveBeenCalled()
+  expect(session.access.kind).toBe('unavailable')
+})

@@ -677,7 +677,12 @@ export class DocumentSync {
       if (checkRemote) this.reconcileAgain = true
       return this.running
     }
-    if (this.stopped || !this.info.drive || (!this.dirty && !checkRemote))
+    if (
+      this.stopped ||
+      this.access.kind === 'unavailable' ||
+      !this.info.drive ||
+      (!this.dirty && !checkRemote)
+    )
       return Promise.resolve()
     if (checkRemote) {
       this.lastReconciledAt = Date.now()
@@ -864,6 +869,7 @@ export class DocumentSync {
         this.urgent = false
         clearTimeout(this.idle)
         clearTimeout(this.deadline)
+        clearTimeout(this.publicationTimer)
         this.realtime?.stop()
         this.assets?.close()
       } else if (this.access.kind !== 'unavailable') {
