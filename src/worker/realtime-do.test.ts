@@ -50,6 +50,7 @@ function createState() {
       },
     },
     acceptWebSocket: (ws: FakeWebSocket) => {
+      ws.accepted = true
       sockets.add(ws)
     },
     getWebSockets: () => [...sockets],
@@ -73,6 +74,7 @@ function createState() {
 
 class FakeWebSocket {
   private attachment: unknown = null
+  accepted = false
   sent: Array<string | Uint8Array> = []
   closed?: { code?: number; reason?: string }
   send(data: string | Uint8Array) {
@@ -82,6 +84,12 @@ class FakeWebSocket {
     this.closed = { code, reason }
   }
   serializeAttachment(value: unknown) {
+    // The runtime only allows attachments on an accepted socket; without this
+    // guard the ordering bug that broke the preview deploy would pass here.
+    if (!this.accepted)
+      throw new TypeError(
+        'serializeAttachment called on a WebSocket that was not accepted',
+      )
     this.attachment = value
   }
   deserializeAttachment() {
@@ -195,20 +203,23 @@ describe('DocumentRealtimeDO hibernation', () => {
     expect(harness.alarmAt()).toBe(armed)
   })
 
-  it('accepts the socket only after admission so no message is dropped', async () => {
+  it('buffers messages that arrive before the attachment is written', async () => {
     const harness = createState()
     const doInstance = createDo(harness)
-    const attachedOnAccept: unknown[] = []
+    let earlyFrame: string | undefined
     const accept = harness.state.acceptWebSocket
     harness.state.acceptWebSocket = (ws: FakeWebSocket) => {
-      // Messages can be delivered as soon as the socket is attached, so the
-      // attachment must already be in place at this point.
-      attachedOnAccept.push(ws.deserializeAttachment())
       accept(ws)
+      // Simulate the runtime delivering a frame in the window between accept
+      // and serializeAttachment, where no attachment exists yet.
+      earlyFrame = encodeControlMessage({ type: 'publication' })
+      void doInstance.webSocketMessage(ws as never, earlyFrame)
     }
     await doInstance.fetch(upgradeRequest(await ticketFor('u1', editorCaps)))
-    expect(attachedOnAccept).toHaveLength(1)
-    expect(attachedOnAccept[0]).toMatchObject({ userId: 'u1' })
+    const [socket] = harness.sockets
+    // The frame is replayed once the attachment lands rather than dropped.
+    expect(socket.deserializeAttachment()).toMatchObject({ userId: 'u1' })
+    expect(harness.values.get('lastActiveAt')).toBeDefined()
   })
 
   it('does not attach a socket whose ticket was rejected', async () => {

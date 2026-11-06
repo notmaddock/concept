@@ -53,6 +53,11 @@ function isPublication(data: string): boolean {
 export class DocumentRealtimeDO extends DurableObject {
   private readonly fileId: string
   private readonly createRoom: () => DocumentRoom
+  /** Frames that arrived before the socket's attachment was written. */
+  private readonly pendingFrames = new Map<
+    WorkersWebSocket,
+    Array<string | ArrayBuffer>
+  >()
 
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env)
@@ -100,21 +105,29 @@ export class DocumentRealtimeDO extends DurableObject {
         webSocket: client,
       } as unknown as ResponseInit)
 
-    // Write the attachment before accepting: the runtime may deliver messages
-    // to webSocketMessage as soon as the socket is attached, and that handler
-    // reads this to rebuild the client.
+    // acceptWebSocket must run before serializeAttachment: attachments only
+    // exist on an accepted socket. Accepting first means a message can arrive
+    // before the attachment is written, so webSocketMessage tolerates a
+    // missing attachment instead of dropping the frame.
+    this.ctx.acceptWebSocket(server, [socketTag])
     const admittedClient = room.client(adapterId)
-    if (!admittedClient)
+    if (!admittedClient) {
+      server.close(1011, 'admission lost')
       return new Response(null, {
         status: 101,
         webSocket: client,
       } as unknown as ResponseInit)
+    }
     server.serializeAttachment({
       adapterId,
       userId: admittedClient.userId,
       capabilities: admittedClient.capabilities,
     } satisfies SocketAttachment)
-    this.ctx.acceptWebSocket(server, [socketTag])
+    await this.flushPendingFrames(server, {
+      adapterId,
+      userId: admittedClient.userId,
+      capabilities: admittedClient.capabilities,
+    })
     await this.markActive()
     await this.armRevalidation()
     return new Response(null, {
@@ -128,7 +141,16 @@ export class DocumentRealtimeDO extends DurableObject {
     message: string | ArrayBuffer,
   ): Promise<void> {
     const attachment = ws.deserializeAttachment()
-    if (!isAttachment(attachment)) return
+    // Messages can arrive between acceptWebSocket and serializeAttachment.
+    // Dropping them would lose the client's opening sync step, so hold the
+    // frame until the attachment lands.
+    if (!isAttachment(attachment)) {
+      this.pendingFrames.set(ws, [
+        ...(this.pendingFrames.get(ws) ?? []),
+        message,
+      ])
+      return
+    }
     const room = this.createRoom()
     room.restore(ws, attachment)
     const data = typeof message === 'string' ? message : new Uint8Array(message)
@@ -166,9 +188,27 @@ export class DocumentRealtimeDO extends DurableObject {
     await this.armRevalidation()
   }
 
+  /** Replays frames held while the socket had no attachment yet. */
+  private async flushPendingFrames(
+    ws: WorkersWebSocket,
+    attachment: SocketAttachment,
+  ): Promise<void> {
+    const frames = this.pendingFrames.get(ws)
+    if (!frames) return
+    this.pendingFrames.delete(ws)
+    const room = this.createRoom()
+    room.restore(ws, attachment)
+    for (const frame of frames)
+      room.receive(
+        attachment.adapterId,
+        typeof frame === 'string' ? frame : new Uint8Array(frame),
+      )
+  }
+
   private async forget(ws: WorkersWebSocket): Promise<void> {
     // getWebSockets can still return a socket that is mid-close, so drop its
     // attachment to keep it from being rebuilt as a live client.
+    this.pendingFrames.delete(ws)
     ws.serializeAttachment(null)
     if (this.ctx.getWebSockets(socketTag).length === 0)
       await this.ctx.storage.deleteAlarm()
