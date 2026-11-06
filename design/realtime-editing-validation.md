@@ -4,9 +4,10 @@ Run the automated repository checks with `pnpm run validate`. The relay stores a
 
 ## Implementation verification
 
-- `pnpm run validate` passed: formatting, generated routes and bindings, lint, typechecking, 453 tests, and production build.
+- `pnpm run validate` covers formatting, generated routes and bindings, lint, typechecking, the full automated test suite, and the production build.
 - A local Workers runtime smoke check delivered a Yjs update between two actual relay sockets and rejected a forged viewer mutation with close code 4002.
 - Account cache migration retains previous bytes in a separate recovery entry before replacing the canonical cache after a fresh authorized Drive read. Other tabs holding the old cache must close before migration can proceed.
+- The anonymous HTTP routes were exercised in the local Workers runtime: unregistered files return 404, unauthenticated publisher registration returns 401, and cross-origin publication returns 403.
 - Live two-account Drive checks, provider permission propagation, and latency/cost measurements remain pending on the PR preview.
 
 ## Two-account preview checks
