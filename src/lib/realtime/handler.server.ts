@@ -1,4 +1,9 @@
 import {
+  anonymousIdentity,
+  publicRealtimeGrant,
+  registerPublicPublisher,
+} from '#/lib/documents/drive/public.server'
+import {
   AccessFailure,
   checkDriveAccess,
   getIdentity,
@@ -10,7 +15,7 @@ export async function handleRealtime(
   bindings: Cloudflare.Env,
 ): Promise<Response> {
   const url = new URL(request.url)
-  const headers = { 'Cache-Control': 'no-store', Vary: 'Cookie' }
+  const headers = new Headers({ 'Cache-Control': 'no-store', Vary: 'Cookie' })
   let room:
     ReturnType<Cloudflare.Env['REALTIME_ROOMS']['getByName']> | undefined
   let userId: string | undefined
@@ -25,11 +30,43 @@ export async function handleRealtime(
     if (request.headers.get('Origin') !== url.origin)
       throw new AccessFailure(403)
     const resource = parseResource(url)
-    const identity = await getIdentity(request, bindings)
-    userId = identity.userId
+    let identity: Awaited<ReturnType<typeof getIdentity>> | undefined
+    try {
+      identity = await getIdentity(request, bindings)
+    } catch (error) {
+      if (!(error instanceof AccessFailure && error.status === 401)) throw error
+    }
+    userId =
+      identity?.userId ?? (await anonymousIdentity(request, bindings, headers))
     room = bindings.REALTIME_ROOMS.getByName(`google-drive:${resource.fileId}`)
     epoch = await room.beginAuthorization(userId)
-    const grant = await checkDriveAccess(request, identity, resource)
+    let grant
+    if (identity) {
+      try {
+        grant = await checkDriveAccess(request, identity, resource)
+      } catch (error) {
+        if (!(
+          error instanceof AccessFailure && [401, 404].includes(error.status)
+        ))
+          throw error
+      }
+    }
+    grant ??= await publicRealtimeGrant(
+      request,
+      bindings,
+      resource,
+      userId,
+      identity?.accountId,
+    )
+    if (identity && !grant.readOnly && !grant.publicAccess) {
+      // Registration is optional for ordinary private documents. Only a fresh
+      // public writer check can create the delegated publisher relationship.
+      try {
+        await registerPublicPublisher(request, bindings, resource)
+      } catch {
+        /* Private files and unavailable sharing metadata do not disable personal access. */
+      }
+    }
     if (!(await room.finishAuthorization(userId, epoch, grant)))
       throw new AccessFailure(409)
     if (url.pathname.endsWith('/access')) {
@@ -52,7 +89,7 @@ export async function handleRealtime(
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
       throw new AccessFailure(426)
     // WebSocket responses cross fetch bindings, but are not RPC-serializable.
-    return await room.fetch(
+    const upgrade = await room.fetch(
       new Request('https://room.internal/', {
         headers: {
           Upgrade: 'websocket',
@@ -61,10 +98,18 @@ export async function handleRealtime(
         },
       }),
     )
+    for (const cookie of headers.getSetCookie())
+      upgrade.headers.append('Set-Cookie', cookie)
+    return upgrade
   } catch (error) {
-    if (room && userId && epoch !== undefined)
-      await room.finishAuthorization(userId, epoch, null)
     const status = error instanceof AccessFailure ? error.status : 503
+    if (
+      room &&
+      userId &&
+      epoch !== undefined &&
+      [401, 403, 404].includes(status)
+    )
+      await room.finishAuthorization(userId, epoch, null)
     return Response.json(
       {
         error:

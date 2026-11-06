@@ -79,6 +79,49 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
     return true
   }
 
+  invalidateAnonymousGrants(writersOnly = false) {
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = socket.deserializeAttachment() as Attachment
+      if (!attachment.publicAccess || (writersOnly && attachment.readOnly))
+        continue
+      socket.serializeAttachment({ ...attachment, expiresAt: 0 })
+      this.assemblers.delete(socket)
+      socket.close(4003, 'Public access changed; revalidate')
+    }
+  }
+
+  async permitPublicHttp(userId: string, write: boolean): Promise<boolean> {
+    return this.ctx.storage.transaction(async (storage) => {
+      const now = Date.now()
+      const saved = await storage.get<{
+        startedAt: number
+        total: number
+        writes: number
+        users: Record<string, { total: number; writes: number }>
+      }>('public-quota')
+      const window =
+        saved && saved.startedAt + 60_000 > now
+          ? saved
+          : { startedAt: now, total: 0, writes: 0, users: {} }
+      const user = window.users[userId] ?? { total: 0, writes: 0 }
+      if (
+        window.total >= 240 ||
+        user.total >= 60 ||
+        (write && (window.writes >= 24 || user.writes >= 12))
+      )
+        return false
+      window.total++
+      user.total++
+      if (write) {
+        window.writes++
+        user.writes++
+      }
+      window.users[userId] = user
+      await storage.put('public-quota', window)
+      return true
+    })
+  }
+
   async renewGrant(
     userId: string,
     connectionId: string,

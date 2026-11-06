@@ -1,0 +1,369 @@
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import {
+  authorizePublic,
+  handlePublicDrive,
+  publicRealtimeGrant,
+} from './public.server'
+import { packageLimits } from '../limits'
+
+const auth = vi.hoisted(() => ({
+  getSession: vi.fn(),
+  listUserAccounts: vi.fn(),
+  getAccessToken: vi.fn(),
+}))
+vi.mock('#/lib/auth.server', () => ({ createAuth: () => ({ api: auth }) }))
+const origin = 'https://concept.example'
+const publisher = {
+  fileId: 'file',
+  userId: 'stored-publisher',
+  accountId: 'stored-account-row',
+  resourceKey: null as string | null,
+}
+const execute = vi.fn()
+const first = vi.fn()
+const all = vi.fn()
+const invalidateAnonymousGrants = vi.fn()
+const permitPublicHttp = vi.fn()
+const bind = vi.fn()
+const bindings = Object.assign({} as Cloudflare.Env, {
+  BETTER_AUTH_SECRET: 'private-signing-key',
+  DB: {
+    prepare: vi.fn(() => ({ bind })),
+    batch: vi.fn(async () => {
+      await execute()
+    }),
+  },
+  REALTIME_ROOMS: {
+    getByName: () => ({ invalidateAnonymousGrants, permitPublicHttp }),
+  },
+})
+let publicRole: string | undefined
+let downloadRestricted = false
+let currentResourceKey: string | undefined
+let uploaded: string | undefined
+const oldPackageLimit = packageLimits.packageBytes
+
+function request(path = 'metadata', init: RequestInit = {}, query = '') {
+  return new Request(`${origin}/api/public-drive/${path}?fileId=file${query}`, {
+    ...init,
+    headers: { Origin: origin, ...init.headers },
+  })
+}
+beforeEach(() => {
+  vi.clearAllMocks()
+  publicRole = 'writer'
+  currentResourceKey = undefined
+  downloadRestricted = false
+  uploaded = undefined
+  publisher.resourceKey = null
+  first.mockResolvedValue(publisher)
+  bind.mockReturnValue({ first, run: execute, all })
+  all.mockResolvedValue({ results: [{ fileId: 'file' }] })
+  permitPublicHttp.mockResolvedValue(true)
+  auth.getSession.mockResolvedValue({ user: { id: 'signed-user' } })
+  auth.listUserAccounts.mockResolvedValue([
+    {
+      providerId: 'google',
+      id: 'signed-account-row',
+      accountId: 'google-id',
+      scopes: ['https://www.googleapis.com/auth/drive.file'],
+    },
+  ])
+  auth.getAccessToken.mockResolvedValue({
+    accessToken: 'private-publisher-token',
+  })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
+      const url = new URL(String(input))
+      if (url.pathname.endsWith('/permissions'))
+        return Response.json({
+          permissions: publicRole
+            ? [{ type: 'anyone', role: publicRole }]
+            : [{ type: 'user', role: 'owner' }],
+        })
+      if (url.pathname.startsWith('/upload/')) {
+        uploaded = await new Response(init?.body).text()
+        return Response.json({
+          id: 'file',
+          title: 'example.concept',
+          mimeType: 'application/vnd.concept+zip',
+          etag: '"new"',
+        })
+      }
+      if (url.pathname.includes('/v2/'))
+        return Response.json({
+          id: 'file',
+          title: 'example.concept',
+          mimeType: 'application/vnd.concept+zip',
+          etag: '"old"',
+          capabilities: { canEdit: true },
+        })
+      if (url.searchParams.get('alt') === 'media')
+        return new Response('PK package bytes')
+      return Response.json({
+        id: 'file',
+        mimeType: 'application/vnd.concept+zip',
+        resourceKey: currentResourceKey,
+        linkShareMetadata: {
+          securityUpdateEnabled: Boolean(currentResourceKey),
+        },
+        capabilities: {
+          canDownload: true,
+          canEdit: true,
+          canModifyContent: true,
+        },
+        downloadRestrictions: {
+          effectiveDownloadRestrictionWithContext: {
+            restrictedForWriters: downloadRestricted,
+          },
+        },
+      })
+    }),
+  )
+})
+afterEach(() => {
+  packageLimits.packageBytes = oldPackageLimit
+  vi.unstubAllGlobals()
+})
+
+it('uses only registered publisher credentials and never returns them to visitors', async () => {
+  const response = await handlePublicDrive(request(), bindings)
+  expect(response.status).toBe(200)
+  expect(await response.json()).toMatchObject({
+    etag: '"old"',
+    capabilities: { canEdit: true, canDownload: true },
+  })
+  expect(auth.getAccessToken).toHaveBeenCalledWith({
+    body: { userId: 'stored-publisher', accountId: 'stored-account-row' },
+  })
+  expect(auth.getSession).not.toHaveBeenCalled()
+  expect(response.headers.get('Set-Cookie')).toContain(
+    'HttpOnly; Secure; SameSite=Lax',
+  )
+  expect(response.headers.get('Set-Cookie')).not.toContain(
+    'private-publisher-token',
+  )
+})
+
+it('requires current public permission and download policy despite publisher write access', async () => {
+  publicRole = undefined
+  expect((await handlePublicDrive(request(), bindings)).status).toBe(404)
+  expect(invalidateAnonymousGrants).toHaveBeenCalled()
+  publicRole = 'writer'
+  downloadRestricted = true
+  expect((await handlePublicDrive(request(), bindings)).status).toBe(403)
+})
+
+it('checks current resource keys without allowing guesses to disconnect collaborators', async () => {
+  publisher.resourceKey = 'old-link-key'
+  currentResourceKey = 'rotated-key'
+  const wrong = await handlePublicDrive(request(), bindings)
+  expect(wrong.status).toBe(404)
+  expect(invalidateAnonymousGrants).not.toHaveBeenCalled()
+  const valid = await handlePublicDrive(
+    request('metadata', {}, '&resourceKey=rotated-key'),
+    bindings,
+  )
+  expect(valid.status).toBe(200)
+  first.mockResolvedValue(null)
+  auth.getAccessToken.mockClear()
+  await expect(
+    authorizePublic(request(), bindings, { fileId: 'file' }),
+  ).rejects.toMatchObject({ status: 404 })
+  expect(auth.getAccessToken).not.toHaveBeenCalled()
+})
+
+it('keeps viewers read-only when their delegated publisher remains an editor', async () => {
+  publicRole = 'reader'
+  const response = await handlePublicDrive(request(), bindings)
+  expect(await response.json()).toMatchObject({
+    capabilities: {
+      canEdit: false,
+      canModifyContent: false,
+      canDownload: true,
+    },
+  })
+  const save = await handlePublicDrive(
+    request(
+      'content',
+      { method: 'PUT', body: 'PK data', headers: { 'If-Match': '"old"' } },
+      '&filename=example.concept',
+    ),
+    bindings,
+  )
+  expect(save.status).toBe(403)
+  expect(uploaded).toBeUndefined()
+})
+
+it('conditionally publishes bounded media with safe server-built metadata', async () => {
+  const response = await handlePublicDrive(
+    request(
+      'content',
+      {
+        method: 'PUT',
+        body: 'PK complete package',
+        headers: { 'If-Match': '"old"' },
+      },
+      '&filename=example.concept',
+    ),
+    bindings,
+  )
+  expect(response.status).toBe(200)
+  expect(uploaded).toContain('PK complete package')
+  expect(uploaded).toContain('"title":"example.concept"')
+  expect(uploaded).not.toContain('private-publisher-token')
+  const uploadCall = vi
+    .mocked(fetch)
+    .mock.calls.find(([url]) => String(url).includes('/upload/'))!
+  expect(new Headers(uploadCall[1]?.headers).get('If-Match')).toBe('"old"')
+  expect(
+    vi
+      .mocked(fetch)
+      .mock.calls.filter(([url]) => String(url).includes('/permissions')),
+  ).toHaveLength(2)
+})
+
+it('rejects missing validators, cross-origin writes and oversized streamed bodies', async () => {
+  expect(
+    (
+      await handlePublicDrive(
+        request(
+          'content',
+          { method: 'PUT', body: 'PK data' },
+          '&filename=example.concept',
+        ),
+        bindings,
+      )
+    ).status,
+  ).toBe(428)
+  expect(
+    (
+      await handlePublicDrive(
+        request('content', {
+          method: 'PUT',
+          body: 'PK data',
+          headers: { Origin: 'https://attacker.example' },
+        }),
+        bindings,
+      )
+    ).status,
+  ).toBe(403)
+  packageLimits.packageBytes = 3
+  expect(
+    (
+      await handlePublicDrive(
+        request(
+          'content',
+          {
+            method: 'PUT',
+            body: 'PK too large',
+            headers: { 'If-Match': '"old"' },
+          },
+          '&filename=example.concept',
+        ),
+        bindings,
+      )
+    ).status,
+  ).toBe(413)
+})
+
+it('registers only the requesting signed-in account after a fresh public writer check', async () => {
+  const response = await handlePublicDrive(
+    request('register', { method: 'POST' }),
+    bindings,
+  )
+  expect(response.status).toBe(200)
+  expect(bind).toHaveBeenCalledWith(
+    'file',
+    'signed-user',
+    'signed-account-row',
+    null,
+    expect.any(Number),
+    'signed-user',
+    0,
+  )
+  publicRole = 'reader'
+  expect(
+    (await handlePublicDrive(request('register', { method: 'POST' }), bindings))
+      .status,
+  ).toBe(403)
+  expect(execute).toHaveBeenCalledTimes(1)
+})
+
+it('issues public room grants for anonymous identities and bounds public HTTP quota', async () => {
+  const grant = await publicRealtimeGrant(
+    request(),
+    bindings,
+    { fileId: 'file' },
+    'anonymous:visitor',
+  )
+  expect(grant).toMatchObject({
+    userId: 'anonymous:visitor',
+    accountId: 'anonymous:visitor',
+    publicAccess: true,
+    readOnly: false,
+  })
+  expect(JSON.stringify(grant)).not.toContain('private-publisher-token')
+  permitPublicHttp.mockResolvedValue(false)
+  expect((await handlePublicDrive(request(), bindings)).status).toBe(429)
+})
+
+it('withdraws exact-account publisher registrations before disconnecting visitors', async () => {
+  const response = await handlePublicDrive(
+    new Request(`${origin}/api/public-drive/disconnect`, {
+      method: 'POST',
+      headers: { Origin: origin },
+    }),
+    bindings,
+  )
+  expect(response.status).toBe(200)
+  expect(bind).toHaveBeenCalledWith('signed-user')
+  expect(execute).toHaveBeenCalledTimes(1)
+  expect(invalidateAnonymousGrants).toHaveBeenCalledTimes(1)
+})
+
+it('requires a live app session before withdrawing publishers', async () => {
+  auth.getSession.mockResolvedValue(null)
+  const response = await handlePublicDrive(
+    new Request(`${origin}/api/public-drive/disconnect`, {
+      method: 'POST',
+      headers: { Origin: origin },
+    }),
+    bindings,
+  )
+  expect(response.status).toBe(401)
+  expect(execute).not.toHaveBeenCalled()
+  expect(invalidateAnonymousGrants).not.toHaveBeenCalled()
+})
+
+it('rechecks public write permission immediately before uploading queued edits', async () => {
+  const originalFetch = vi.mocked(fetch).getMockImplementation()!
+  let checks = 0
+  vi.mocked(fetch).mockImplementation(async (input, init) => {
+    if (String(input).includes('/permissions')) {
+      checks++
+      return Response.json({
+        permissions: [
+          { type: 'anyone', role: checks === 1 ? 'writer' : 'reader' },
+        ],
+      })
+    }
+    return originalFetch(input, init)
+  })
+  const response = await handlePublicDrive(
+    request(
+      'content',
+      {
+        method: 'PUT',
+        body: 'PK queued edits',
+        headers: { 'If-Match': '"old"' },
+      },
+      '&filename=example.concept',
+    ),
+    bindings,
+  )
+  expect(response.status).toBe(403)
+  expect(uploaded).toBeUndefined()
+  expect(invalidateAnonymousGrants).toHaveBeenCalledWith(true)
+})
