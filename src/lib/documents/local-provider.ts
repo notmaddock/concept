@@ -9,6 +9,7 @@ import type { Doc } from 'yjs'
 import type { Provider } from '@lexical/yjs'
 import type { DocumentPersistence } from './storage'
 import { documentSessions } from './sync'
+import { realtimeOrigin } from '../realtime/client'
 
 type Message =
   | { type: 'request'; vector: Uint8Array }
@@ -76,7 +77,7 @@ export class LocalProvider
   }
 
   private onDocumentUpdate = (update: Uint8Array, origin: unknown) => {
-    if (origin !== this && this.canWrite())
+    if (origin !== this && origin !== realtimeOrigin && this.canWrite())
       this.send({ type: 'update', update })
   }
 
@@ -88,7 +89,7 @@ export class LocalProvider
     }: { added: Array<number>; updated: Array<number>; removed: Array<number> },
     origin: unknown,
   ) => {
-    if (origin !== this && this.canRead())
+    if (origin !== this && origin !== realtimeOrigin && this.canRead())
       this.send({
         type: 'awareness',
         update: encodeAwarenessUpdate(this.localAwareness, [
