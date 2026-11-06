@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Root } from 'react-dom/client'
 import type { NavigationMenuItem } from './document-navigation-options'
 import { useDocumentNavigationOptions } from './document-navigation-options'
+import { formatSections } from './format-options'
 
 const theme = vi.hoisted(() => ({ theme: 'light', setTheme: vi.fn() }))
 vi.mock('#/components/theme-provider', () => ({ useTheme: () => theme }))
@@ -78,7 +79,7 @@ it('exposes every menu action to search with the same state and handler', async 
   expect(menuActions.length).toBeGreaterThan(100)
   expect(
     navigation.menus.find((menu) => menu.label === 'Format')?.items,
-  ).toHaveLength(13)
+  ).toHaveLength(formatSections.length)
 
   expect(navigation.options).toHaveLength(menuActions.length)
   for (const [index, option] of navigation.options.entries()) {

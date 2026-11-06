@@ -5,10 +5,6 @@ import { useEffect, useState } from 'react'
 import { $getSelection, $isRangeSelection, $isTextNode } from 'lexical'
 import type { LexicalEditor } from 'lexical'
 import {
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
   List,
   ListOrdered,
   ListTodo,
@@ -17,6 +13,9 @@ import {
   Plus,
   Subscript,
   Superscript,
+  IndentIncrease,
+  IndentDecrease,
+  RemoveFormatting,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -158,27 +157,25 @@ export function TypographyControls({
     stepFontSize(editor, delta)
   }
   const icons = [
-    AlignLeft,
-    AlignCenter,
-    AlignRight,
-    AlignJustify,
     List,
     ListOrdered,
     ListTodo,
     Code,
     Subscript,
     Superscript,
+    IndentIncrease,
+    IndentDecrease,
+    RemoveFormatting,
   ]
   const actions = [
-    ...formatSections
-      .find((section) => section.id === 'alignment')!
-      .choices.slice(0, 4),
     ...formatSections
       .find((section) => section.id === 'lists')!
       .choices.slice(0, 3),
     ...formatSections
       .find((section) => section.id === 'text')!
       .choices.slice(4),
+    ...formatSections.find((section) => section.id === 'indent')!.choices,
+    formatSections.find((section) => section.id === 'reset')!.choices[1],
   ]
   return (
     <div className="space-y-1">
@@ -231,6 +228,26 @@ export function TypographyControls({
             disabled={Boolean(size) && Number(size) >= 200}
           />
         </div>
+      </div>
+      <div className="grid grid-cols-2 gap-1 pt-1">
+        {[
+          'alignment',
+          'line-spacing',
+          'space-before',
+          'space-after',
+          'case',
+          'direction',
+        ].map((sectionId) => (
+          <div key={sectionId} className="min-w-0 space-y-0.5">
+            <span className="px-1 text-xs text-muted-foreground">
+              {
+                formatSections.find((section) => section.id === sectionId)!
+                  .label
+              }
+            </span>
+            <FormatSelect sectionId={sectionId} run={run} checked={checked} />
+          </div>
+        ))}
       </div>
       <div className="flex flex-wrap items-center gap-0.5">
         {actions.map(({ id, label, action }, index) => (
