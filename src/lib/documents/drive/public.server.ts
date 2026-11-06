@@ -13,10 +13,49 @@ const conceptMimeTypes = [conceptMimeType, 'application/vnd.concept+json']
 const v2Fields =
   'id,title,mimeType,modifiedDate,fileSize,version,headRevisionId,etag,capabilities(canEdit,canModifyContent,canDownload,canComment,canCopy)'
 const publicFields =
-  'id,mimeType,trashed,resourceKey,linkShareMetadata(securityUpdateEnabled),inheritedPermissionsDisabled,contentRestrictions(readOnly),downloadRestrictions(effectiveDownloadRestrictionWithContext(restrictedForReaders,restrictedForWriters)),capabilities(canDownload,canEdit,canModifyContent)'
+  'id,name,mimeType,trashed,resourceKey,linkShareMetadata(securityUpdateEnabled),inheritedPermissionsDisabled,contentRestrictions(readOnly),downloadRestrictions(effectiveDownloadRestrictionWithContext(restrictedForReaders,restrictedForWriters)),capabilities(canDownload,canEdit,canModifyContent)'
 const cookieName = 'concept-anonymous'
 
 class PublicAccessLost extends AccessFailure {}
+
+type RegistrationStage =
+  | 'identity'
+  | 'registry_read'
+  | 'credentials'
+  | 'metadata'
+  | 'permissions'
+  | 'policy'
+  | 'registry_write'
+
+class PublicDriveProviderFailure extends AccessFailure {
+  constructor(
+    public readonly stage: 'metadata' | 'permissions' | 'publication',
+    public readonly providerStatus: number,
+  ) {
+    super([404, 412, 413].includes(providerStatus) ? providerStatus : 503)
+  }
+}
+
+class PublisherRegistrationFailure extends AccessFailure {
+  constructor(
+    public readonly stage: RegistrationStage,
+    status: number,
+    public readonly providerStatus?: number,
+  ) {
+    super(status)
+  }
+
+  get code() {
+    if (this.status === 401) return 'publisherAuthenticationRequired'
+    if ([403, 404].includes(this.status)) return 'publicSharingNotEnabled'
+    if (this.status === 409) return 'publisherConsentChanged'
+    if (this.stage === 'registry_read' || this.stage === 'registry_write')
+      return 'publisherRegistryUnavailable'
+    if (this.stage === 'credentials') return 'publisherCredentialsUnavailable'
+    if (this.stage === 'permissions') return 'publisherPermissionCheckFailed'
+    return 'publisherRegistrationUnavailable'
+  }
+}
 
 type Resource = { fileId: string; resourceKey?: string }
 type Publisher = {
@@ -30,6 +69,7 @@ type Publisher = {
 type PublicFile = {
   id: string
   mimeType: string
+  name?: string
   trashed?: boolean
   resourceKey?: string
   linkShareMetadata?: { securityUpdateEnabled?: boolean }
@@ -71,9 +111,12 @@ async function checkedFetch(
   })
   if (!response.ok) {
     await response.body?.cancel()
-    throw new AccessFailure(
-      [404, 412, 413].includes(response.status) ? response.status : 503,
-    )
+    const stage = url.pathname.endsWith('/permissions')
+      ? 'permissions'
+      : url.pathname.startsWith('/upload/')
+        ? 'publication'
+        : 'metadata'
+    throw new PublicDriveProviderFailure(stage, response.status)
   }
   return response
 }
@@ -100,7 +143,16 @@ async function publicPolicy(
   if (
     file.id !== resource.fileId ||
     file.trashed ||
-    !conceptMimeTypes.includes(file.mimeType)
+    !(
+      conceptMimeTypes.includes(file.mimeType) ||
+      ([
+        'application/octet-stream',
+        'application/zip',
+        'application/x-zip-compressed',
+      ].includes(file.mimeType) &&
+        typeof file.name === 'string' &&
+        /\.concept$/i.test(file.name))
+    )
   )
     throw new PublicAccessLost(404)
   if (
@@ -191,38 +243,72 @@ export async function registerPublicPublisher(
   bindings: Cloudflare.Env,
   resource: Resource,
 ) {
-  const identity = await getIdentity(request, bindings)
-  const consentEpoch = await bindings.DB.prepare(
-    'select version from public_drive_publisher_epoch where userId = ?',
-  )
-    .bind(identity.userId)
-    .first<{ version: number }>()
-  const version = consentEpoch?.version ?? 0
-  const tokens = await identity.auth.api.getAccessToken({
-    headers: request.headers,
-    body: { accountId: identity.internalAccountId },
-  })
-  if (!tokens.accessToken) throw new AccessFailure(401)
-  const policy = await publicPolicy(tokens.accessToken, resource)
-  if (policy.readOnly) throw new AccessFailure(403)
-  const resourceKey = policy.file.linkShareMetadata?.securityUpdateEnabled
-    ? (policy.file.resourceKey ?? resource.resourceKey)
-    : null
-  if (policy.file.linkShareMetadata?.securityUpdateEnabled && !resourceKey)
-    throw new AccessFailure(403)
-  await bindings.DB.prepare(
-    'insert into public_drive_publisher (fileId, userId, accountId, resourceKey, updatedAt) select ?, ?, ?, ?, ? where coalesce((select version from public_drive_publisher_epoch where userId = ?), 0) = ? on conflict(fileId) do update set userId=excluded.userId, accountId=excluded.accountId, resourceKey=excluded.resourceKey, updatedAt=excluded.updatedAt',
-  )
-    .bind(
-      resource.fileId,
-      identity.userId,
-      identity.internalAccountId,
-      resourceKey ?? null,
-      Date.now(),
-      identity.userId,
-      version,
+  let stage: RegistrationStage = 'identity'
+  try {
+    const identity = await getIdentity(request, bindings)
+    stage = 'registry_read'
+    const consentEpoch = await bindings.DB.prepare(
+      'select version from public_drive_publisher_epoch where userId = ?',
     )
-    .run()
+      .bind(identity.userId)
+      .first<{ version: number }>()
+    const version = consentEpoch?.version ?? 0
+    stage = 'credentials'
+    const tokens = await identity.auth.api.getAccessToken({
+      headers: request.headers,
+      body: { accountId: identity.internalAccountId },
+    })
+    if (!tokens.accessToken) throw new AccessFailure(401)
+    stage = 'policy'
+    const policy = await publicPolicy(tokens.accessToken, resource)
+    if (policy.readOnly) throw new AccessFailure(403)
+    const resourceKey = policy.file.linkShareMetadata?.securityUpdateEnabled
+      ? (policy.file.resourceKey ?? resource.resourceKey)
+      : null
+    if (policy.file.linkShareMetadata?.securityUpdateEnabled && !resourceKey)
+      throw new AccessFailure(403)
+    stage = 'registry_write'
+    const result = await bindings.DB.prepare(
+      'insert into public_drive_publisher (fileId, userId, accountId, resourceKey, updatedAt) select ?, ?, ?, ?, ? where coalesce((select version from public_drive_publisher_epoch where userId = ?), 0) = ? on conflict(fileId) do update set userId=excluded.userId, accountId=excluded.accountId, resourceKey=excluded.resourceKey, updatedAt=excluded.updatedAt',
+    )
+      .bind(
+        resource.fileId,
+        identity.userId,
+        identity.internalAccountId,
+        resourceKey ?? null,
+        Date.now(),
+        identity.userId,
+        version,
+      )
+      .run()
+    if (result.meta.changes === 0) throw new AccessFailure(409)
+  } catch (error) {
+    const status = error instanceof AccessFailure ? error.status : 503
+    const providerStatus =
+      error instanceof PublicDriveProviderFailure
+        ? error.providerStatus
+        : undefined
+    const observedStage =
+      error instanceof PublicDriveProviderFailure &&
+      error.stage !== 'publication'
+        ? error.stage
+        : stage
+    const failure = new PublisherRegistrationFailure(
+      observedStage,
+      status,
+      providerStatus,
+    )
+    if (![401, 403, 404].includes(status))
+      console.warn(
+        JSON.stringify({
+          event: 'public_drive_registration_failed',
+          stage: failure.stage,
+          status,
+          providerStatus,
+        }),
+      )
+    throw failure
+  }
 }
 
 async function signingKey(bindings: Cloudflare.Env) {
@@ -562,13 +648,25 @@ export async function handlePublicDrive(
     return Response.json(
       {
         error: {
-          message: 'Public Google Drive access could not be verified.',
+          message:
+            error instanceof PublisherRegistrationFailure
+              ? 'Anonymous sharing could not be enabled.'
+              : 'Public Google Drive access could not be verified.',
+          ...(error instanceof PublisherRegistrationFailure
+            ? {
+                code: error.code,
+                stage: error.stage,
+                providerStatus: error.providerStatus,
+              }
+            : {}),
           errors: [
             {
               reason:
-                status === 403 || status === 404
-                  ? 'publicAccessLost'
-                  : 'publicAccessUnavailable',
+                error instanceof PublisherRegistrationFailure
+                  ? error.code
+                  : status === 403 || status === 404
+                    ? 'publicAccessLost'
+                    : 'publicAccessUnavailable',
             },
           ],
         },

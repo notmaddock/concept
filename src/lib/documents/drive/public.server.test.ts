@@ -59,6 +59,7 @@ function request(path = 'metadata', init: RequestInit = {}, query = '') {
 }
 beforeEach(() => {
   vi.clearAllMocks()
+  execute.mockResolvedValue({ success: true, meta: { changes: 1 } })
   publicRole = 'writer'
   currentResourceKey = undefined
   downloadRestricted = false
@@ -459,4 +460,107 @@ it('accepts an unchanged publisher relation refreshed while authorization is in 
       'anonymous:visitor',
     ),
   ).resolves.toMatchObject({ publicAccess: true, publicEpoch: 0 })
+})
+
+it('reports registry setup failures without logging secrets or document identities', async () => {
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  try {
+    first.mockRejectedValueOnce(
+      new Error('private-file-id private-publisher-token missing table'),
+    )
+    const response = await handlePublicDrive(
+      request('register', { method: 'POST' }),
+      bindings,
+    )
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'publisherRegistryUnavailable', stage: 'registry_read' },
+    })
+    const logged = JSON.stringify(warning.mock.calls)
+    expect(logged).toContain('registry_read')
+    expect(logged).not.toContain('private-file-id')
+    expect(logged).not.toContain('private-publisher-token')
+  } finally {
+    warning.mockRestore()
+  }
+})
+
+it('distinguishes provider metadata and permission failures from ordinary private sharing', async () => {
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const originalFetch = vi.mocked(fetch).getMockImplementation()!
+  try {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 400 }))
+    const invalidFields = await handlePublicDrive(
+      request('register', { method: 'POST' }),
+      bindings,
+    )
+    expect(await invalidFields.json()).toMatchObject({
+      error: { stage: 'metadata', providerStatus: 400 },
+    })
+    vi.mocked(fetch).mockImplementation(async (input, init) =>
+      String(input).includes('/permissions')
+        ? new Response(null, { status: 403 })
+        : originalFetch(input, init),
+    )
+    const permissions = await handlePublicDrive(
+      request('register', { method: 'POST' }),
+      bindings,
+    )
+    expect(await permissions.json()).toMatchObject({
+      error: {
+        code: 'publisherPermissionCheckFailed',
+        stage: 'permissions',
+        providerStatus: 403,
+      },
+    })
+    vi.mocked(fetch).mockImplementation(originalFetch)
+    publicRole = undefined
+    warning.mockClear()
+    const privateFile = await handlePublicDrive(
+      request('register', { method: 'POST' }),
+      bindings,
+    )
+    expect(privateFile.status).toBe(404)
+    expect(await privateFile.json()).toMatchObject({
+      error: { code: 'publicSharingNotEnabled' },
+    })
+    expect(warning).not.toHaveBeenCalled()
+  } finally {
+    warning.mockRestore()
+  }
+})
+
+it('registers portable .concept packages uploaded with generic binary MIME while denying unrelated files', async () => {
+  const originalFetch = vi.mocked(fetch).getMockImplementation()!
+  let mimeType = 'application/octet-stream'
+  let name = 'portable.concept'
+  vi.mocked(fetch).mockImplementation(async (input, init) => {
+    const response = await originalFetch(input, init)
+    const url = new URL(String(input))
+    if (url.pathname === '/drive/v3/files/file') {
+      const metadata = (await response.json()) as Record<string, unknown>
+      return Response.json({ ...metadata, mimeType, name })
+    }
+    return response
+  })
+  expect(
+    (await handlePublicDrive(request('register', { method: 'POST' }), bindings))
+      .status,
+  ).toBe(200)
+  mimeType = 'application/zip'
+  expect(
+    (await handlePublicDrive(request('register', { method: 'POST' }), bindings))
+      .status,
+  ).toBe(200)
+  name = 'unrelated.zip'
+  expect(
+    (await handlePublicDrive(request('register', { method: 'POST' }), bindings))
+      .status,
+  ).toBe(404)
+  name = 'native.concept'
+  mimeType = 'application/vnd.google-apps.document'
+  expect(
+    (await handlePublicDrive(request('register', { method: 'POST' }), bindings))
+      .status,
+  ).toBe(404)
 })
