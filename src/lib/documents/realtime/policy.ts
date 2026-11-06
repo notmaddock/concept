@@ -3,7 +3,11 @@
  * The five tunables from the design doc are the first five entries.
  */
 export const realtimePolicy = {
-  /** How often the DO re-checks each connected client's Drive capabilities. */
+  /**
+   * How often the DO re-checks each connected client's Drive capabilities.
+   * Scheduled with `storage.setAlarm`, never `setInterval`: a pending timer
+   * keeps the object in memory and bills duration around the clock.
+   */
   revalidationIntervalMs: 60_000,
   /** Cache TTL for per-(userId, fileId) capability verdicts. */
   verdictCacheTtlMs: 30_000,
