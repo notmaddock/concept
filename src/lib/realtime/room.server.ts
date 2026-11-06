@@ -56,18 +56,31 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
     })
   }
 
+  private async authorizationCurrent(
+    userId: string,
+    epoch: number,
+    grant: RealtimeGrant | null,
+  ) {
+    // One snapshot prevents a newer user decision from interleaving with the public epoch check.
+    const observed = await this.ctx.storage.get<Epoch | number>([
+      `auth:${userId}`,
+      'public-epoch',
+    ])
+    const user = observed.get(`auth:${userId}`)
+    return (
+      typeof user === 'object' &&
+      user.value === epoch &&
+      (!grant?.publicAccess ||
+        grant.publicEpoch === (observed.get('public-epoch') ?? 0))
+    )
+  }
+
   async finishAuthorization(
     userId: string,
     epoch: number,
     grant: RealtimeGrant | null,
   ): Promise<boolean> {
-    const current = await this.ctx.storage.get<Epoch>(`auth:${userId}`)
-    if (current?.value !== epoch) return false
-    if (
-      grant?.publicAccess &&
-      grant.publicEpoch !== (await this.getPublicEpoch())
-    )
-      return false
+    if (!(await this.authorizationCurrent(userId, epoch, grant))) return false
     for (const socket of this.ctx.getWebSockets()) {
       const attachment = socket.deserializeAttachment() as Attachment
       if (attachment.userId !== userId) continue
@@ -151,16 +164,10 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
     epoch: number,
     grant: RealtimeGrant,
   ): Promise<boolean> {
-    const current = await this.ctx.storage.get<Epoch>(`auth:${userId}`)
     if (
-      current?.value !== epoch ||
+      !(await this.authorizationCurrent(userId, epoch, grant)) ||
       grant.userId !== userId ||
       grant.expiresAt <= Date.now()
-    )
-      return false
-    if (
-      grant.publicAccess &&
-      grant.publicEpoch !== (await this.getPublicEpoch())
     )
       return false
     for (const socket of this.ctx.getWebSockets()) {
@@ -211,12 +218,9 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
     grant: RealtimeGrant,
     epoch: number,
   ): Promise<WorkerResponse> {
-    const current = await this.ctx.storage.get<Epoch>(`auth:${grant.userId}`)
-    if (current?.value !== epoch || grant.expiresAt <= Date.now())
-      return new Response(null, { status: 409 })
     if (
-      grant.publicAccess &&
-      grant.publicEpoch !== (await this.getPublicEpoch())
+      !(await this.authorizationCurrent(grant.userId, epoch, grant)) ||
+      grant.expiresAt <= Date.now()
     )
       return new Response(null, { status: 409 })
     if (this.ctx.getWebSockets().length >= maxParticipants)

@@ -16,7 +16,11 @@ vi.mock('cloudflare:workers', () => ({
 const metadata = new Map<string, unknown>()
 let sockets: WebSocket[] = []
 const storage = {
-  get: vi.fn(async (key: string) => metadata.get(key)),
+  get: vi.fn(async (key: string | string[]) =>
+    Array.isArray(key)
+      ? new Map(key.map((item) => [item, metadata.get(item)]))
+      : metadata.get(key),
+  ),
   put: vi.fn(async (key: string, value: unknown) => {
     metadata.set(key, value)
   }),
@@ -250,4 +254,32 @@ it('does not repeatedly invalidate public reader grants while permission stays r
   await room.observePublicWritable()
   await room.invalidateAnonymousGrants(true)
   expect(await room.getPublicEpoch()).toBe(epoch + 1)
+})
+
+it('reads user and public authorization epochs in a single atomic snapshot', async () => {
+  const room = new RealtimeRoom(state, {} as Cloudflare.Env)
+  const epoch = await room.beginAuthorization('anonymous:visitor')
+  const grant = {
+    userId: 'anonymous:visitor',
+    accountId: 'anonymous:visitor',
+    readOnly: false,
+    expiresAt: Date.now() + 60_000,
+    publicAccess: true,
+    publicEpoch: 0,
+  }
+  storage.get.mockClear()
+  expect(
+    await room.finishAuthorization('anonymous:visitor', epoch, grant),
+  ).toBe(true)
+  expect(storage.get).toHaveBeenCalledExactlyOnceWith([
+    'auth:anonymous:visitor',
+    'public-epoch',
+  ])
+  const newer = await room.beginAuthorization('anonymous:visitor')
+  expect(
+    await room.finishAuthorization('anonymous:visitor', epoch, grant),
+  ).toBe(false)
+  expect(
+    await room.finishAuthorization('anonymous:visitor', newer, grant),
+  ).toBe(true)
 })
