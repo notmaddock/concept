@@ -86,6 +86,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     connectionRevision,
     openGoogleDrivePicker,
     pickerLoading,
+    recoverLocalCopy,
   } = useDocumentWorkspace()
   const [providersOpen, setProvidersOpen] = useState(false)
 
@@ -174,7 +175,10 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               key={document ? `${document.id}:${document.name}` : 'library'}
               name={document?.name ?? 'Documents'}
               onSave={
-                document && !document.readOnly && !document.drive?.readOnly
+                document &&
+                !saveStatus.readOnly &&
+                !document.readOnly &&
+                !document.drive?.readOnly
                   ? renameDocument
                   : undefined
               }
@@ -198,9 +202,22 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                     document.drive ? setOfflineAvailable : undefined
                   }
                 />
+                {document.drive?.quarantined &&
+                  saveStatus.access?.kind !== 'unavailable' && (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => void recoverLocalCopy()}
+                    >
+                      Recover local copy
+                    </Button>
+                  )}
                 <DocumentAccessStatus
+                  access={saveStatus.access}
                   readOnly={Boolean(
-                    document.readOnly || document.drive?.readOnly,
+                    saveStatus.readOnly ||
+                    document.readOnly ||
+                    document.drive?.readOnly,
                   )}
                   provider={document.drive ? 'google-drive' : undefined}
                 />
@@ -213,7 +230,21 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
           aria-label="Document workspace"
           className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-4 [scrollbar-gutter:stable] md:px-6"
         >
-          {document ? (
+          {document && saveStatus.access?.kind === 'unavailable' ? (
+            <Empty className="min-h-full rounded-xl bg-card p-8">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <FileTextIcon />
+                </EmptyMedia>
+                <EmptyTitle>Shared document unavailable</EmptyTitle>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button onClick={() => void recoverLocalCopy()}>
+                  Recover local copy
+                </Button>
+              </EmptyContent>
+            </Empty>
+          ) : document ? (
             <div
               data-document-sheet
               className="mx-auto flex min-h-full w-full shrink-0 grow flex-col max-w-[960px] rounded-lg bg-card shadow-sm"

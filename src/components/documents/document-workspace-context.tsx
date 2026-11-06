@@ -22,6 +22,7 @@ import {
 import {
   refreshDriveDocuments,
   documentStorage,
+  recoverDocumentLocally,
 } from '#/lib/documents/document-storage'
 import { openGooglePicker } from '#/lib/documents/drive/picker'
 import { localDocumentStorage } from '#/lib/documents/storage'
@@ -347,6 +348,22 @@ function useWorkspaceState(id?: string) {
     openDocument,
     importDocument: (format: ImportFormat) => setFileAction(format),
     copyDocument,
+    recoverLocalCopy: async () => {
+      if (!document) return
+      try {
+        const recovered = await recoverDocumentLocally(document.id)
+        await navigate({ to: '/', hash: documentHash(recovered.id) })
+      } catch (cause) {
+        toast.error(
+          cause instanceof Error
+            ? cause.message
+            : 'Could not recover local work.',
+          {
+            id: 'document-recovery-error',
+          },
+        )
+      }
+    },
     downloadDocument,
     exportDocument,
     openPageSetup: () => setPageSetupOpen(true),

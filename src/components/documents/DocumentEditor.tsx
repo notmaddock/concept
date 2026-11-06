@@ -203,7 +203,9 @@ export function DocumentEditor({
   if (!session) return <DocumentLoading />
 
   const isReadOnly = Boolean(
-    workspace?.document?.readOnly || workspace?.document?.drive?.readOnly,
+    workspace?.saveStatus.readOnly ||
+    workspace?.document?.readOnly ||
+    workspace?.document?.drive?.readOnly,
   )
   const mode = isReadOnly ? 'view-only' : 'edit'
 

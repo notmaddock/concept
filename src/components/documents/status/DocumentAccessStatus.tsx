@@ -1,4 +1,5 @@
-import { EyeIcon, PencilIcon } from 'lucide-react'
+import type { DocumentAccess } from '#/lib/documents/access'
+import { AlertTriangleIcon, EyeIcon, PencilIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   Popover,
@@ -11,35 +12,62 @@ import {
 export function DocumentAccessStatus({
   readOnly,
   provider,
+  access,
 }: {
   readOnly: boolean
   provider?: 'google-drive'
+  access?: DocumentAccess
 }) {
-  const label = readOnly ? 'View only' : 'Can edit'
-  const Icon = readOnly ? EyeIcon : PencilIcon
-  const description = readOnly
-    ? provider
-      ? 'You can only view this document. Ask the owner to give you edit access in Google Drive.'
-      : 'You can only view this local document. Editing is disabled for this copy.'
-    : provider
-      ? 'You can edit this document. Changes sync to Google Drive.'
-      : 'You can edit this document. Changes are saved locally in this browser.'
+  const unavailable = access?.kind === 'unavailable'
+  const unverified = access?.kind === 'unverified'
+  const label = unavailable
+    ? 'Access unavailable'
+    : unverified
+      ? 'Access unverified'
+      : readOnly
+        ? 'View only'
+        : 'Can edit'
+  const Icon =
+    unavailable || unverified
+      ? AlertTriangleIcon
+      : readOnly
+        ? EyeIcon
+        : PencilIcon
+  const description = unavailable
+    ? 'You no longer have access to this file, or it is unavailable.'
+    : unverified
+      ? 'Drive access could not be verified. Available offline work is preserved locally.'
+      : readOnly
+        ? provider
+          ? 'You can only view this document. Ask the owner to give you edit access in Google Drive.'
+          : 'You can only view this local document. Editing is disabled for this copy.'
+        : provider
+          ? 'You can edit this document. Changes sync to Google Drive.'
+          : 'You can edit this document. Changes are saved locally in this browser.'
 
   return (
     <Popover>
       <PopoverTrigger
         render={
           <Button
-            variant={readOnly ? 'secondary' : 'ghost'}
-            size={readOnly ? 'xs' : 'icon-xs'}
-            className="text-muted-foreground"
+            variant={
+              readOnly || unavailable || unverified ? 'secondary' : 'ghost'
+            }
+            size={readOnly || unavailable || unverified ? 'xs' : 'icon-xs'}
+            className={
+              unavailable
+                ? 'text-red-600 dark:text-red-400'
+                : unverified
+                  ? 'text-orange-600 dark:text-orange-400'
+                  : 'text-muted-foreground'
+            }
           />
         }
         aria-label={`Document permissions: ${label}`}
         title={label}
       >
         <Icon className="size-4" />
-        {readOnly && <span>View only</span>}
+        {(readOnly || unavailable || unverified) && <span>{label}</span>}
       </PopoverTrigger>
       <PopoverContent
         align="start"
