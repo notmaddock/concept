@@ -4,7 +4,6 @@ import { createEditor } from 'lexical'
 import { expect, it, vi } from 'vitest'
 import { FloatingTextFormatToolbar } from './FloatingTextFormatToolbar'
 
-vi.mock('#/hooks/use-mobile', () => ({ useIsMobile: () => true }))
 vi.mock('#/components/documents/navigation-menus/use-format-actions', () => ({
   useFormatActions: () => ({ run: vi.fn(), checked: () => false }),
 }))
@@ -20,6 +19,19 @@ vi.mock('./ColorSelect', () => ({ ColorSelect: () => null }))
 
 it('docks formatting above the keyboard and follows the visible viewport', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const pointer = Object.assign(new EventTarget(), { matches: true })
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) =>
+      query === '(pointer: coarse)'
+        ? pointer
+        : {
+            matches: false,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+          },
+    ),
+  )
   const viewport = Object.assign(new EventTarget(), {
     height: 400,
     width: 375,
@@ -59,6 +71,18 @@ it('docks formatting above the keyboard and follows the visible viewport', async
     await act(() => viewport.dispatchEvent(new Event('resize')))
     expect(toolbar.style.bottom).toBe('300px')
     expect(toolbar.querySelector('button')?.textContent).toBe('Bold')
+    const scroll = toolbar.querySelector('[data-format-scroll]')!
+    const more = Array.from(toolbar.querySelectorAll('button')).find(
+      (button) => button.textContent === 'More formatting',
+    )!
+    expect(scroll.contains(more)).toBe(false)
+    expect(more.parentElement?.className).toContain('shrink-0')
+    pointer.matches = false
+    await act(() => pointer.dispatchEvent(new Event('change')))
+    expect(document.querySelector('[data-mobile="true"]')).toBeNull()
+    expect(
+      document.querySelector('[data-format-toolbar][role="toolbar"]'),
+    ).not.toBeNull()
   } finally {
     await act(() => root.unmount())
     container.remove()

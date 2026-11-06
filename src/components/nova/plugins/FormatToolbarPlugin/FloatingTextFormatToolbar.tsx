@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useIsMobile } from '#/hooks/use-mobile'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+
 import { TypographyControls, FormatIcon } from './TypographyControls'
 import { useFormatActions } from '#/components/documents/navigation-menus/use-format-actions'
 import { FormatSelect, toolbarActions } from './FormatOptions'
@@ -23,6 +23,19 @@ import {
 } from '#/components/ui/popover'
 import { ColorSelect } from './ColorSelect'
 import type { FormatState, PositionRect } from './types'
+
+const coarsePointerQuery = '(pointer: coarse)'
+function subscribeToPointer(onChange: () => void) {
+  const media = window.matchMedia(coarsePointerQuery)
+  media.addEventListener('change', onChange)
+  return () => media.removeEventListener('change', onChange)
+}
+function getCoarsePointer() {
+  return window.matchMedia(coarsePointerQuery).matches
+}
+function getServerCoarsePointer() {
+  return false
+}
 
 type FormatConfig = {
   format: TextFormatType
@@ -75,7 +88,11 @@ export function FloatingTextFormatToolbar({
   formatState,
   onOpenChange,
 }: FloatingTextFormatToolbarProps) {
-  const isMobile = useIsMobile()
+  const isMobile = useSyncExternalStore(
+    subscribeToPointer,
+    getCoarsePointer,
+    getServerCoarsePointer,
+  )
   const [viewport, setViewport] = useState({
     bottom: 0,
     left: 0,
@@ -114,46 +131,67 @@ export function FloatingTextFormatToolbar({
   )
   const [panel, setPanel] = useState<'type' | null>(null)
   const [isPanelAnimating, setIsPanelAnimating] = useState(false)
-  const controls = (
-    <>
-      <div className="flex shrink-0 flex-wrap items-center gap-0.5">
-        <div className="shrink-0 border-r pr-1 mr-0.5">
-          <FormatSelect
-            sectionId="paragraph-style"
-            run={run}
-            checked={checked}
-          />
-        </div>
-        {FORMAT_BUTTONS.slice(0, 4).map(({ format, stateKey, icon, label }) => (
-          <FormatIcon
-            key={format}
-            actionId={`format-${format}`}
-            label={label[0].toUpperCase() + label.slice(1)}
-            icon={icon}
-            active={formatState[stateKey]}
-            onClick={() => void run({ kind: 'text', value: format })}
-          />
-        ))}
-        <FormatIcon
-          label="Clear formatting"
-          actionId="clear-formatting"
-          icon={RemoveFormatting}
-          onClick={() => void run({ kind: 'clear', value: 'text' })}
-        />
-        <ColorSelect sectionId="text-color" editor={editor} />
-        <ColorSelect sectionId="highlight" editor={editor} />
-        <FormatIcon
-          label="More formatting"
-          icon={Ellipsis}
-          expanded={panel === 'type'}
-          onClick={() => {
-            setIsPanelAnimating(
-              !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-            )
-            setPanel(panel ? null : 'type')
-          }}
+  const moreControl = (
+    <FormatIcon
+      label="More formatting"
+      icon={Ellipsis}
+      expanded={panel === 'type'}
+      onClick={() => {
+        setIsPanelAnimating(
+          !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+        )
+        setPanel(panel ? null : 'type')
+      }}
+    />
+  )
+  const primaryControls = (
+    <div
+      className={
+        isMobile
+          ? 'flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overscroll-x-contain [&>*]:shrink-0'
+          : 'flex shrink-0 flex-wrap items-center gap-0.5'
+      }
+      data-format-scroll={isMobile || undefined}
+    >
+      <div className="shrink-0 border-r pr-1 mr-0.5">
+        <FormatSelect
+          compact={isMobile}
+          sectionId="paragraph-style"
+          run={run}
+          checked={checked}
         />
       </div>
+      {FORMAT_BUTTONS.slice(0, 4).map(({ format, stateKey, icon, label }) => (
+        <FormatIcon
+          key={format}
+          actionId={`format-${format}`}
+          label={label[0].toUpperCase() + label.slice(1)}
+          icon={icon}
+          active={formatState[stateKey]}
+          onClick={() => void run({ kind: 'text', value: format })}
+        />
+      ))}
+      <FormatIcon
+        label="Clear formatting"
+        actionId="clear-formatting"
+        icon={RemoveFormatting}
+        onClick={() => void run({ kind: 'clear', value: 'text' })}
+      />
+      <ColorSelect sectionId="text-color" editor={editor} />
+      <ColorSelect sectionId="highlight" editor={editor} />
+      {!isMobile && moreControl}
+    </div>
+  )
+  const controls = (
+    <>
+      {isMobile ? (
+        <div className="flex min-w-0 shrink-0 items-center gap-1">
+          {primaryControls}
+          <div className="shrink-0 border-l pl-1">{moreControl}</div>
+        </div>
+      ) : (
+        primaryControls
+      )}
       <div
         inert={!panel}
         aria-hidden={!panel}
