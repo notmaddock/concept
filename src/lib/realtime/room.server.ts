@@ -1,6 +1,8 @@
 import type {
   WebSocket,
+  WebSocketPair as WorkerWebSocketPair,
   Request as WorkerRequest,
+  Response as WorkerResponse,
 } from '@cloudflare/workers-types'
 import { DurableObject } from 'cloudflare:workers'
 import * as Y from 'yjs'
@@ -13,6 +15,9 @@ import {
   FrameType,
   UpdateAssembler,
 } from './protocol'
+
+declare const Response: typeof WorkerResponse
+declare const WebSocketPair: typeof WorkerWebSocketPair
 
 type Attachment = RealtimeGrant & {
   connectionId: string
@@ -74,7 +79,7 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
     return true
   }
 
-  async fetch(request: WorkerRequest): Promise<Response> {
+  async fetch(request: WorkerRequest): Promise<WorkerResponse> {
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
       return new Response(null, { status: 426 })
     try {
@@ -98,7 +103,10 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
     }
   }
 
-  private async join(grant: RealtimeGrant, epoch: number): Promise<Response> {
+  private async join(
+    grant: RealtimeGrant,
+    epoch: number,
+  ): Promise<WorkerResponse> {
     const current = await this.ctx.storage.get<Epoch>(`auth:${grant.userId}`)
     if (current?.value !== epoch || grant.expiresAt <= Date.now())
       return new Response(null, { status: 409 })
