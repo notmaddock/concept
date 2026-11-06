@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ImageIcon } from 'lucide-react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { useLexicalNodeSelection } from '@lexical/react/useLexicalNodeSelection'
 import { useLexicalEditable } from '@lexical/react/useLexicalEditable'
@@ -231,6 +232,7 @@ export function ImageBlock({
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem onClick={() => setOptionsOpen(true)}>
+            <ImageIcon aria-hidden="true" />
             Image Options
           </ContextMenuItem>
         </ContextMenuContent>
