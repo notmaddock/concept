@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { FileTextIcon } from 'lucide-react'
+import { FileTextIcon, HardDriveDownloadIcon } from 'lucide-react'
 import { DriveIcon } from '../icons/DriveIcon'
 import type { DocumentInfo } from '#/lib/documents/storage'
 import { documentHash } from '#/lib/documents/document-url'
@@ -135,7 +135,22 @@ export function DocumentList({
                         render={<Link to="/" hash={documentHash(item.id)} />}
                       >
                         {item.drive ? <DriveIcon /> : <FileTextIcon />}
-                        <span>{item.name}</span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {item.name}
+                        </span>
+                        {item.drive?.offlineAvailable && (
+                          <span
+                            role="img"
+                            aria-label="Available offline"
+                            title="Available offline"
+                            className="ml-auto shrink-0 text-muted-foreground"
+                          >
+                            <HardDriveDownloadIcon
+                              aria-hidden="true"
+                              className="size-3.5"
+                            />
+                          </span>
+                        )}
                       </SidebarMenuButton>
                     </DocumentDetailsPopover>
                   </DocumentContextMenu>
