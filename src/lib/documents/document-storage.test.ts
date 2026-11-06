@@ -2,7 +2,11 @@ import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { applyUpdate, Doc, encodeStateAsUpdate, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { documentStorage, refreshDriveDocuments } from './document-storage'
+import {
+  documentStorage,
+  refreshDriveDocuments,
+  setDocumentOfflineAvailable,
+} from './document-storage'
 import { localDocumentStorage } from './storage'
 import type { DocumentInfo, DocumentPersistence } from './storage'
 import { documentSessions, getSaveStatus } from './sync'
@@ -499,4 +503,71 @@ it('keeps a reopen queued behind cache eviction alive', async () => {
     encodeStateAsUpdate(remote),
   )
   expect(getFileMetadata).not.toHaveBeenCalled()
+})
+
+it('downloads and preserves an unopened Drive document for offline use', async () => {
+  await setDocumentOfflineAvailable(info.id, true)
+  expect(readConceptFile).toHaveBeenCalled()
+  expect(await localDocumentStorage.get(info.id)).toMatchObject({
+    drive: { offlineAvailable: true },
+  })
+  expect(documentSessions.has(info.id)).toBe(false)
+  const cached = new Doc()
+  docs.push(cached)
+  const persistence = localDocumentStorage.open(info.id, cached)
+  try {
+    await persistence.whenSynced
+    expect(cached.share.has('root')).toBe(true)
+  } finally {
+    await persistence.destroy()
+  }
+})
+
+it('updates the active session without opening another document', async () => {
+  const { session } = open()
+  await session.whenSynced
+  const active = documentSessions.get(info.id)!
+  const change = vi.spyOn(active, 'setOfflineAvailable')
+  await setDocumentOfflineAvailable(info.id, true)
+  expect(change).toHaveBeenCalledWith(true)
+  expect(documentSessions.get(info.id)).toBe(active)
+})
+
+it('disables offline availability without downloading an unopened document', async () => {
+  await cache({ ...info.drive!, offlineAvailable: true })
+  await setDocumentOfflineAvailable(info.id, false)
+  expect(readConceptFile).not.toHaveBeenCalled()
+  expect(await localDocumentStorage.get(info.id)).toMatchObject({
+    drive: { offlineAvailable: false },
+  })
+})
+
+it('keeps the editor session and status when offline preparation overlaps opening', async () => {
+  const download = vi.mocked(readConceptFile).getMockImplementation()!
+  let release!: () => void
+  let started!: () => void
+  const began = new Promise<void>((resolve) => {
+    started = resolve
+  })
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  vi.mocked(readConceptFile).mockImplementationOnce(async (...args) => {
+    started()
+    await held
+    return download(...args)
+  })
+  const pinning = setDocumentOfflineAvailable(info.id, true)
+  await began
+  const { session } = open()
+  await session.whenSynced
+  const active = documentSessions.get(info.id)!
+  const phase = getSaveStatus(info.id).phase
+  release()
+  await pinning
+  expect(documentSessions.get(info.id)).toBe(active)
+  expect(getSaveStatus(info.id).phase).toBe(phase)
+  expect(await localDocumentStorage.get(info.id)).toMatchObject({
+    drive: { offlineAvailable: true },
+  })
 })

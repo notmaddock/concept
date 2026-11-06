@@ -1,3 +1,5 @@
+import { toast } from 'sonner'
+import { setDocumentOfflineAvailable } from '#/lib/documents/document-storage'
 import { openContainingFolder } from '../open-containing-folder'
 import {
   documentMenuContentClassName,
@@ -9,6 +11,7 @@ import { RenameDocumentDialog } from '../dialogs/RenameDocumentDialog'
 import { documentHash } from '#/lib/documents/document-url'
 import {
   ExternalLinkIcon,
+  HardDriveDownloadIcon,
   FolderOpenIcon,
   PencilIcon,
   Trash2Icon,
@@ -18,6 +21,7 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuCheckboxItem,
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '#/components/ui/context-menu'
@@ -39,14 +43,17 @@ export function DocumentContextMenu({
   onRename,
   onDelete,
   driveFileId,
+  offlineAvailable = false,
 }: {
   id: string
+  offlineAvailable?: boolean
   driveFileId?: string
   onRename?: (name: string) => Promise<boolean>
   children: ReactNode
   name: string
   onDelete: () => Promise<void>
 }) {
+  const [offlinePending, setOfflinePending] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -80,6 +87,28 @@ export function DocumentContextMenu({
           >
             <ExternalLinkIcon /> Open in new tab
           </ContextMenuItem>
+          {driveFileId && (
+            <ContextMenuCheckboxItem
+              className={documentMenuItemClassName}
+              checked={offlineAvailable}
+              disabled={offlinePending}
+              onCheckedChange={(checked) => {
+                setOfflinePending(true)
+                void setDocumentOfflineAvailable(id, checked)
+                  .catch((cause: unknown) =>
+                    toast.error(
+                      cause instanceof Error
+                        ? cause.message
+                        : 'Could not change offline availability.',
+                      { id: 'document-offline-availability' },
+                    ),
+                  )
+                  .finally(() => setOfflinePending(false))
+              }}
+            >
+              <HardDriveDownloadIcon /> Available offline
+            </ContextMenuCheckboxItem>
+          )}
           {driveFileId && (
             <ContextMenuItem
               className={documentMenuItemClassName}
