@@ -89,6 +89,10 @@ export class DocumentRealtimeDO extends DurableObject {
     const pair = new WebSocketPair()
     const [client, server] = Object.values(pair)
 
+    // Accept before anything sends: the runtime rejects send() on a socket
+    // that has not been accepted, and admission replies with `admitted`.
+    this.ctx.acceptWebSocket(server, [socketTag])
+
     const room = this.createRoom()
     const adapterId = crypto.randomUUID()
     const admitted = await room.admit(
@@ -105,11 +109,6 @@ export class DocumentRealtimeDO extends DurableObject {
         webSocket: client,
       } as unknown as ResponseInit)
 
-    // acceptWebSocket must run before serializeAttachment: attachments only
-    // exist on an accepted socket. Accepting first means a message can arrive
-    // before the attachment is written, so webSocketMessage tolerates a
-    // missing attachment instead of dropping the frame.
-    this.ctx.acceptWebSocket(server, [socketTag])
     const admittedClient = room.client(adapterId)
     if (!admittedClient) {
       server.close(1011, 'admission lost')
@@ -118,16 +117,13 @@ export class DocumentRealtimeDO extends DurableObject {
         webSocket: client,
       } as unknown as ResponseInit)
     }
-    server.serializeAttachment({
+    const attachment: SocketAttachment = {
       adapterId,
       userId: admittedClient.userId,
       capabilities: admittedClient.capabilities,
-    } satisfies SocketAttachment)
-    await this.flushPendingFrames(server, {
-      adapterId,
-      userId: admittedClient.userId,
-      capabilities: admittedClient.capabilities,
-    })
+    }
+    server.serializeAttachment(attachment)
+    await this.flushPendingFrames(server, attachment)
     await this.markActive()
     await this.armRevalidation()
     return new Response(null, {

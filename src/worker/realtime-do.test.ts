@@ -78,6 +78,11 @@ class FakeWebSocket {
   sent: Array<string | Uint8Array> = []
   closed?: { code?: number; reason?: string }
   send(data: string | Uint8Array) {
+    // The runtime rejects sends on a socket that was not accepted first.
+    if (!this.accepted)
+      throw new TypeError(
+        'You must call one of accept() or state.acceptWebSocket() on this WebSocket before sending messages.',
+      )
     this.sent.push(data)
   }
   close(code?: number, reason?: string) {
@@ -222,11 +227,15 @@ describe('DocumentRealtimeDO hibernation', () => {
     expect(harness.values.get('lastActiveAt')).toBeDefined()
   })
 
-  it('does not attach a socket whose ticket was rejected', async () => {
+  it('does not arm or attach a socket whose ticket was rejected', async () => {
     const harness = createState()
     const doInstance = createDo(harness)
     await doInstance.fetch(upgradeRequest('v1.bad.bad'))
-    expect(harness.sockets.size).toBe(0)
+    const [socket] = harness.sockets
+    // The socket is accepted so admit() can send its rejection, but it must
+    // carry no attachment and must not keep the room awake.
+    expect(socket.deserializeAttachment()).toBeNull()
+    expect(harness.alarmAt()).toBeNull()
   })
 
   it('persists per-socket state so a woken object can relay without the handshake', async () => {
