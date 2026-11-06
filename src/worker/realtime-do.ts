@@ -147,8 +147,7 @@ export class DocumentRealtimeDO extends DurableObject {
       ])
       return
     }
-    const room = this.createRoom()
-    room.restore(ws, attachment)
+    const room = this.roomFromSockets()
     const data = typeof message === 'string' ? message : new Uint8Array(message)
     room.receive(attachment.adapterId, data)
     // A save may have changed the ACL; it also means the room is active, so
@@ -175,13 +174,24 @@ export class DocumentRealtimeDO extends DurableObject {
   async alarm(): Promise<void> {
     const sockets = this.ctx.getWebSockets(socketTag)
     if (sockets.length === 0) return
+    const room = this.roomFromSockets()
+    await room.revalidate()
+    await this.armRevalidation()
+  }
+
+  /**
+   * Rebuilds the room with every attached socket. Hibernation discards the
+   * room's in-memory client map while the runtime keeps the sockets attached,
+   * so any event that relays or revalidates must restore all of them first —
+   * restoring only the sender would leave its peers invisible to `relay`.
+   */
+  private roomFromSockets(): DocumentRoom {
     const room = this.createRoom()
-    for (const ws of sockets) {
+    for (const ws of this.ctx.getWebSockets(socketTag)) {
       const attachment = ws.deserializeAttachment()
       if (isAttachment(attachment)) room.restore(ws, attachment)
     }
-    await room.revalidate()
-    await this.armRevalidation()
+    return room
   }
 
   /** Replays frames held while the socket had no attachment yet. */
@@ -192,8 +202,7 @@ export class DocumentRealtimeDO extends DurableObject {
     const frames = this.pendingFrames.get(ws)
     if (!frames) return
     this.pendingFrames.delete(ws)
-    const room = this.createRoom()
-    room.restore(ws, attachment)
+    const room = this.roomFromSockets()
     for (const frame of frames)
       room.receive(
         attachment.adapterId,
