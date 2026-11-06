@@ -201,9 +201,19 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
     }: { added: number[]; updated: number[]; removed: number[] },
     origin: unknown,
   ) => {
+    this.updatePeers()
     if (origin === this) return
     for (const client of [...added, ...updated, ...removed])
       this.awarenessDirty.add(client)
+  }
+
+  private updatePeers() {
+    let peers = 0
+    for (const [clientID, state] of this.awareness.getStates())
+      // Removed clients linger as null at runtime despite the declared type.
+      if (clientID !== this.awareness.clientID && (state as unknown) !== null)
+        peers++
+    if (peers !== this.state.peers) this.setState({ ...this.state, peers })
   }
 
   private setState(state: RealtimeState) {
@@ -344,6 +354,10 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
         writeSyncStep1(encoder, this.doc)
         this.sendBinary(encoding.toUint8Array(encoder))
       }
+      // Presence-only state until the editor binds cursors/selections; a null
+      // state would encode as a removal and broadcast no presence at all.
+      if (this.awareness.getLocalState() === null)
+        this.awareness.setLocalState({ presence: true })
       this.awarenessDirty.add(this.awareness.clientID)
       this.sendAwareness()
       return

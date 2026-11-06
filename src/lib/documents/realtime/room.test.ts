@@ -337,6 +337,34 @@ describe('DocumentRoom revocation', () => {
     room.remove('s1')
   })
 
+  it('replays buffered awareness to a late joiner on sync step 1', async () => {
+    const verifier = makeVerifier({ a: editorCaps, c: editorCaps })
+    const sockets: FakeSocket[] = []
+    const room = await admittedRoom(verifier, sockets, [
+      { id: 'a', userId: 'a', capabilities: editorCaps },
+    ])
+    const awareness = new Awareness(new Doc())
+    awareness.setLocalState({ presence: true })
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, 3)
+    encoding.writeVarUint8Array(
+      encoder,
+      encodeAwarenessUpdate(awareness, [awareness.clientID]),
+    )
+    room.receive('a', encoding.toUint8Array(encoder))
+
+    const joinerSocket = new FakeSocket('c')
+    sockets.push(joinerSocket)
+    await room.admit(joinerSocket, await ticketFor('c', editorCaps))
+    room.receive('c', syncStep1(new Doc()))
+    const replayed = joinerSocket.sent.filter(
+      (data) => typeof data !== 'string' && data[0] === 3,
+    )
+    expect(replayed).toHaveLength(1)
+    room.remove('a')
+    room.remove('c')
+  })
+
   it('ignores messages from unknown sockets', async () => {
     const verifier = makeVerifier({})
     const room = new DocumentRoom({ fileId, secret, verifier })

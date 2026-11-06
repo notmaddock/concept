@@ -1,4 +1,9 @@
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
+import {
+  applyAwarenessUpdate,
+  encodeAwarenessUpdate,
+  Awareness,
+} from 'y-protocols/awareness'
 import * as decoding from 'lib0/decoding'
 import * as encoding from 'lib0/encoding'
 import { writeUpdate } from 'y-protocols/sync'
@@ -241,5 +246,38 @@ describe('WebSocketRealtimeProvider', () => {
     await flush()
     expect(provider.getState().status).toBe('disconnected')
     expect(sockets).toHaveLength(0)
+  })
+
+  it('publishes a local presence state on admitted and counts remote peers', async () => {
+    const { provider, sockets } = setup()
+    tracked(provider)
+    provider.attach(new Doc())
+    provider.connect()
+    await flush()
+    const socket = sockets[0]
+    socket.open()
+    admit(socket)
+    expect(provider.awareness.getLocalState()).not.toBeNull()
+    // The outgoing awareness frame carries the local state, not a removal.
+    const awarenessFrame = binaryFrames(socket).find((frame) => frame[0] === 3)
+    expect(awarenessFrame).toBeDefined()
+    const decoder = decoding.createDecoder(awarenessFrame!)
+    decoding.readVarUint(decoder)
+    const update = decoding.readVarUint8Array(decoder)
+    const remote = new Awareness(new Doc())
+    applyAwarenessUpdate(remote, update, 'test')
+    expect(remote.getStates().get(provider.awareness.clientID)).not.toBeNull()
+
+    expect(provider.getState().peers).toBe(0)
+    const peerAwareness = new Awareness(new Doc())
+    peerAwareness.setLocalState({ presence: true })
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, 3)
+    encoding.writeVarUint8Array(
+      encoder,
+      encodeAwarenessUpdate(peerAwareness, [peerAwareness.clientID]),
+    )
+    socket.receive(encoding.toUint8Array(encoder))
+    expect(provider.getState().peers).toBe(1)
   })
 })

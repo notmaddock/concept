@@ -31,6 +31,7 @@ import type { DocumentMediaSession } from '#/components/nova/media/document-medi
 import { insertDocumentAssets } from '#/lib/documents/asset-session'
 import { documentSessions } from '#/lib/documents/sync'
 import { documentStorage } from '#/lib/documents/document-storage'
+import { attachEditorAwareness } from '#/lib/documents/realtime/editor-awareness'
 
 export function DocumentEditor({
   documentRef,
@@ -148,6 +149,15 @@ export function DocumentEditor({
     if (ready && window.document.activeElement === window.document.body)
       editorRef?.current?.focus()
   }, [ready, editorRef])
+
+  useEffect(() => {
+    const editor = editorRef?.current
+    if (!ready || !editor) return
+    return attachEditorAwareness(
+      editor,
+      () => documentSessions.get(id)?.realtime,
+    )
+  }, [ready, id, editorRef])
 
   if (error) {
     const connectDrive =

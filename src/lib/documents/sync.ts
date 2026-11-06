@@ -131,7 +131,7 @@ export class DocumentSync {
     private persistence: DocumentPersistence,
     private publication?: PublicationTransport,
     private background = false,
-    private realtime?: RealtimeProvider,
+    readonly realtime?: RealtimeProvider,
   ) {
     this.dirty = info.drive?.dirty ?? false
     this.etag = info.drive?.etag

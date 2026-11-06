@@ -101,6 +101,8 @@ export function DocumentAccessStatus({
             {realtime && (
               <p className="text-xs text-muted-foreground">
                 {connectionLabels[realtime.status]}
+                {realtime.status === 'connected' &&
+                  ` · ${realtime.peers + 1} online`}
               </p>
             )}
           </div>

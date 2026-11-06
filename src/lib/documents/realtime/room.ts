@@ -67,6 +67,8 @@ export class DocumentRoom {
   private readonly verdicts = new Map<string, Verdict>()
   private buffer = new Doc()
   private bufferedUpdates = 0
+  /** Latest awareness frame per socket, replayed to late joiners (cache only). */
+  private readonly awarenessBuffer = new Map<string, Uint8Array>()
 
   constructor(deps: DocumentRoomDeps) {
     this.fileId = deps.fileId
@@ -131,6 +133,8 @@ export class DocumentRoom {
       const encoder = encoding.createEncoder()
       writeSyncStep2(encoder, this.buffer, vector)
       client.socket.send(encoding.toUint8Array(encoder))
+      for (const frame of this.awarenessBuffer.values())
+        client.socket.send(frame)
       return
     }
     if (
@@ -155,17 +159,22 @@ export class DocumentRoom {
     }
     if (messageType === messageAwareness) {
       // Awareness is allowed for all admitted users.
+      this.awarenessBuffer.set(socketId, data)
+      if (this.awarenessBuffer.size > this.policy.bufferedUpdates)
+        this.awarenessBuffer.delete(this.awarenessBuffer.keys().next().value!)
       this.relay(client, data)
     }
   }
 
   remove(socketId: string): void {
     this.clients.delete(socketId)
+    this.awarenessBuffer.delete(socketId)
     if (this.clients.size === 0) {
       // Nobody is listening; drop the cache so a cold room holds no state.
       this.buffer.destroy()
       this.buffer = new Doc()
       this.bufferedUpdates = 0
+      this.awarenessBuffer.clear()
       this.verdicts.clear()
     }
   }
