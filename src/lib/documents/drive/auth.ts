@@ -152,6 +152,18 @@ export async function connectGoogleDrive() {
 export async function disconnectGoogleDrive() {
   ++state.revision
   clearToken()
+  const cleanup = await fetch('/api/public-drive/disconnect', {
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    signal: AbortSignal.timeout(15000),
+  })
+  if (!cleanup.ok)
+    throw new Error(
+      cleanup.status === 401
+        ? 'Reconnect Google Drive before disconnecting its anonymous publishing access.'
+        : 'Could not stop shared document publishing. Try disconnecting again.',
+    )
   const result = await authClient.signOut()
   if (result.error)
     throw new Error(

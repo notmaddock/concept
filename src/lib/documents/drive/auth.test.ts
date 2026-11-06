@@ -92,6 +92,7 @@ it('never returns a broker response received after disconnect', async () => {
   )
   const auth = await import('./auth')
   const pending = auth.getGoogleDriveToken()
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
   await auth.disconnectGoogleDrive()
   const rejected = expect(pending).rejects.toBeInstanceOf(
     auth.GoogleDriveAuthError,
@@ -101,7 +102,7 @@ it('never returns a broker response received after disconnect', async () => {
   expect(auth.isGoogleDriveConnected()).toBe(false)
   fetchMock.mockResolvedValueOnce(brokerToken('new-session-token'))
   await expect(auth.getGoogleDriveToken()).resolves.toBe('new-session-token')
-  expect(fetchMock).toHaveBeenCalledTimes(2)
+  expect(fetchMock).toHaveBeenCalledTimes(3)
 })
 
 it('cancels an individual waiter without cancelling another document token request', async () => {
@@ -191,6 +192,7 @@ it('ignores a session response started before disconnect', async () => {
   )
   const auth = await import('./auth')
   const check = auth.prepareGoogleDriveAuth()
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
   await auth.disconnectGoogleDrive()
   resolveSession(session())
   await check
@@ -234,6 +236,7 @@ it('preserves the connection when sign-out fails and surfaces the error', async 
   sdk.signOut.mockResolvedValueOnce({
     error: { message: 'Could not end the session.' },
   })
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
   await expect(auth.disconnectGoogleDrive()).rejects.toThrow(
     'Could not end the session.',
   )
@@ -248,6 +251,7 @@ it('notifies on successful disconnect and allows unsubscribing', async () => {
   const unsubscribe = auth.subscribeGoogleDriveAuth(() =>
     states.push(auth.isGoogleDriveConnected()),
   )
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
   await auth.disconnectGoogleDrive()
   expect(states).toEqual([false])
   unsubscribe()
@@ -302,6 +306,7 @@ it('retains the account ownership hint across an offline reload without restorin
   )
   expect(offline.getGoogleDriveAccountId()).toBe('account-a')
   expect(offline.isGoogleDriveConnected()).toBe(false)
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
   await offline.disconnectGoogleDrive()
   vi.resetModules()
   const signedOut = await import('./auth')
@@ -345,4 +350,46 @@ it('does not repeatedly check the app session when anonymous or offline', async 
   await auth.settleGoogleDriveSession()
   expect(auth.isGoogleDriveConnected()).toBe(false)
   expect(fetchMock).toHaveBeenCalledOnce()
+})
+
+it('revokes delegated publishers before ending the authenticated session', async () => {
+  fetchMock.mockResolvedValueOnce(session())
+  const auth = await import('./auth')
+  await auth.prepareGoogleDriveAuth()
+  let complete!: (response: Response) => void
+  fetchMock.mockReturnValueOnce(
+    new Promise<Response>((resolve) => {
+      complete = resolve
+    }),
+  )
+  const disconnecting = auth.disconnectGoogleDrive()
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    '/api/public-drive/disconnect',
+    expect.objectContaining({ method: 'POST', credentials: 'same-origin' }),
+  )
+  expect(sdk.signOut).not.toHaveBeenCalled()
+  complete(new Response(null, { status: 204 }))
+  await disconnecting
+  expect(sdk.signOut).toHaveBeenCalledOnce()
+})
+
+it('keeps the session when delegated publishing cannot be revoked', async () => {
+  fetchMock.mockResolvedValueOnce(session())
+  const auth = await import('./auth')
+  await auth.prepareGoogleDriveAuth()
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }))
+  await expect(auth.disconnectGoogleDrive()).rejects.toThrow(
+    'Could not stop shared document publishing',
+  )
+  expect(sdk.signOut).not.toHaveBeenCalled()
+  expect(auth.isGoogleDriveConnected()).toBe(true)
+})
+
+it('requires renewed identity before claiming anonymous publishing was disconnected', async () => {
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }))
+  const auth = await import('./auth')
+  await expect(auth.disconnectGoogleDrive()).rejects.toThrow(
+    'Reconnect Google Drive before disconnecting its anonymous publishing access',
+  )
+  expect(sdk.signOut).not.toHaveBeenCalled()
 })
