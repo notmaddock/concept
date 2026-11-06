@@ -58,7 +58,9 @@ export function DocumentEditor({
   const [error, setError] = useState('')
   const [authError, setAuthError] = useState(false)
   const [ready, setReady] = useState(false)
-  const cursorsContainerRef = useRef<HTMLDivElement | null>(null)
+  const localCursorsContainerRef = useRef<HTMLDivElement | null>(null)
+  const cursorsContainerRef =
+    workspace?.cursorsContainerRef ?? localCursorsContainerRef
   const [session, setSession] = useState<{
     doc: Doc
     provider: LocalProvider

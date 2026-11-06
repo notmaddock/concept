@@ -13,6 +13,11 @@ import {
 } from 'lucide-react'
 import { DocumentSaveStatus } from './status/DocumentSaveStatus'
 import { DocumentAccessStatus } from './status/DocumentAccessStatus'
+import {
+  findCollaboratorCaret,
+  revealCollaboratorCaret,
+} from './status/collaborator-cursor'
+import { toast } from 'sonner'
 import { ProvidersDialog } from './dialogs/ProvidersDialog'
 import { Button } from '#/components/ui/button'
 import {
@@ -79,6 +84,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     deleteDocument,
     documentRef,
     editorRef,
+    cursorsContainerRef,
     pageSetupOpen,
     onPageSetupOpenChange,
     saveStatus,
@@ -218,6 +224,20 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                   }
                   liveCollaboration={liveCollaboration}
                   onLiveCollaborationChange={setLiveCollaborationEnabled}
+                  onJumpToCollaborator={(collaborator) => {
+                    const caret = findCollaboratorCaret(
+                      cursorsContainerRef.current,
+                      collaborator,
+                    )
+                    if (!caret) {
+                      toast.error(
+                        `${collaborator.name ?? 'That collaborator'} is not editing right now.`,
+                        { id: 'realtime-jump' },
+                      )
+                      return
+                    }
+                    revealCollaboratorCaret(caret)
+                  }}
                 />
               </div>
             )}

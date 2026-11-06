@@ -100,13 +100,98 @@ it('keeps the trigger compact when live collaboration is off', async () => {
     )
   })
   const trigger = container.querySelector('button')!
-  expect(trigger.textContent).toBe('')
+  expect(trigger.dataset.expanded).toBe('false')
+  expect(
+    trigger.querySelector('.document-access-status-label')?.textContent,
+  ).toBe('')
   expect(trigger.getAttribute('title')).toContain('Live collaboration off')
   expect(trigger.querySelector('.bg-amber-500')).not.toBeNull()
   expect(container.textContent).not.toContain('Live collaboration off')
 
   await act(async () => trigger.click())
   expect(document.body.textContent).toContain('Live collaboration off')
+  expect(document.body.textContent).toContain(
+    'Changes still sync through Google Drive',
+  )
+})
+
+it('expands into a view-only pill', async () => {
+  await act(async () => {
+    root.render(
+      <DocumentAccessStatus
+        readOnly={true}
+        realtime={viewOnly}
+        liveCollaboration={true}
+        onLiveCollaborationChange={() => {}}
+      />,
+    )
+  })
+  const trigger = container.querySelector('button')!
+  expect(trigger.dataset.expanded).toBe('true')
+  expect(
+    trigger.querySelector('.document-access-status-label')?.textContent,
+  ).toBe('View only')
+})
+
+it.each([
+  [1, '1 collaborator'],
+  [2, '2 collaborators'],
+])('summarizes %i other collaborators in the pill', async (others, label) => {
+  const collaborators = [
+    {
+      clientID: 1,
+      self: true,
+      name: 'Ada Lovelace',
+      color: 'rgb(1, 2, 3)',
+      focusing: true,
+    },
+    ...Array.from({ length: others }, (_, index) => ({
+      clientID: index + 2,
+      self: false,
+      name: `Guest ${index + 1}`,
+      color: 'rgb(4, 5, 6)',
+      focusing: false,
+    })),
+  ]
+  await act(async () => {
+    root.render(
+      <DocumentAccessStatus
+        readOnly={false}
+        realtime={{ ...connected, collaborators }}
+        liveCollaboration={true}
+        onLiveCollaborationChange={() => {}}
+      />,
+    )
+  })
+  const trigger = container.querySelector('button')!
+  expect(trigger.dataset.expanded).toBe('true')
+  expect(
+    trigger.querySelector('.document-access-status-label')?.textContent,
+  ).toBe(label)
+})
+
+it('stays compact when the user is alone', async () => {
+  await act(async () => {
+    root.render(
+      <DocumentAccessStatus
+        readOnly={false}
+        realtime={{
+          ...connected,
+          collaborators: [
+            {
+              clientID: 1,
+              self: true,
+              name: 'Ada Lovelace',
+              focusing: true,
+            },
+          ],
+        }}
+        liveCollaboration={true}
+        onLiveCollaborationChange={() => {}}
+      />,
+    )
+  })
+  expect(container.querySelector('button')!.dataset.expanded).toBe('false')
 })
 
 it('lists connected collaborators with names and activity stats', async () => {
@@ -148,6 +233,55 @@ it('lists connected collaborators with names and activity stats', async () => {
   expect(text).toContain('Grace Hopper')
   expect(text).toContain('Editing')
   expect(text).toContain('Viewing')
+  expect(document.body.querySelectorAll('[data-cursor-color]')).toHaveLength(2)
+})
+
+it('jumps to an editing collaborator but not to viewing or self rows', async () => {
+  const onJumpToCollaborator = vi.fn()
+  const collaborators = [
+    {
+      clientID: 1,
+      self: true,
+      name: 'Ada Lovelace',
+      color: 'rgb(1, 2, 3)',
+      focusing: true,
+    },
+    {
+      clientID: 2,
+      self: false,
+      name: 'Grace Hopper',
+      color: 'rgb(4, 5, 6)',
+      focusing: true,
+    },
+    {
+      clientID: 3,
+      self: false,
+      name: 'Alan Turing',
+      color: 'rgb(7, 8, 9)',
+      focusing: false,
+    },
+  ]
+  await act(async () => {
+    root.render(
+      <DocumentAccessStatus
+        readOnly={false}
+        realtime={{ ...connected, collaborators }}
+        liveCollaboration={true}
+        onLiveCollaborationChange={() => {}}
+        onJumpToCollaborator={onJumpToCollaborator}
+      />,
+    )
+  })
+  await act(async () => container.querySelector('button')!.click())
+  const jumps = document.body.querySelectorAll<HTMLButtonElement>(
+    '[aria-label^="Jump to"]',
+  )
+  expect(jumps).toHaveLength(1)
+  expect(jumps[0].getAttribute('aria-label')).toBe(
+    "Jump to Grace Hopper's cursor",
+  )
+  await act(async () => jumps[0].click())
+  expect(onJumpToCollaborator).toHaveBeenCalledWith(collaborators[1])
 })
 
 it('toggles the live collaboration kill switch from the menu', async () => {
@@ -163,12 +297,12 @@ it('toggles the live collaboration kill switch from the menu', async () => {
     )
   })
   await act(async () => container.querySelector('button')!.click())
-  const checkbox = document.body.querySelector<HTMLButtonElement>(
-    '[data-slot="checkbox"]',
+  const toggle = document.body.querySelector<HTMLButtonElement>(
+    '[data-slot="switch"]',
   )!
-  expect(checkbox.getAttribute('aria-checked')).toBe('true')
+  expect(toggle.getAttribute('aria-checked')).toBe('true')
   expect(document.body.textContent).toContain('Live collaboration')
   expect(document.body.textContent).toContain('Connected')
-  await act(async () => checkbox.click())
+  await act(async () => toggle.click())
   expect(onLiveCollaborationChange).toHaveBeenCalledWith(false)
 })

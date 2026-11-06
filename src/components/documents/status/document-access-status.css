@@ -1,0 +1,32 @@
+.document-access-status {
+  gap: 0;
+  padding-inline: 4px;
+}
+
+.document-access-status-label {
+  overflow: hidden;
+  max-width: 0;
+  opacity: 0;
+  transition:
+    max-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin-inline-start 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+
+@container document-header (min-width: 56rem) {
+  .document-access-status[data-expanded='true'] {
+    background-color: var(--secondary);
+  }
+
+  .document-access-status[data-expanded='true'] .document-access-status-label {
+    max-width: 10rem;
+    margin-inline-start: 6px;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .document-access-status-label {
+    transition: none;
+  }
+}

@@ -81,6 +81,7 @@ function useWorkspaceState(id?: string) {
   }, [documentName])
   const documentRef = useRef<Doc | null>(null)
   const editorRef = useRef<LexicalEditor | null>(null)
+  const cursorsContainerRef = useRef<HTMLDivElement | null>(null)
   const [fileAction, setFileAction] = useState<
     'open' | 'copy' | ImportFormat | null
   >(null)
@@ -336,6 +337,7 @@ function useWorkspaceState(id?: string) {
     enabled: Boolean(document),
     documentRef,
     editorRef,
+    cursorsContainerRef,
     detailsOpen,
     onDetailsOpenChange: setDetailsOpen,
     showDetails: () => setDetailsOpen(true),

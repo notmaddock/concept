@@ -1,25 +1,27 @@
+import { useState } from 'react'
 import { CheckIcon, EyeIcon, EyeOffIcon, PencilIcon, XIcon } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '#/components/ui/avatar'
 import { Button } from '#/components/ui/button'
-import { Checkbox } from '#/components/ui/checkbox'
 import {
   Popover,
   PopoverContent,
   PopoverTitle,
   PopoverTrigger,
 } from '#/components/ui/popover'
+import { Switch } from '#/components/ui/switch'
 import type {
   RealtimeCollaborator,
   RealtimeConnectionStatus,
   RealtimeState,
 } from '#/lib/documents/realtime/realtime'
+import './document-access-status.css'
 
 const connectionLabels: Record<RealtimeConnectionStatus, string> = {
   connecting: 'Connecting…',
   connected: 'Connected',
   disconnected: 'Disconnected',
   revoked: 'Access changed',
-  disabled: 'Disabled',
+  disabled: 'Live collaboration off',
 }
 
 function PermissionRow({
@@ -56,29 +58,35 @@ function initials(name: string) {
 
 function CollaboratorRow({
   collaborator,
+  onJump,
 }: {
   collaborator: RealtimeCollaborator
+  onJump?: (collaborator: RealtimeCollaborator) => void
 }) {
   const name = collaborator.name ?? 'Guest'
   const status = collaborator.focusing ? 'Editing' : 'Viewing'
-  return (
-    <li className="flex items-center gap-2">
-      <Avatar size="sm" className="size-6">
-        {collaborator.avatar && (
-          <AvatarImage src={collaborator.avatar} alt="" />
+  const canJump = Boolean(onJump) && collaborator.focusing && !collaborator.self
+  const content = (
+    <>
+      <span className="relative shrink-0">
+        <Avatar size="sm" className="size-6">
+          {collaborator.avatar && (
+            <AvatarImage src={collaborator.avatar} alt="" />
+          )}
+          <AvatarFallback className="bg-muted text-[10px] font-medium text-muted-foreground">
+            {initials(name)}
+          </AvatarFallback>
+        </Avatar>
+        {collaborator.color && (
+          <span
+            aria-hidden="true"
+            data-cursor-color
+            className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-popover"
+            style={{ backgroundColor: collaborator.color }}
+          />
         )}
-        <AvatarFallback
-          className="text-[10px] font-medium text-white"
-          style={
-            collaborator.color
-              ? { backgroundColor: collaborator.color }
-              : undefined
-          }
-        >
-          {initials(name)}
-        </AvatarFallback>
-      </Avatar>
-      <span className="min-w-0 flex-1 truncate text-xs font-medium">
+      </span>
+      <span className="min-w-0 flex-1 truncate text-left text-xs font-medium">
         {name}
         {collaborator.self && (
           <span className="font-normal text-muted-foreground"> (you)</span>
@@ -89,13 +97,33 @@ function CollaboratorRow({
       >
         {status}
       </span>
+    </>
+  )
+  return (
+    <li>
+      {canJump ? (
+        <button
+          type="button"
+          onClick={() => onJump?.(collaborator)}
+          aria-label={`Jump to ${name}'s cursor`}
+          className="-mx-1.5 flex w-[calc(100%+0.75rem)] items-center gap-2 rounded-md px-1.5 py-1 transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40"
+        >
+          {content}
+        </button>
+      ) : (
+        <div className="flex items-center gap-2 px-1.5 py-1">{content}</div>
+      )}
     </li>
   )
 }
 
-function CollaboratorsSection({ realtime }: { realtime: RealtimeState }) {
-  const collaborators = realtime.collaborators ?? []
-  if (realtime.status !== 'connected' || collaborators.length === 0) return null
+function CollaboratorsSection({
+  collaborators,
+  onJump,
+}: {
+  collaborators: RealtimeCollaborator[]
+  onJump?: (collaborator: RealtimeCollaborator) => void
+}) {
   const editing = collaborators.filter(
     (collaborator) => collaborator.focusing,
   ).length
@@ -108,11 +136,12 @@ function CollaboratorsSection({ realtime }: { realtime: RealtimeState }) {
           {editing > 0 && ` · ${editing} editing`}
         </span>
       </div>
-      <ul className="flex flex-col gap-1.5">
+      <ul className="flex flex-col gap-0.5">
         {collaborators.map((collaborator) => (
           <CollaboratorRow
             key={collaborator.clientID}
             collaborator={collaborator}
+            onJump={onJump}
           />
         ))}
       </ul>
@@ -125,12 +154,15 @@ export function DocumentAccessStatus({
   realtime,
   liveCollaboration,
   onLiveCollaborationChange,
+  onJumpToCollaborator,
 }: {
   readOnly: boolean
   realtime?: RealtimeState
   liveCollaboration?: boolean
   onLiveCollaborationChange?: (enabled: boolean) => void
+  onJumpToCollaborator?: (collaborator: RealtimeCollaborator) => void
 }) {
+  const [open, setOpen] = useState(false)
   const viewGranted = realtime?.capabilities?.view ?? true
   const editGranted = realtime?.capabilities?.edit ?? !readOnly
   const label = !viewGranted
@@ -145,22 +177,34 @@ export function DocumentAccessStatus({
       : EyeOffIcon
   const collaborationOff = liveCollaboration === false
   const commentGranted = realtime?.capabilities?.comment
+  const collaborators = realtime?.collaborators ?? []
+  const others = collaborators.filter((collaborator) => !collaborator.self)
+  const pillLabel = !editGranted
+    ? 'View only'
+    : others.length > 0
+      ? `${others.length} ${others.length === 1 ? 'collaborator' : 'collaborators'}`
+      : undefined
+  const expanded = pillLabel !== undefined && !collaborationOff
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
           <Button
             variant="ghost"
-            size="icon-xs"
-            className="relative text-muted-foreground"
+            size="xs"
+            className="document-access-status relative text-muted-foreground"
           />
         }
         aria-label={`Document permissions: ${label}${collaborationOff ? ', live collaboration off' : ''}`}
         title={collaborationOff ? `${label} · Live collaboration off` : label}
         data-collaboration-off={collaborationOff ? '' : undefined}
+        data-expanded={expanded}
       >
         <HighestIcon className="size-4" />
+        <span className="document-access-status-label" aria-hidden="true">
+          {pillLabel ?? ''}
+        </span>
         {collaborationOff && (
           <span
             aria-hidden="true"
@@ -203,23 +247,47 @@ export function DocumentAccessStatus({
             )}
           </ul>
         </div>
-        {realtime && <CollaboratorsSection realtime={realtime} />}
+        {realtime?.status === 'connected' && collaborators.length > 0 && (
+          <CollaboratorsSection
+            collaborators={collaborators}
+            onJump={
+              onJumpToCollaborator
+                ? (collaborator) => {
+                    onJumpToCollaborator(collaborator)
+                    setOpen(false)
+                  }
+                : undefined
+            }
+          />
+        )}
         {collaborationOff && (
-          <div className="flex items-center gap-2 rounded-lg border border-amber-400/60 bg-amber-100 px-2.5 py-1.5 text-xs font-medium text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-200">
-            <EyeOffIcon aria-hidden="true" className="size-3.5" />
-            Live collaboration off
+          <div className="flex items-start gap-2 rounded-lg border border-amber-400/60 bg-amber-100 px-2.5 py-2 text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-200">
+            <EyeOffIcon
+              aria-hidden="true"
+              className="mt-0.5 size-3.5 shrink-0"
+            />
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs font-medium">
+                Live collaboration off
+              </span>
+              <span className="text-[11px] leading-snug text-amber-900/80 dark:text-amber-200/80">
+                Changes still sync through Google Drive and reconcile
+                automatically when someone else edits this document.
+              </span>
+            </div>
           </div>
         )}
         {liveCollaboration !== undefined && (
           <div className="flex flex-col gap-1.5 border-t pt-3">
-            <label className="flex items-center gap-2 text-xs font-medium">
-              <Checkbox
+            <label className="flex items-center justify-between gap-3 text-xs font-medium">
+              Live collaboration
+              <Switch
+                size="sm"
                 checked={liveCollaboration}
                 onCheckedChange={(checked) =>
-                  onLiveCollaborationChange?.(checked === true)
+                  onLiveCollaborationChange?.(checked)
                 }
               />
-              Live collaboration
             </label>
             {realtime && (
               <p className="text-xs text-muted-foreground">
