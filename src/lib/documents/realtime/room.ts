@@ -19,13 +19,16 @@ const messageAwareness = 3
 /** A connected socket as seen by the room; the DO adapts WebSocket to this. */
 export interface RoomSocket {
   readonly id: string
-  send(data: string | Uint8Array): void
-  close(code?: number, reason?: string): void
+  send: (data: string | Uint8Array) => void
+  close: (code?: number, reason?: string) => void
 }
 
 /** Drive-backed capability check for one user; undefined means no access. */
 export interface DriveVerifier {
-  verify(fileId: string, userId: string): Promise<DocumentCapabilities | undefined>
+  verify: (
+    fileId: string,
+    userId: string,
+  ) => Promise<DocumentCapabilities | undefined>
 }
 
 export interface DocumentRoomDeps {
@@ -80,9 +83,16 @@ export class DocumentRoom {
   /** Verifies the ticket and admits the socket. Returns false when rejected. */
   async admit(socket: RoomSocket, ticket: string): Promise<boolean> {
     const payload = await verifyRealtimeTicket(ticket, this.secret, this.now())
-    if (!payload || payload.fileId !== this.fileId || !payload.capabilities.view) {
+    if (
+      !payload ||
+      payload.fileId !== this.fileId ||
+      !payload.capabilities.view
+    ) {
       socket.send(
-        encodeControlMessage({ type: 'error', message: 'Invalid or expired ticket.' }),
+        encodeControlMessage({
+          type: 'error',
+          message: 'Invalid or expired ticket.',
+        }),
       )
       socket.close(4401, 'invalid ticket')
       return false
@@ -93,7 +103,10 @@ export class DocumentRoom {
       capabilities: payload.capabilities,
     })
     socket.send(
-      encodeControlMessage({ type: 'admitted', capabilities: payload.capabilities }),
+      encodeControlMessage({
+        type: 'admitted',
+        capabilities: payload.capabilities,
+      }),
     )
     // Socket (re)connect triggers a server-side revalidation of this user.
     // Usually served from the verdict cache, so no extra Drive call.
@@ -120,7 +133,10 @@ export class DocumentRoom {
       client.socket.send(encoding.toUint8Array(encoder))
       return
     }
-    if (messageType === messageYjsUpdate || messageType === messageYjsSyncStep2) {
+    if (
+      messageType === messageYjsUpdate ||
+      messageType === messageYjsSyncStep2
+    ) {
       if (!client.capabilities.edit) {
         client.socket.send(
           encodeControlMessage({
@@ -168,7 +184,9 @@ export class DocumentRoom {
 
   /** One revalidation pass over all connected clients (one Drive call per user). */
   async revalidate(): Promise<void> {
-    const userIds = new Set([...this.clients.values()].map((client) => client.userId))
+    const userIds = new Set(
+      [...this.clients.values()].map((client) => client.userId),
+    )
     await Promise.all([...userIds].map((userId) => this.revalidateUser(userId)))
   }
 
@@ -220,7 +238,11 @@ export class DocumentRoom {
     }
   }
 
-  private relayUpdate(client: RoomClient, update: Uint8Array, frame: Uint8Array): void {
+  private relayUpdate(
+    client: RoomClient,
+    update: Uint8Array,
+    frame: Uint8Array,
+  ): void {
     try {
       applyUpdate(this.buffer, update)
       this.bufferedUpdates++

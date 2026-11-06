@@ -2,13 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fetchDriveCapabilities } from './drive.server'
 
 function stubFetch(status: number, body?: object) {
-  const fetchMock = vi
-    .fn()
-    .mockResolvedValue(
-      new Response(body === undefined ? null : JSON.stringify(body), {
-        status,
-      }),
-    )
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response(body === undefined ? null : JSON.stringify(body), {
+      status,
+    }),
+  )
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }

@@ -12,18 +12,26 @@ const payload = {
 describe('realtime ticket', () => {
   it('round-trips a signed ticket', async () => {
     const ticket = await signRealtimeTicket(payload, secret)
-    await expect(verifyRealtimeTicket(ticket, secret, 999_999)).resolves.toEqual(payload)
+    await expect(
+      verifyRealtimeTicket(ticket, secret, 999_999),
+    ).resolves.toEqual(payload)
   })
 
   it('rejects an expired ticket', async () => {
     const ticket = await signRealtimeTicket(payload, secret)
-    await expect(verifyRealtimeTicket(ticket, secret, 1_000_000)).resolves.toBeUndefined()
-    await expect(verifyRealtimeTicket(ticket, secret, 2_000_000)).resolves.toBeUndefined()
+    await expect(
+      verifyRealtimeTicket(ticket, secret, 1_000_000),
+    ).resolves.toBeUndefined()
+    await expect(
+      verifyRealtimeTicket(ticket, secret, 2_000_000),
+    ).resolves.toBeUndefined()
   })
 
   it('rejects a ticket signed with another secret', async () => {
     const ticket = await signRealtimeTicket(payload, 'other-secret')
-    await expect(verifyRealtimeTicket(ticket, secret, 999_999)).resolves.toBeUndefined()
+    await expect(
+      verifyRealtimeTicket(ticket, secret, 999_999),
+    ).resolves.toBeUndefined()
   })
 
   it('rejects a tampered payload', async () => {
@@ -36,19 +44,31 @@ describe('realtime ticket', () => {
       .replace(/\//g, '_')
       .replace(/=+$/, '')
     await expect(
-      verifyRealtimeTicket(`${version}.${forgedBody}.${signature}`, secret, 999_999),
+      verifyRealtimeTicket(
+        `${version}.${forgedBody}.${signature}`,
+        secret,
+        999_999,
+      ),
     ).resolves.toBeUndefined()
   })
 
   it('rejects malformed tickets', async () => {
     await expect(verifyRealtimeTicket('', secret)).resolves.toBeUndefined()
-    await expect(verifyRealtimeTicket('v1.onlytwo', secret)).resolves.toBeUndefined()
-    await expect(verifyRealtimeTicket('v2.a.b', secret)).resolves.toBeUndefined()
-    await expect(verifyRealtimeTicket('v1.!!!.!!!', secret)).resolves.toBeUndefined()
+    await expect(
+      verifyRealtimeTicket('v1.onlytwo', secret),
+    ).resolves.toBeUndefined()
+    await expect(
+      verifyRealtimeTicket('v2.a.b', secret),
+    ).resolves.toBeUndefined()
+    await expect(
+      verifyRealtimeTicket('v1.!!!.!!!', secret),
+    ).resolves.toBeUndefined()
     const ticket = await signRealtimeTicket(
       { ...payload, capabilities: { view: 'yes' } as never },
       secret,
     )
-    await expect(verifyRealtimeTicket(ticket, secret, 1)).resolves.toBeUndefined()
+    await expect(
+      verifyRealtimeTicket(ticket, secret, 1),
+    ).resolves.toBeUndefined()
   })
 })

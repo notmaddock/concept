@@ -18,7 +18,9 @@ export interface DriveCapabilityFlags {
   canModifyContent?: boolean
 }
 
-export function isDocumentCapabilities(value: unknown): value is DocumentCapabilities {
+export function isDocumentCapabilities(
+  value: unknown,
+): value is DocumentCapabilities {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const caps = value as Record<string, unknown>
   return (
@@ -39,7 +41,8 @@ export function capabilitiesFromDrive(
   return {
     view: true,
     edit:
-      capabilities?.canEdit !== false && capabilities?.canModifyContent !== false,
+      capabilities?.canEdit !== false &&
+      capabilities?.canModifyContent !== false,
     comment: capabilities?.canComment === true,
   }
 }

@@ -18,7 +18,9 @@ export type ServerControlMessage =
   | { type: 'revoked'; capabilities: DocumentCapabilities }
   | { type: 'error'; message: string }
 
-export function encodeControlMessage(message: ClientControlMessage | ServerControlMessage) {
+export function encodeControlMessage(
+  message: ClientControlMessage | ServerControlMessage,
+) {
   return JSON.stringify(message)
 }
 
@@ -30,16 +32,23 @@ function parseJson(data: string): unknown {
   }
 }
 
-export function parseClientControlMessage(data: string): ClientControlMessage | undefined {
+export function parseClientControlMessage(
+  data: string,
+): ClientControlMessage | undefined {
   const value = parseJson(data)
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return undefined
   const message = value as Record<string, unknown>
   if (message.type === 'hello') {
     return typeof message.ticket === 'string' &&
       message.ticket.length > 0 &&
       message.ticket.length <= 4096 &&
       message.protocol === realtimeProtocolVersion
-      ? { type: 'hello', protocol: realtimeProtocolVersion, ticket: message.ticket }
+      ? {
+          type: 'hello',
+          protocol: realtimeProtocolVersion,
+          ticket: message.ticket,
+        }
       : undefined
   }
   if (message.type === 'capabilities')
@@ -50,9 +59,12 @@ export function parseClientControlMessage(data: string): ClientControlMessage | 
   return undefined
 }
 
-export function parseServerControlMessage(data: string): ServerControlMessage | undefined {
+export function parseServerControlMessage(
+  data: string,
+): ServerControlMessage | undefined {
   const value = parseJson(data)
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return undefined
   const message = value as Record<string, unknown>
   if (message.type === 'admitted' || message.type === 'revoked') {
     return isDocumentCapabilities(message.capabilities)
