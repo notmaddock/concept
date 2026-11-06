@@ -3,7 +3,7 @@ import {
   DocumentWorkspaceProvider,
   useDocumentWorkspace,
 } from './document-workspace-context'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   FileTextIcon,
@@ -47,6 +47,12 @@ import {
 import { DocumentNavigation } from './DocumentNavigation'
 import { DocumentList } from './list/DocumentList'
 import { DocumentLoading } from './status/DocumentLoading'
+import {
+  isLiveCollaborationEnabled,
+  setLiveCollaborationEnabled,
+  subscribeLiveCollaboration,
+} from '#/lib/documents/realtime/preferences'
+import type { RealtimeState } from '#/lib/documents/realtime/realtime'
 import { DocumentEditor } from './DocumentEditor'
 import { DriveIcon } from './icons/DriveIcon'
 import { AppToaster } from '#/components/app-toaster'
@@ -88,6 +94,11 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     pickerLoading,
   } = useDocumentWorkspace()
   const [providersOpen, setProvidersOpen] = useState(false)
+  const liveCollaboration = useSyncExternalStore(
+    subscribeLiveCollaboration,
+    isLiveCollaborationEnabled,
+    () => true,
+  )
 
   return (
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
@@ -203,6 +214,11 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                     document.readOnly || document.drive?.readOnly,
                   )}
                   provider={document.drive ? 'google-drive' : undefined}
+                  realtime={
+                    (saveStatus as { realtime?: RealtimeState }).realtime
+                  }
+                  liveCollaboration={liveCollaboration}
+                  onLiveCollaborationChange={setLiveCollaborationEnabled}
                 />
               </div>
             )}
