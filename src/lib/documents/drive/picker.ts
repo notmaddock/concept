@@ -1,5 +1,6 @@
 import { env } from '#/env'
 import { getGoogleDriveToken } from './auth'
+import { rememberDriveResourceKey } from './api'
 
 export interface GooglePickerDocument {
   id: string
@@ -7,6 +8,7 @@ export interface GooglePickerDocument {
   mimeType: string
   description?: string
   url?: string
+  resourceKey?: string
 }
 
 export interface GooglePickerOptions {
@@ -319,7 +321,17 @@ export async function openGooglePicker(
           }
           const docUrl =
             (doc[pickerNamespace.Document.URL] as string) || doc.url
+          let resourceKey =
+            typeof doc.resourceKey === 'string' ? doc.resourceKey : undefined
+          if (!resourceKey && docUrl) {
+            try {
+              resourceKey =
+                new URL(docUrl).searchParams.get('resourcekey') ?? undefined
+            } catch {}
+          }
+          if (resourceKey) rememberDriveResourceKey(docId, resourceKey)
           finish({
+            resourceKey,
             id: docId,
             name: docName,
             mimeType: docMime,

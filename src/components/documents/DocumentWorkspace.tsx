@@ -87,6 +87,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     openGoogleDrivePicker,
     pickerLoading,
     recoverLocalCopy,
+    recheckAccess,
   } = useDocumentWorkspace()
   const [providersOpen, setProvidersOpen] = useState(false)
 
@@ -241,6 +242,9 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               <EmptyContent>
                 <Button onClick={() => void recoverLocalCopy()}>
                   Recover local copy
+                </Button>
+                <Button variant="outline" onClick={() => void recheckAccess()}>
+                  Check access
                 </Button>
               </EmptyContent>
             </Empty>

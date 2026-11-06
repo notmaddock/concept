@@ -23,6 +23,7 @@ import {
   refreshDriveDocuments,
   documentStorage,
   recoverDocumentLocally,
+  recheckDocumentAccess,
 } from '#/lib/documents/document-storage'
 import { openGooglePicker } from '#/lib/documents/drive/picker'
 import { localDocumentStorage } from '#/lib/documents/storage'
@@ -348,6 +349,20 @@ function useWorkspaceState(id?: string) {
     openDocument,
     importDocument: (format: ImportFormat) => setFileAction(format),
     copyDocument,
+    recheckAccess: async () => {
+      if (!document) return
+      try {
+        await recheckDocumentAccess(document.id)
+        setConnectionRevision((value) => value + 1)
+      } catch (cause) {
+        toast.error(
+          cause instanceof Error ? cause.message : 'Could not verify access.',
+          {
+            id: 'document-access-error',
+          },
+        )
+      }
+    },
     recoverLocalCopy: async () => {
       if (!document) return
       try {

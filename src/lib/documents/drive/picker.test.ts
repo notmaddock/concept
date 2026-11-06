@@ -7,6 +7,7 @@ import {
   resetGooglePickerLoader,
 } from './picker'
 import { env } from '#/env'
+import { getDriveResourceKey } from './api'
 
 vi.mock('./auth', () => ({
   getGoogleDriveToken: vi.fn(async () => 'mock-auth-token'),
@@ -342,6 +343,24 @@ describe('openGooglePicker workflow', () => {
       description: undefined,
       url: undefined,
     })
+  })
+
+  it('retains the selected link resource key for authorized Drive requests', async () => {
+    const picked = openGooglePicker()
+    await flushPromises()
+    callbackRegistered?.({
+      action: 'picked',
+      docs: [
+        {
+          id: 'link-file',
+          name: 'Link.concept',
+          mimeType: 'application/vnd.concept+zip',
+          url: 'https://drive.google.com/file/d/link-file/view?resourcekey=resource-key',
+        },
+      ],
+    })
+    expect((await picked)?.resourceKey).toBe('resource-key')
+    expect(getDriveResourceKey('link-file')).toBe('resource-key')
   })
 
   it('resolves to null when the user cancels the picker, preserving current state', async () => {
