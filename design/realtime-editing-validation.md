@@ -2,6 +2,13 @@
 
 Run the automated repository checks with `pnpm run validate`. The relay stores authorization metadata and WebSocket attachments, never a document or update log. Realtime batches and client performance measures contain counts, byte sizes, and timing only.
 
+## Implementation verification
+
+- `pnpm run validate` passed: formatting, generated routes and bindings, lint, typechecking, 453 tests, and production build.
+- A local Workers runtime smoke check delivered a Yjs update between two actual relay sockets and rejected a forged viewer mutation with close code 4002.
+- Account cache migration retains previous bytes in a separate recovery entry before replacing the canonical cache after a fresh authorized Drive read. Other tabs holding the old cache must close before migration can proceed.
+- Live two-account Drive checks, provider permission propagation, and latency/cost measurements remain pending on the PR preview.
+
 ## Two-account preview checks
 
 Use two browser profiles, each signed into a different Google account and the same PR preview. Select the shared `.concept` file through the Google Drive picker in both profiles when required by the `drive.file` OAuth scope.
