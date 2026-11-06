@@ -38,6 +38,14 @@
         "migrations_dir": "migrations",
       },
     ],
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "REALTIME",
+          "class_name": "DocumentRealtimeDO",
+        },
+      ],
+    },
   },
   "d1_databases": [
     {
