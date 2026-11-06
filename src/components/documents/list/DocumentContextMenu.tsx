@@ -44,8 +44,10 @@ export function DocumentContextMenu({
   onDelete,
   driveFileId,
   offlineAvailable = false,
+  removeLocally = false,
 }: {
   id: string
+  removeLocally?: boolean
   offlineAvailable?: boolean
   driveFileId?: string
   onRename?: (name: string) => Promise<boolean>
@@ -131,7 +133,8 @@ export function DocumentContextMenu({
             className={documentMenuItemClassName}
             onClick={() => setConfirming(true)}
           >
-            <Trash2Icon /> Delete document
+            <Trash2Icon />{' '}
+            {removeLocally ? 'Remove from this browser' : 'Delete document'}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -145,10 +148,13 @@ export function DocumentContextMenu({
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {removeLocally ? 'Remove local copy?' : 'Delete document?'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              “{name}” will be removed from your documents. Are you sure you
-              want to delete it?
+              {removeLocally
+                ? `“${name}” will be removed from this browser. The shared Drive file remains available.`
+                : `“${name}” will be removed from your documents. Are you sure you want to delete it?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -158,7 +164,13 @@ export function DocumentContextMenu({
               disabled={deleting}
               onClick={confirmDelete}
             >
-              {deleting ? 'Deleting…' : 'Delete document'}
+              {deleting
+                ? removeLocally
+                  ? 'Removing…'
+                  : 'Deleting…'
+                : removeLocally
+                  ? 'Remove local copy'
+                  : 'Delete document'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
