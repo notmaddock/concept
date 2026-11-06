@@ -279,10 +279,6 @@ export class DocumentSync {
       }
       try {
         await this.download()
-        if (isGoogleDriveConnected()) {
-          await registerPublicDriveFile(this.info.drive.fileId).catch(() => {})
-          this.assertAccount()
-        }
       } catch (error) {
         this.fail(error, false)
         if (
@@ -330,6 +326,7 @@ export class DocumentSync {
         }),
       })
     this.initialized = true
+    if (!this.background) documentSessions.set(this.info.id, this)
     this.startRealtime()
     this.doc.on('update', this.changed)
     this.unsubscribeAssets = documentAssets(this.doc)?.subscribe(() => {
@@ -371,7 +368,7 @@ export class DocumentSync {
       }, accessTiming.refreshMs)
     window.addEventListener('focus', this.check)
     window.addEventListener('online', this.check)
-    if (!this.background) documentSessions.set(this.info.id, this)
+    this.startPublicRegistration()
   }
 
   private changed = (_update?: Uint8Array, origin?: unknown) => {
@@ -591,6 +588,34 @@ export class DocumentSync {
     } finally {
       snapshot.destroy()
     }
+  }
+
+  private startPublicRegistration() {
+    if (
+      !this.info.drive ||
+      !isGoogleDriveConnected() ||
+      this.access.kind !== 'editor'
+    )
+      return
+    const accountId = this.info.drive.accountId
+    void registerPublicDriveFile(
+      this.info.drive.fileId,
+      this.abort.signal,
+    ).catch((error: unknown) => {
+      if (
+        this.stopped ||
+        accountId !== getGoogleDriveAccountId() ||
+        !isGoogleDriveConnected()
+      )
+        return
+      if (error instanceof DriveError && error.status === 403) return
+      toast.error(
+        error instanceof DriveError && error.status === 401
+          ? 'Reconnect Google Drive to enable anonymous access.'
+          : 'Could not enable anonymous access. Reopen the document to try again.',
+        { id: `drive-sharing:${this.info.id}` },
+      )
+    })
   }
 
   private startRealtime() {

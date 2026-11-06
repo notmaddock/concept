@@ -189,6 +189,7 @@ beforeEach(() => {
   }
   vi.useFakeTimers()
   vi.clearAllMocks()
+  vi.mocked(registerPublicDriveFile).mockReset().mockResolvedValue(undefined)
   info = {
     id: crypto.randomUUID(),
     name: 'Test',
@@ -1233,8 +1234,10 @@ it('registers an authenticated publisher independently of realtime and tolerates
     await start()
     expect(registerPublicDriveFile).toHaveBeenCalledExactlyOnceWith(
       info.drive!.fileId,
+      expect.any(AbortSignal),
     )
     expect(getSaveStatus(info.id).phase).toBe('synced')
+    expect(toast.error).not.toHaveBeenCalled()
   } finally {
     connected.mockRestore()
   }
@@ -1287,4 +1290,48 @@ it('does not bind an anonymous socket grant to the remembered offline account id
   } finally {
     account.mockRestore()
   }
+})
+
+it('starts realtime and exposes the session without waiting for publisher registration', async () => {
+  const registration = deferred<void>()
+  vi.mocked(registerPublicDriveFile).mockReturnValueOnce(registration.promise)
+  const ready = vi.fn()
+  const starting = start().then(ready)
+  await vi.waitFor(() => expect(ready).toHaveBeenCalledOnce())
+  expect(documentSessions.get(info.id)).toBe(session)
+  expect(session.realtime).toBeDefined()
+  expect(getSaveStatus(info.id).phase).toBe('synced')
+  registration.resolve()
+  await starting
+})
+
+it('reports a publisher registration failure once while leaving document editing ready', async () => {
+  vi.mocked(registerPublicDriveFile).mockRejectedValueOnce(
+    new DriveError(503, 'Unavailable'),
+  )
+  await start()
+  await Promise.resolve()
+  expect(toast.error).toHaveBeenCalledExactlyOnceWith(
+    'Could not enable anonymous access. Reopen the document to try again.',
+    { id: `drive-sharing:${info.id}` },
+  )
+  expect(getSaveStatus(info.id).phase).toBe('synced')
+  expect(documentSessions.get(info.id)).toBe(session)
+})
+
+it('ignores a publisher registration failure after its document session closes', async () => {
+  let fail!: (reason: unknown) => void
+  vi.mocked(registerPublicDriveFile).mockReturnValueOnce(
+    new Promise<void>((_resolve, reject) => {
+      fail = reject
+    }),
+  )
+  await start()
+  await session.stop()
+  expect(vi.mocked(registerPublicDriveFile).mock.calls[0][1]?.aborted).toBe(
+    true,
+  )
+  fail(new DriveError(503, 'Unavailable'))
+  await Promise.resolve()
+  expect(toast.error).not.toHaveBeenCalled()
 })
