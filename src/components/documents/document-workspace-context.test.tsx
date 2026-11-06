@@ -11,6 +11,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   connected: true,
+  accountId: undefined as string | undefined,
   listeners: new Set<() => void>(),
   refresh: vi.fn<() => Promise<Set<string>>>(),
   prepareAuth: vi.fn(async () => {}),
@@ -38,6 +39,7 @@ vi.mock('#/lib/documents/drive/picker', () => ({
 vi.mock('#/lib/documents/drive/auth', () => ({
   connectGoogleDrive: vi.fn(),
   getGoogleDriveToken: vi.fn(),
+  getGoogleDriveAccountId: () => mocks.accountId,
   prepareGoogleDriveAuth: () => mocks.prepareAuth(),
   disconnectGoogleDrive: () => mocks.disconnect(),
   isGoogleDriveConnected: () => mocks.connected,
@@ -72,6 +74,7 @@ let workspace: ReturnType<typeof useDocumentWorkspace>
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   mocks.connected = true
+  mocks.accountId = undefined
   mocks.documents = []
   mocks.document = undefined
   mocks.refresh.mockReset()
@@ -340,4 +343,33 @@ it('retains the current document and reports one error when selected file regist
   expect(error).toHaveBeenCalledExactlyOnceWith('Access denied', {
     id: 'google-picker-error',
   })
+})
+
+it('hides another account’s cached document names even when available offline or dirty', async () => {
+  mocks.accountId = 'current-account'
+  mocks.documents = [
+    {
+      id: 'Gprivate',
+      name: 'Private document',
+      updatedAt: 1,
+      drive: {
+        accountId: 'previous-account',
+        fileId: 'private',
+        offlineAvailable: true,
+        dirty: true,
+      },
+    },
+  ]
+  function Harness() {
+    workspace = useDocumentWorkspace()
+    return null
+  }
+  await act(async () =>
+    root.render(
+      <DocumentWorkspaceProvider>
+        <Harness />
+      </DocumentWorkspaceProvider>,
+    ),
+  )
+  expect(workspace.documents).toEqual([])
 })

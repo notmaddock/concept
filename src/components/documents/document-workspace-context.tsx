@@ -17,6 +17,7 @@ import {
   prepareGoogleDriveAuth,
   disconnectGoogleDrive,
   isGoogleDriveConnected,
+  getGoogleDriveAccountId,
   subscribeGoogleDriveAuth,
 } from '#/lib/documents/drive/auth'
 import {
@@ -100,7 +101,13 @@ function useWorkspaceState(id?: string) {
   const driveConnected = useSyncExternalStore(
     subscribeGoogleDriveAuth,
     isGoogleDriveConnected,
+    getGoogleDriveAccountId,
     () => false,
+  )
+  const driveAccountId = useSyncExternalStore(
+    subscribeGoogleDriveAuth,
+    getGoogleDriveAccountId,
+    () => undefined,
   )
   const [connectionRevision, setConnectionRevision] = useState(0)
   const saveStatus = useSyncExternalStore(
@@ -145,7 +152,7 @@ function useWorkspaceState(id?: string) {
     return () => {
       active = false
     }
-  }, [driveConnected])
+  }, [driveConnected, driveAccountId])
 
   async function connectDrive() {
     setDriveLoading(true)
@@ -263,10 +270,11 @@ function useWorkspaceState(id?: string) {
     documents: library.documents.filter(
       (item) =>
         !item.drive ||
-        (driveConnected && (!driveIds || driveIds.has(item.id))) ||
-        item.id === document?.id ||
-        item.drive.offlineAvailable ||
-        item.drive.dirty,
+        (item.drive.accountId === driveAccountId &&
+          ((driveConnected && (!driveIds || driveIds.has(item.id))) ||
+            item.id === document?.id ||
+            item.drive.offlineAvailable ||
+            item.drive.dirty)),
     ),
     saveStatus,
     driveLoading,
