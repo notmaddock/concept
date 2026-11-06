@@ -56,7 +56,9 @@ export function FloatingTextFormatToolbarPlugin() {
       if (
         editor.isComposing() ||
         !editor.isEditable() ||
-        document.activeElement?.closest('[role="menu"], [role="menubar"]')
+        document.activeElement?.closest(
+          '[role="menu"], [role="menubar"], [role="dialog"], [role="alertdialog"]',
+        )
       ) {
         setIsOpen(false)
         return

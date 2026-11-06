@@ -1,6 +1,11 @@
 import { act, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createEditor } from 'lexical'
+import {
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  createEditor,
+} from 'lexical'
 import { expect, it, vi } from 'vitest'
 import { FloatingTextFormatToolbarPlugin } from './FloatingTextFormatToolbarPlugin'
 
@@ -10,7 +15,7 @@ vi.mock('@lexical/react/LexicalComposerContext', () => ({
   useLexicalComposerContext: () => [editor],
 }))
 vi.mock('./FloatingTextFormatToolbar', () => ({
-  FloatingTextFormatToolbar: () => null,
+  FloatingTextFormatToolbar: () => <div data-testid="selection-toolbar" />,
 }))
 
 it('schedules updates after effect cleanup cancels a pending frame', async () => {
@@ -46,3 +51,91 @@ it('schedules updates after effect cleanup cancels a pending frame', async () =>
     vi.unstubAllGlobals()
   }
 })
+
+it.each(['dialog', 'alertdialog'])(
+  'hides selection formatting when an external %s takes focus',
+  async (role) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    const frames: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback)
+      return frames.length
+    })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    const container = document.createElement('div')
+    const editable = document.createElement('div')
+    editable.contentEditable = 'true'
+    editable.tabIndex = 0
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', role)
+    const button = document.createElement('button')
+    button.textContent = 'Connect Google Drive'
+    dialog.append(button)
+    document.body.append(container, editable, dialog)
+    const root = createRoot(container)
+    editor = createEditor()
+    editor.setRootElement(editable)
+    vi.spyOn(editable, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(0, 0, 400, 400),
+    )
+    const originalRect = Range.prototype.getBoundingClientRect
+    Range.prototype.getBoundingClientRect = () => new DOMRect(20, 20, 100, 20)
+    async function flushFrames() {
+      await act(async () => {
+        while (frames.length) frames.shift()!(0)
+      })
+    }
+    try {
+      await act(async () => {
+        root.render(<FloatingTextFormatToolbarPlugin />)
+        editable.focus()
+        editor.update(
+          () => {
+            const text = $createTextNode('Selected text')
+            $getRoot().append($createParagraphNode().append(text))
+            text.select(0, 8)
+          },
+          { discrete: true },
+        )
+      })
+      const text = editable.querySelector('span')!.firstChild!
+      const range = document.createRange()
+      range.setStart(text, 0)
+      range.setEnd(text, 8)
+      window.getSelection()!.removeAllRanges()
+      window.getSelection()!.addRange(range)
+      document.dispatchEvent(new Event('selectionchange'))
+      await flushFrames()
+      expect(
+        container.querySelector('[data-testid="selection-toolbar"]'),
+      ).not.toBeNull()
+      const formattingDialog = document.createElement('div')
+      formattingDialog.setAttribute('role', 'dialog')
+      formattingDialog.setAttribute('data-format-toolbar', 'true')
+      const formattingButton = document.createElement('button')
+      formattingDialog.append(formattingButton)
+      container.append(formattingDialog)
+      await act(async () => formattingButton.focus())
+      await flushFrames()
+      expect(
+        container.querySelector('[data-testid="selection-toolbar"]'),
+      ).not.toBeNull()
+      await act(async () => button.focus())
+      await flushFrames()
+      expect(
+        container.querySelector('[data-testid="selection-toolbar"]'),
+      ).toBeNull()
+    } finally {
+      await act(async () => {
+        root.unmount()
+        editor.setRootElement(null)
+      })
+      Range.prototype.getBoundingClientRect = originalRect
+      container.remove()
+      editable.remove()
+      dialog.remove()
+      vi.restoreAllMocks()
+      vi.unstubAllGlobals()
+    }
+  },
+)
