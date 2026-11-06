@@ -13,10 +13,38 @@ const conceptMimeTypes = [conceptMimeType, 'application/vnd.concept+json']
 const v2Fields =
   'id,title,mimeType,modifiedDate,fileSize,version,headRevisionId,etag,capabilities(canEdit,canModifyContent,canDownload,canComment,canCopy)'
 const publicFields =
-  'id,name,mimeType,trashed,resourceKey,linkShareMetadata(securityUpdateEnabled),inheritedPermissionsDisabled,contentRestrictions(readOnly),downloadRestrictions(effectiveDownloadRestrictionWithContext(restrictedForReaders,restrictedForWriters)),capabilities(canDownload,canEdit,canModifyContent)'
+  'id,name,mimeType,trashed,resourceKey,linkShareMetadata(securityUpdateEnabled,securityUpdateEligible),inheritedPermissionsDisabled,contentRestrictions(readOnly),downloadRestrictions(effectiveDownloadRestrictionWithContext(restrictedForReaders,restrictedForWriters)),capabilities(canDownload,canEdit,canModifyContent)'
 const cookieName = 'concept-anonymous'
 
 class PublicAccessLost extends AccessFailure {}
+
+type PolicyDenialReason =
+  | 'resourceMismatch'
+  | 'fileTrashed'
+  | 'unsupportedPackageType'
+  | 'resourceKeyRequired'
+  | 'resourceKeyMismatch'
+  | 'resourceKeyUnavailable'
+  | 'publisherCannotDownload'
+  | 'publisherCannotEdit'
+  | 'publisherCannotModifyContent'
+  | 'limitedAccessUnsupported'
+  | 'publicPermissionMissing'
+  | 'publicDownloadRestricted'
+  | 'publicWritePermissionRequired'
+  | 'contentReadOnly'
+
+type PolicyObservation = ReturnType<typeof policyObservation>
+
+class PublicPolicyFailure extends AccessFailure {
+  constructor(
+    status: number,
+    public readonly denialReason: PolicyDenialReason,
+    public readonly observation: PolicyObservation,
+  ) {
+    super(status)
+  }
+}
 
 type RegistrationStage =
   | 'identity'
@@ -41,6 +69,10 @@ class PublisherRegistrationFailure extends AccessFailure {
     public readonly stage: RegistrationStage,
     status: number,
     public readonly providerStatus?: number,
+    public readonly policy?: {
+      reason: PolicyDenialReason
+      observation: PolicyObservation
+    },
   ) {
     super(status)
   }
@@ -72,7 +104,10 @@ type PublicFile = {
   name?: string
   trashed?: boolean
   resourceKey?: string
-  linkShareMetadata?: { securityUpdateEnabled?: boolean }
+  linkShareMetadata?: {
+    securityUpdateEnabled?: boolean
+    securityUpdateEligible?: boolean
+  }
   inheritedPermissionsDisabled?: boolean
   contentRestrictions?: { readOnly?: boolean }[]
   downloadRestrictions?: {
@@ -85,6 +120,32 @@ type PublicFile = {
     canDownload?: boolean
     canEdit?: boolean
     canModifyContent?: boolean
+  }
+}
+
+function policyObservation(
+  file: PublicFile,
+  publicRole: 'reader' | 'writer' | undefined = undefined,
+) {
+  const restriction =
+    file.downloadRestrictions?.effectiveDownloadRestrictionWithContext
+  return {
+    canDownload: file.capabilities?.canDownload ?? null,
+    canEdit: file.capabilities?.canEdit ?? null,
+    canModifyContent: file.capabilities?.canModifyContent ?? null,
+    securityUpdateEligible:
+      file.linkShareMetadata?.securityUpdateEligible ?? null,
+    securityUpdateEnabled:
+      file.linkShareMetadata?.securityUpdateEnabled ?? null,
+    resourceKeyPresent: Boolean(file.resourceKey),
+    inheritedPermissionsDisabled: file.inheritedPermissionsDisabled ?? null,
+    publicRole: publicRole ?? null,
+    contentReadOnly:
+      file.contentRestrictions?.some(
+        (contentRestriction) => contentRestriction.readOnly === true,
+      ) ?? false,
+    downloadRestrictedForReaders: restriction?.restrictedForReaders ?? null,
+    downloadRestrictedForWriters: restriction?.restrictedForWriters ?? null,
   }
 }
 
@@ -140,36 +201,42 @@ async function publicPolicy(
     throw error
   }
   const file = (await metadataResponse.json()) as PublicFile
-  if (
-    file.id !== resource.fileId ||
-    file.trashed ||
-    !(
-      conceptMimeTypes.includes(file.mimeType) ||
-      ([
-        'application/octet-stream',
-        'application/zip',
-        'application/x-zip-compressed',
-      ].includes(file.mimeType) &&
-        typeof file.name === 'string' &&
-        /\.concept$/i.test(file.name))
-    )
-  )
-    throw new PublicAccessLost(404)
+  const deny = (status: number, reason: PolicyDenialReason) => {
+    throw new PublicPolicyFailure(status, reason, policyObservation(file))
+  }
+  if (file.id !== resource.fileId) deny(404, 'resourceMismatch')
+  if (file.trashed) deny(404, 'fileTrashed')
+  if (!(
+    conceptMimeTypes.includes(file.mimeType) ||
+    ([
+      'application/octet-stream',
+      'application/zip',
+      'application/x-zip-compressed',
+    ].includes(file.mimeType) &&
+      typeof file.name === 'string' &&
+      /\.concept$/i.test(file.name))
+  ))
+    deny(404, 'unsupportedPackageType')
   if (
     enforceResourceKey &&
     file.linkShareMetadata?.securityUpdateEnabled &&
-    (!file.resourceKey || resource.resourceKey !== file.resourceKey)
+    !file.resourceKey
   )
-    throw new AccessFailure(404)
+    deny(404, 'resourceKeyRequired')
   if (
-    file.capabilities?.canDownload !== true ||
-    file.capabilities.canEdit !== true ||
-    file.capabilities.canModifyContent !== true
+    enforceResourceKey &&
+    file.linkShareMetadata?.securityUpdateEnabled &&
+    resource.resourceKey !== file.resourceKey
   )
-    throw new PublicAccessLost(403)
+    deny(404, 'resourceKeyMismatch')
+  if (file.capabilities?.canDownload !== true)
+    deny(403, 'publisherCannotDownload')
+  if (file.capabilities?.canEdit !== true) deny(403, 'publisherCannotEdit')
+  if (file.capabilities?.canModifyContent !== true)
+    deny(403, 'publisherCannotModifyContent')
   // Limited-access ACL entries may describe inherited metadata visibility rather
   // than effective anonymous content access; do not derive a public grant there.
-  if (file.inheritedPermissionsDisabled) throw new PublicAccessLost(403)
+  if (file.inheritedPermissionsDisabled) deny(403, 'limitedAccessUnsupported')
   let publicRole: 'reader' | 'writer' | undefined
   let nextPageToken: string | undefined
   for (let page = 0; page < 10; page++) {
@@ -205,16 +272,26 @@ async function publicPolicy(
     if (!nextPageToken) break
     if (page === 9) throw new AccessFailure(503)
   }
-  if (!publicRole) throw new PublicAccessLost(404)
+  if (!publicRole)
+    throw new PublicPolicyFailure(
+      404,
+      'publicPermissionMissing',
+      policyObservation(file),
+    )
   const restriction =
     file.downloadRestrictions?.effectiveDownloadRestrictionWithContext
   if (
     restriction?.restrictedForWriters ||
     (publicRole === 'reader' && restriction?.restrictedForReaders)
   )
-    throw new PublicAccessLost(403)
+    throw new PublicPolicyFailure(
+      403,
+      'publicDownloadRestricted',
+      policyObservation(file, publicRole),
+    )
   return {
     file,
+    publicRole,
     readOnly:
       publicRole !== 'writer' ||
       file.contentRestrictions?.some(
@@ -261,12 +338,25 @@ export async function registerPublicPublisher(
     if (!tokens.accessToken) throw new AccessFailure(401)
     stage = 'policy'
     const policy = await publicPolicy(tokens.accessToken, resource)
-    if (policy.readOnly) throw new AccessFailure(403)
+    if (policy.readOnly)
+      throw new PublicPolicyFailure(
+        403,
+        policy.file.contentRestrictions?.some(
+          (restriction) => restriction.readOnly,
+        )
+          ? 'contentReadOnly'
+          : 'publicWritePermissionRequired',
+        policyObservation(policy.file, policy.publicRole),
+      )
     const resourceKey = policy.file.linkShareMetadata?.securityUpdateEnabled
       ? (policy.file.resourceKey ?? resource.resourceKey)
       : null
     if (policy.file.linkShareMetadata?.securityUpdateEnabled && !resourceKey)
-      throw new AccessFailure(403)
+      throw new PublicPolicyFailure(
+        403,
+        'resourceKeyUnavailable',
+        policyObservation(policy.file, policy.publicRole),
+      )
     stage = 'registry_write'
     const result = await bindings.DB.prepare(
       'insert into public_drive_publisher (fileId, userId, accountId, resourceKey, updatedAt) select ?, ?, ?, ?, ? where coalesce((select version from public_drive_publisher_epoch where userId = ?), 0) = ? on conflict(fileId) do update set userId=excluded.userId, accountId=excluded.accountId, resourceKey=excluded.resourceKey, updatedAt=excluded.updatedAt',
@@ -297,7 +387,27 @@ export async function registerPublicPublisher(
       observedStage,
       status,
       providerStatus,
+      error instanceof PublicPolicyFailure
+        ? { reason: error.denialReason, observation: error.observation }
+        : undefined,
     )
+    if (
+      failure.policy &&
+      ![
+        'publicPermissionMissing',
+        'publicWritePermissionRequired',
+        'unsupportedPackageType',
+      ].includes(failure.policy.reason)
+    )
+      console.warn(
+        JSON.stringify({
+          event: 'public_drive_registration_denied',
+          stage: failure.stage,
+          status,
+          policyReason: failure.policy.reason,
+          diagnostics: failure.policy.observation,
+        }),
+      )
     if (![401, 403, 404].includes(status))
       console.warn(
         JSON.stringify({
@@ -385,7 +495,13 @@ export async function authorizePublic(
   try {
     policy = await publicPolicy(token, resource, true)
   } catch (error) {
-    if (error instanceof PublicAccessLost)
+    if (
+      error instanceof PublicAccessLost ||
+      (error instanceof PublicPolicyFailure &&
+        !['resourceKeyRequired', 'resourceKeyMismatch'].includes(
+          error.denialReason,
+        ))
+    )
       await bindings.REALTIME_ROOMS.getByName(
         `google-drive:${resource.fileId}`,
       ).invalidateAnonymousGrants()
@@ -657,6 +773,8 @@ export async function handlePublicDrive(
                 code: error.code,
                 stage: error.stage,
                 providerStatus: error.providerStatus,
+                policyReason: error.policy?.reason,
+                diagnostics: error.policy?.observation,
               }
             : {}),
           errors: [

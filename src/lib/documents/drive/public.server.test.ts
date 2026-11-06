@@ -564,3 +564,75 @@ it('registers portable .concept packages uploaded with generic binary MIME while
       .status,
   ).toBe(404)
 })
+
+it('reports the precise registration policy denial with safe linked-account observations', async () => {
+  const originalFetch = vi.mocked(fetch).getMockImplementation()!
+  let capability: 'canDownload' | 'canEdit' | 'canModifyContent' | undefined =
+    'canDownload'
+  vi.mocked(fetch).mockImplementation(async (input, init) => {
+    const response = await originalFetch(input, init)
+    if (new URL(String(input)).pathname === '/drive/v3/files/file') {
+      const file = (await response.json()) as {
+        capabilities: Record<string, boolean>
+      }
+      return Response.json({
+        ...file,
+        capabilities: {
+          ...file.capabilities,
+          ...(capability ? { [capability]: false } : {}),
+        },
+        linkShareMetadata: {
+          securityUpdateEligible: false,
+          securityUpdateEnabled: true,
+        },
+      })
+    }
+    return response
+  })
+  const denied = await handlePublicDrive(
+    request('register', { method: 'POST' }),
+    bindings,
+  )
+  expect(denied.status).toBe(403)
+  expect(await denied.json()).toMatchObject({
+    error: {
+      policyReason: 'publisherCannotDownload',
+      diagnostics: {
+        canDownload: false,
+        canEdit: true,
+        canModifyContent: true,
+        securityUpdateEligible: false,
+        securityUpdateEnabled: true,
+        resourceKeyPresent: false,
+      },
+    },
+  })
+  capability = 'canEdit'
+  expect(
+    await (
+      await handlePublicDrive(request('register', { method: 'POST' }), bindings)
+    ).json(),
+  ).toMatchObject({ error: { policyReason: 'publisherCannotEdit' } })
+  capability = 'canModifyContent'
+  expect(
+    await (
+      await handlePublicDrive(request('register', { method: 'POST' }), bindings)
+    ).json(),
+  ).toMatchObject({ error: { policyReason: 'publisherCannotModifyContent' } })
+  capability = undefined
+  const missingKey = await handlePublicDrive(
+    request('register', { method: 'POST' }),
+    bindings,
+  )
+  expect(await missingKey.json()).toMatchObject({
+    error: {
+      policyReason: 'resourceKeyUnavailable',
+      diagnostics: {
+        securityUpdateEligible: false,
+        securityUpdateEnabled: true,
+        resourceKeyPresent: false,
+        publicRole: 'writer',
+      },
+    },
+  })
+})
