@@ -24,3 +24,12 @@ Use two browser profiles, each signed into a different Google account and the sa
 9. Observe the network while idle: there should be no periodic empty document updates. Compare incoming message counts and batch sizes during continuous typing, end-to-end typing latency, and Cloudflare duration with the configured periods.
 
 Provider propagation and quota behavior affect observed permission detection time. Record the preview URL, account roles, sharing mode, observed timing, and failures without recording credentials or private document content.
+
+## Follow-up checks for public links and request volume
+
+1. Set a file to “anyone with the link can edit.” Open it once with a linked editor to register the publisher. Open the Concept URL in a browser with no Google Drive/app login: it should load without the picker, collaborate, and conditionally save to the same Drive file even after the linked editor closes their tab.
+2. With one editor typing and another only watching, inspect request counts for at least two minutes. Received edits should not trigger the local three-second Drive save cycle. Publication hints share a 30-second check window (five seconds when assets are missing), while unacknowledged remote edits retain a maximum 60-second durability fallback.
+3. Observe the WebSocket connection through several 30-second permission refreshes, including a deliberately slow response. The same socket should remain open; a failed refresh cannot extend its grant past expiry. Downgrades and confirmed revocation still stop writes immediately on observation.
+4. Change public editing to viewing, then remove public sharing. Anonymous clients must become read-only or detach; a privileged publisher account must never substitute its private access for public access. Check both HTTP-only and realtime paths.
+5. Disconnect the publishing account from Concept. Publishing registrations must be withdrawn before sign-out, including when registration was already in flight. A private file, a guessed resource key, or an anonymous registration request must never expose the publisher's credentials or private content.
+6. Let the application login expire while an account-owned private document is available offline. Verify its local copy remains unverified/offline and recoverable rather than being treated as a revoked anonymous public file. Explicit picker authorization should switch a public fallback copy back to the signed-in account's access path.
