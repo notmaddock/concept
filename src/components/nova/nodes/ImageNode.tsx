@@ -63,7 +63,9 @@ export class ImageNode extends ResizableNode<ReactElement> {
     this.__altText = altText
   }
 
-  static importJSON(serialized: SerializedImageNode): ImageNode {
+  static importJSON(
+    serialized: Spread<{ alignment?: NodeAlignment }, SerializedImageNode>,
+  ): ImageNode {
     if (
       Number(serialized.version) !== 1 ||
       typeof serialized.altText !== 'string'
