@@ -2,6 +2,7 @@ import { packageLimits } from '../limits'
 import {
   getGoogleDriveToken,
   isGoogleDriveConnected,
+  settleGoogleDriveSession,
   GoogleDriveAuthError,
   invalidateGoogleDriveSession,
 } from './auth'
@@ -233,6 +234,7 @@ export async function registerPublicDriveFile(id: string) {
 
 export async function getFileMetadata(id: string, signal?: AbortSignal) {
   if (!id.trim()) throw new DriveError(400, 'Invalid file ID.')
+  if (!isGoogleDriveConnected()) await settleGoogleDriveSession()
   let response: Response
   if (publicFiles.has(id) || !isGoogleDriveConnected()) {
     response = await publicRequest(publicFileUrl('metadata', id), { signal })

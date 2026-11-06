@@ -9,8 +9,10 @@ import {
 const auth = vi.hoisted(() => ({
   connected: false,
   token: vi.fn(async () => 'private-token'),
+  settle: vi.fn(async () => {}),
 }))
 vi.mock('./auth', () => ({
+  settleGoogleDriveSession: () => auth.settle(),
   isGoogleDriveConnected: () => auth.connected,
   getGoogleDriveToken: auth.token,
   invalidateGoogleDriveSession: vi.fn(),
@@ -35,6 +37,7 @@ const metadata = (id: string, etag = '"public-version"') =>
 beforeEach(() => {
   auth.connected = false
   auth.token.mockClear()
+  auth.settle.mockReset()
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -115,4 +118,16 @@ it('keeps denied public files blocked and preserves conditional upload conflicts
       '"old"',
     ),
   ).rejects.toMatchObject({ status: 412 })
+})
+
+it('waits for initial session discovery before choosing the anonymous path', async () => {
+  auth.settle.mockImplementationOnce(async () => {
+    auth.connected = true
+  })
+  fetchMock.mockResolvedValueOnce(metadata('private-session-loading'))
+  await getFileMetadata('private-session-loading')
+  expect(String(fetchMock.mock.calls[0][0])).toContain(
+    'https://www.googleapis.com/drive/v2/files/',
+  )
+  expect(auth.token).toHaveBeenCalledOnce()
 })

@@ -21,6 +21,7 @@ import {
 } from './api'
 
 vi.mock('./auth', () => ({
+  settleGoogleDriveSession: async () => {},
   isGoogleDriveConnected: () => true,
   getGoogleDriveToken: vi.fn(async () => 'test-token'),
   invalidateGoogleDriveSession: vi.fn(),
