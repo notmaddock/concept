@@ -76,7 +76,6 @@ export class DocumentRealtimeDO extends DurableObject {
 
     const pair = new WebSocketPair()
     const [client, server] = Object.values(pair)
-    this.ctx.acceptWebSocket(server, [socketTag])
 
     const room = this.createRoom()
     const adapterId = crypto.randomUUID()
@@ -88,18 +87,28 @@ export class DocumentRealtimeDO extends DurableObject {
       },
       ticket,
     )
-    if (admitted) {
-      // Admit has already sent `admitted`; the attachment is what a hibernated
-      // object reads back to rebuild this client without another handshake.
-      const admittedClient = room.client(adapterId)
-      if (admittedClient)
-        server.serializeAttachment({
-          adapterId,
-          userId: admittedClient.userId,
-          capabilities: admittedClient.capabilities,
-        } satisfies SocketAttachment)
-      await this.armRevalidation()
-    }
+    if (!admitted)
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+      } as unknown as ResponseInit)
+
+    // Write the attachment before accepting: the runtime may deliver messages
+    // to webSocketMessage as soon as the socket is attached, and that handler
+    // reads this to rebuild the client.
+    const admittedClient = room.client(adapterId)
+    if (!admittedClient)
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+      } as unknown as ResponseInit)
+    server.serializeAttachment({
+      adapterId,
+      userId: admittedClient.userId,
+      capabilities: admittedClient.capabilities,
+    } satisfies SocketAttachment)
+    this.ctx.acceptWebSocket(server, [socketTag])
+    await this.armRevalidation()
     return new Response(null, {
       status: 101,
       webSocket: client,

@@ -39,7 +39,9 @@ function createState() {
         alarm = null
       },
     },
-    acceptWebSocket: (ws: FakeWebSocket) => sockets.add(ws),
+    acceptWebSocket: (ws: FakeWebSocket) => {
+      sockets.add(ws)
+    },
     getWebSockets: () => [...sockets],
   }
   return {
@@ -172,6 +174,29 @@ describe('DocumentRealtimeDO hibernation', () => {
     await doInstance.alarm()
     // Re-arming here would keep an empty room waking forever.
     expect(harness.alarmAt()).toBe(armed)
+  })
+
+  it('accepts the socket only after admission so no message is dropped', async () => {
+    const harness = createState()
+    const doInstance = createDo(harness)
+    const attachedOnAccept: unknown[] = []
+    const accept = harness.state.acceptWebSocket
+    harness.state.acceptWebSocket = (ws: FakeWebSocket) => {
+      // Messages can be delivered as soon as the socket is attached, so the
+      // attachment must already be in place at this point.
+      attachedOnAccept.push(ws.deserializeAttachment())
+      accept(ws)
+    }
+    await doInstance.fetch(upgradeRequest(await ticketFor('u1', editorCaps)))
+    expect(attachedOnAccept).toHaveLength(1)
+    expect(attachedOnAccept[0]).toMatchObject({ userId: 'u1' })
+  })
+
+  it('does not attach a socket whose ticket was rejected', async () => {
+    const harness = createState()
+    const doInstance = createDo(harness)
+    await doInstance.fetch(upgradeRequest('v1.bad.bad'))
+    expect(harness.sockets.size).toBe(0)
   })
 
   it('persists per-socket state so a woken object can relay without the handshake', async () => {
