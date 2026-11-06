@@ -64,7 +64,7 @@ it('uploads content and metadata atomically with the supplied If-Match', async (
   )
   expect(init?.method).toBe('PUT')
   expect(new Headers(init?.headers).get('If-Match')).toBe('"base"')
-  expect(String(url)).toMatch(/^https:\/\/www.googleapis.com\//)
+  expect(new URL(String(url)).origin).toBe('https://www.googleapis.com')
   expect(init?.credentials).toBe('omit')
   expect(new Headers(init?.headers).get('Authorization')).toBe(
     'Bearer test-token',
