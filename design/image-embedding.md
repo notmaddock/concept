@@ -433,3 +433,9 @@ Tested against the local Vite server with the integrated Chromium browser:
 The browser's file-drop automation API does not expose external drop dispatch; mounted behavioral tests cover that path. Live Drive/two-account recovery, other browser engines, constrained-device performance, and full offline application-shell reload remain outside this smoke evidence. The existing package/storage/sync regression suites pass; no new remote storage or application-shell capability is claimed.
 
 Final repository validation passed: `pnpm run check`, `pnpm run lint`, `pnpm run typecheck`, `pnpm run test` (384 tests across 54 files), and `pnpm run build`.
+
+### Image options dialog smoke results (2026-11-05)
+
+A fresh integrated Chromium run verified right-click → Image Options, selection without inline options, alt-text and width persistence after reload, invalid-width reset, natural size, Escape dismissal, replacement with the oriented JPEG, and deletion followed by native undo. The dialog's SHA-256 and byte count matched independent hashing and file-size inspection of the PNG fixture. A focus regression found during the run was fixed: dialog metadata edits now skip Lexical DOM-selection reconciliation so Natural size retains focus inside the modal.
+
+Downloading the edited document and opening it as a fresh local document preserved text, alt text, the replacement JPEG, and its 80 × 120 orientation-aware dimensions. Independent ZIP inspection verified every retained asset's digest and byte length, including the replaced PNG retained for history. No browser console errors were recorded. This local smoke does not cover authenticated Drive or the remaining cross-browser/service acceptance matrix above.
