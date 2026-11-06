@@ -6,6 +6,7 @@ import type { DocumentInfo, DocumentPersistence } from '#/lib/documents/storage'
 import type { DriveFileVersion } from '#/lib/documents/drive/api'
 import {
   connectGoogleDrive,
+  getGoogleDriveAccountId,
   isGoogleDriveConnected,
   isGoogleDriveAuthError,
   isGoogleDriveConfigured,
@@ -57,6 +58,7 @@ export function SaveToDriveDialog({
     doc: Doc
     name: string
     snapshot: NormalizedSnapshot
+    accountId?: string
   } | null>(null)
   const folder = path[path.length - 1]
 
@@ -124,6 +126,7 @@ export function SaveToDriveDialog({
     if (pendingRef.current || !name.trim()) return
     pendingRef.current = true
     setPending(true)
+    const accountId = getGoogleDriveAccountId()
     let clone: Doc | undefined
     let captured: NormalizedSnapshot | undefined
     let session: DocumentPersistence | undefined
@@ -151,6 +154,7 @@ export function SaveToDriveDialog({
           doc: clone,
           name: documentName,
           snapshot: captured,
+          accountId,
         }
         setCreated(true)
         setCreatedFileId(remote.file.id)
@@ -161,6 +165,10 @@ export function SaveToDriveDialog({
         const metadata = await getFileMetadata(remote.file.id)
         remote.etag = metadata.etag
       }
+      if (saved.current.accountId !== getGoogleDriveAccountId())
+        throw new Error(
+          'The Google account changed. Reopen this saved file with its original account.',
+        )
       const savedRevision = await snapshotRevision(snapshot)
       const now = Date.now()
       const info: DocumentInfo = {
@@ -168,6 +176,7 @@ export function SaveToDriveDialog({
         name: documentName,
         updatedAt: now,
         drive: {
+          accountId: saved.current.accountId,
           fileId: remote.file.id,
           offlineAvailable: false,
           etag: remote.etag,
@@ -200,6 +209,7 @@ export function SaveToDriveDialog({
           doc: clone,
           name: name.trim(),
           snapshot: captured,
+          accountId,
         }
         clone = undefined
         setCreated(true)

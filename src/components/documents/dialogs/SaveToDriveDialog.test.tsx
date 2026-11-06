@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('#/lib/documents/drive/auth', () => ({
   connectGoogleDrive: vi.fn(),
+  getGoogleDriveAccountId: () => 'test-account',
   isGoogleDriveConnected: () => true,
   isGoogleDriveAuthError: () => false,
   isGoogleDriveConfigured: () => true,
