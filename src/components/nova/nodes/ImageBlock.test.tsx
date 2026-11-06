@@ -214,6 +214,14 @@ it('commits mounted metadata controls through bidirectional Yjs and persisted re
     expect(restoredEditor.getEditorState().toJSON().root.children[0]).toEqual(
       image,
     )
+    const naturalSize = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Natural size',
+    )!
+    await act(async () => {
+      naturalSize.focus()
+      naturalSize.click()
+    })
+    expect(document.activeElement).toBe(naturalSize)
     await act(async () => editor.setEditable(false))
     expect(document.querySelector('fieldset')!.disabled).toBe(true)
     expect(

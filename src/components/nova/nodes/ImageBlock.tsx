@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { useLexicalNodeSelection } from '@lexical/react/useLexicalNodeSelection'
 import { useLexicalEditable } from '@lexical/react/useLexicalEditable'
-import { $createParagraphNode, $getNodeByKey } from 'lexical'
+import {
+  $createParagraphNode,
+  $getNodeByKey,
+  HISTORY_PUSH_TAG,
+  SKIP_DOM_SELECTION_TAG,
+} from 'lexical'
 import type { NodeKey } from 'lexical'
 import {
   imageDimensionLimit,
@@ -61,10 +66,14 @@ export function ImageBlock({
   const canEdit = editable && Boolean(media?.canEdit())
   function mutate(change: (node: ImageNode) => void) {
     if (!editor.isEditable() || !media?.canEdit()) return
-    updateImageEdit(editor, () => {
-      const node = $getNodeByKey(nodeKey)
-      if ($isImageNode(node)) change(node)
-    })
+    updateImageEdit(
+      editor,
+      () => {
+        const node = $getNodeByKey(nodeKey)
+        if ($isImageNode(node)) change(node)
+      },
+      optionsOpen ? { tag: [HISTORY_PUSH_TAG, SKIP_DOM_SELECTION_TAG] } : {},
+    )
   }
   const available = url && !failed && !failure
   const status =
