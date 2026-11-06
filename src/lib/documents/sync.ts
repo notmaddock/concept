@@ -34,6 +34,8 @@ import { createDocumentAssetResolver } from './asset-session'
 import type { DocumentAssetResolver } from './asset-session'
 import type { PublicationTransport } from './publication'
 import type { DriveFileVersion } from './drive/api'
+import { capabilitiesFromDrive } from './realtime/capabilities'
+import type { RealtimeProvider, RealtimeState } from './realtime/realtime'
 
 export const assetReconciliation = assetRetryPolicy
 
@@ -59,6 +61,7 @@ export interface SaveStatus {
   error?: string
   offlineAvailable?: boolean
   readOnly?: boolean
+  realtime?: RealtimeState
 }
 
 const emptyStatus: SaveStatus = { phase: 'loading' }
@@ -106,6 +109,7 @@ export class DocumentSync {
   private retryCount = 0
   private metadataVersion = 0
   private unsubscribePublication?: () => void
+  private unsubscribeRealtime?: () => void
   private unsubscribeAssets?: () => void
   private missingTimer?: ReturnType<typeof setTimeout>
   private missingAttempts = 0
@@ -127,6 +131,7 @@ export class DocumentSync {
     private persistence: DocumentPersistence,
     private publication?: PublicationTransport,
     private background = false,
+    private realtime?: RealtimeProvider,
   ) {
     this.dirty = info.drive?.dirty ?? false
     this.etag = info.drive?.etag
@@ -271,6 +276,12 @@ export class DocumentSync {
     this.unsubscribePublication = this.publication?.subscribe(() => {
       if (this.info.drive && isGoogleDriveConnected()) this.check()
     })
+    if (this.realtime && this.info.drive) {
+      this.realtime.attach(this.doc)
+      this.unsubscribeRealtime = this.realtime.subscribe(() =>
+        this.realtimeChanged(),
+      )
+    }
     document.addEventListener('visibilitychange', this.visibilityChanged)
     this.scheduleMissingCheck()
     if (this.info.drive)
@@ -343,6 +354,17 @@ export class DocumentSync {
     }))
   }
 
+  private realtimeChanged() {
+    if (!this.realtime) return
+    const state = this.realtime.getState()
+    const wasRevoked = this.saveStatus.realtime?.status === 'revoked'
+    this.setStatus({ ...this.saveStatus, realtime: state })
+    if (state.status === 'revoked' && !wasRevoked)
+      toast.error('Your access to this document changed on Google Drive.', {
+        id: 'realtime-revoked:' + this.info.id,
+      })
+  }
+
   private publishSyncState() {
     if (this.dirty && this.isReadOnly) {
       const message =
@@ -375,6 +397,9 @@ export class DocumentSync {
       this.info.drive!.fileId,
       this.abort.signal,
       initial,
+    )
+    this.realtime?.sendCapabilities(
+      capabilitiesFromDrive(remote.file.capabilities),
     )
     if (this.isStopped()) return
     const parsed = await readConcept(
@@ -486,6 +511,10 @@ export class DocumentSync {
         this.etag && this.acknowledged
           ? await getFileMetadata(this.info.drive!.fileId, this.abort.signal)
           : undefined
+      if (current)
+        this.realtime?.sendCapabilities(
+          capabilitiesFromDrive(current.file.capabilities),
+        )
       const permissionsChanged =
         current?.file.capabilities !== undefined &&
         isDriveFileReadOnly(current.file) !== this.isReadOnly
@@ -558,6 +587,7 @@ export class DocumentSync {
           validator: remote.etag,
           revision,
         })
+        this.realtime?.notifyPublication()
         const generation = this.version
         this.dirty = await this.differsFrom(revision)
         this.dirty ||= generation !== this.version
@@ -767,6 +797,9 @@ export class DocumentSync {
     this.assets?.close()
     this.unsubscribePublication?.()
     this.publication?.close()
+    this.unsubscribeRealtime?.()
+    this.realtime?.detach()
+    this.realtime?.close()
     clearTimeout(this.missingTimer)
     document.removeEventListener('visibilitychange', this.visibilityChanged)
     window.removeEventListener('focus', this.check)
