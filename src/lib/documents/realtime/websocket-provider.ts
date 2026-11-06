@@ -143,6 +143,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
   private reconnectTimer?: ReturnType<typeof setTimeout>
   private backoff: number = realtimePolicy.reconnectBaseMs
   private connecting = false
+  private connectionAttempt = 0
   private closed = false
   private selfInitiatedClose = false
 
@@ -163,17 +164,27 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
   }
 
   disconnect(): void {
+    // Invalidate any in-flight ticket fetch so a socket cannot open after the
+    // user turned live collaboration off.
+    this.connectionAttempt++
+    this.connecting = false
     this.selfInitiatedClose = true
     this.clearReconnect()
     this.stopTimers()
     this.socket?.close()
     this.socket = undefined
-    this.setState({ status: 'disconnected', peers: 0, collaborators: [] })
+    this.setState({
+      status: 'disconnected',
+      capabilities: this.state.capabilities,
+      peers: 0,
+      collaborators: [],
+    })
   }
 
   close(): void {
     if (this.closed) return
     this.closed = true
+    this.connectionAttempt++
     this.selfInitiatedClose = true
     this.clearReconnect()
     this.stopTimers()
@@ -274,6 +285,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
 
   private async open() {
     if (this.closed) return
+    const attempt = ++this.connectionAttempt
     this.connecting = true
     this.setState({
       status: 'connecting',
@@ -283,13 +295,13 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
     })
     try {
       const ticket = await this.ensureTicket()
+      if (attempt !== this.connectionAttempt) return
       this.openSocket(socketUrl(this.handle, ticket.ticket))
     } catch {
       // Silent: the Drive-only flow continues without realtime.
-      this.connecting = false
-      this.handleConnectionFailure()
+      if (attempt === this.connectionAttempt) this.handleConnectionFailure()
     } finally {
-      this.connecting = false
+      if (attempt === this.connectionAttempt) this.connecting = false
     }
   }
 

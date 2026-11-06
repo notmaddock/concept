@@ -140,19 +140,22 @@ function openDocumentSession(id: string, doc: Doc, background = false) {
     local = localDocumentStorage.open(id, doc)
     await local.whenSynced
     if (isClosed()) return
-    const realtime = info.drive
-      ? await createRealtimeProvider({
-          storage: 'google-drive',
-          fileId: info.drive.fileId,
-        })
-      : undefined
+    const createRealtime =
+      info.drive && !background
+        ? () =>
+            createRealtimeProvider({
+              storage: 'google-drive',
+              fileId: info.drive!.fileId,
+            })
+        : undefined
     sync = new DocumentSync(
       info,
       doc,
       local,
       info.drive ? openPublicationTransport(info.drive.fileId) : undefined,
       background,
-      realtime,
+      undefined,
+      createRealtime,
     )
     await sync.start()
   })()

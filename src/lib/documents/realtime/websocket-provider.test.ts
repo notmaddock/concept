@@ -248,6 +248,54 @@ describe('WebSocketRealtimeProvider', () => {
     expect(sockets).toHaveLength(0)
   })
 
+  it('disconnects on demand and reconnects with a fresh socket', async () => {
+    const { provider, sockets } = setup()
+    tracked(provider)
+    provider.connect()
+    await flush()
+    const socket = sockets[0]
+    socket.open()
+    admit(socket)
+    expect(provider.getState().status).toBe('connected')
+
+    provider.disconnect()
+    expect(socket.closed).toBe(true)
+    expect(provider.getState().status).toBe('disconnected')
+    expect(provider.getState().capabilities).toEqual(editable)
+
+    provider.connect()
+    await flush()
+    expect(sockets).toHaveLength(2)
+    sockets[1].open()
+    admit(sockets[1])
+    expect(provider.getState().status).toBe('connected')
+  })
+
+  it('does not open a socket when disconnected during the ticket fetch', async () => {
+    let resolveTicket!: (ticket: RealtimeTicket) => void
+    const fetchTicket = vi.fn(
+      () =>
+        new Promise<RealtimeTicket>((resolve) => {
+          resolveTicket = resolve
+        }),
+    )
+    const { provider, sockets } = setup({ fetchTicket })
+    tracked(provider)
+    provider.connect()
+    await flush()
+    expect(fetchTicket).toHaveBeenCalledOnce()
+
+    provider.disconnect()
+    resolveTicket({
+      ticket: 'ticket-1',
+      expiresAt: Date.now() + realtimePolicy.ticketTtlMs,
+      capabilities: editable,
+    })
+    await flush()
+    expect(sockets).toHaveLength(0)
+    expect(provider.getState().status).toBe('disconnected')
+  })
+
   it('publishes a local presence state on admitted and counts remote peers', async () => {
     const { provider, sockets } = setup()
     tracked(provider)
