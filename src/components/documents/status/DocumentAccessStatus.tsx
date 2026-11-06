@@ -1,4 +1,5 @@
 import { CheckIcon, EyeIcon, EyeOffIcon, PencilIcon, XIcon } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '#/components/ui/avatar'
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
 import {
@@ -8,6 +9,7 @@ import {
   PopoverTrigger,
 } from '#/components/ui/popover'
 import type {
+  RealtimeCollaborator,
   RealtimeConnectionStatus,
   RealtimeState,
 } from '#/lib/documents/realtime/realtime'
@@ -39,6 +41,82 @@ function PermissionRow({
       />
       <span>{label}</span>
     </li>
+  )
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+}
+
+function CollaboratorRow({
+  collaborator,
+}: {
+  collaborator: RealtimeCollaborator
+}) {
+  const name = collaborator.name ?? 'Guest'
+  const status = collaborator.focusing ? 'Editing' : 'Viewing'
+  return (
+    <li className="flex items-center gap-2">
+      <Avatar size="sm" className="size-6">
+        {collaborator.avatar && (
+          <AvatarImage src={collaborator.avatar} alt="" />
+        )}
+        <AvatarFallback
+          className="text-[10px] font-medium text-white"
+          style={
+            collaborator.color
+              ? { backgroundColor: collaborator.color }
+              : undefined
+          }
+        >
+          {initials(name)}
+        </AvatarFallback>
+      </Avatar>
+      <span className="min-w-0 flex-1 truncate text-xs font-medium">
+        {name}
+        {collaborator.self && (
+          <span className="font-normal text-muted-foreground"> (you)</span>
+        )}
+      </span>
+      <span
+        className={`shrink-0 text-[11px] ${collaborator.focusing ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}
+      >
+        {status}
+      </span>
+    </li>
+  )
+}
+
+function CollaboratorsSection({ realtime }: { realtime: RealtimeState }) {
+  const collaborators = realtime.collaborators ?? []
+  if (realtime.status !== 'connected' || collaborators.length === 0) return null
+  const editing = collaborators.filter(
+    (collaborator) => collaborator.focusing,
+  ).length
+  return (
+    <div className="flex flex-col gap-2 border-t pt-3">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium">Collaborators</span>
+        <span className="text-muted-foreground">
+          {collaborators.length} online
+          {editing > 0 && ` · ${editing} editing`}
+        </span>
+      </div>
+      <ul className="flex flex-col gap-1.5">
+        {collaborators.map((collaborator) => (
+          <CollaboratorRow
+            key={collaborator.clientID}
+            collaborator={collaborator}
+          />
+        ))}
+      </ul>
+    </div>
   )
 }
 
@@ -125,6 +203,7 @@ export function DocumentAccessStatus({
             )}
           </ul>
         </div>
+        {realtime && <CollaboratorsSection realtime={realtime} />}
         {collaborationOff && (
           <div className="flex items-center gap-2 rounded-lg border border-amber-400/60 bg-amber-100 px-2.5 py-1.5 text-xs font-medium text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-200">
             <EyeOffIcon aria-hidden="true" className="size-3.5" />
@@ -146,6 +225,7 @@ export function DocumentAccessStatus({
               <p className="text-xs text-muted-foreground">
                 {connectionLabels[realtime.status]}
                 {realtime.status === 'connected' &&
+                  !realtime.collaborators &&
                   ` · ${realtime.peers + 1} online`}
               </p>
             )}

@@ -170,16 +170,22 @@ A small header/status component shows the current user's access and live
 collaboration state, backed by the `DocumentCapabilities` object plus the
 realtime provider's connection state:
 
-- **Separate view and edit indicators** (e.g. distinct icon + color per
-  capability), not a single read-only flag. A comment indicator is reserved for
-  the later comment-permission extension; the layout must not need rework when
-  it lands.
+- **One icon for the highest granted permission** — a pencil when edit is
+  granted, an eye when only view is available — rather than separate view and
+  edit icons. The popover lists each capability on its own line with a green
+  (granted) or gray (denied) indicator, including the reserved comment
+  permission when capabilities are known.
+- **Connected collaborators** are listed with their name, cursor/profile
+  color, optional avatar from awareness, and a live Editing/Viewing state.
+  Available low-cost stats (online count, editing count, connection status) are
+  shown without adding new instrumentation.
 - The **user-facing kill switch** (the "Live collaboration" preference) lives in
   this indicator's menu.
 - When collaboration is off (user preference or `REALTIME_ENABLED=false`), the
-  view indicator **expands into a yellow pill** ("live collaboration off") —
-  but only when there is enough horizontal space in the header; otherwise it
-  collapses to the compact icon so the layout never overflows.
+  trigger stays compact: the permission icon gets an amber status dot and the
+  menu shows a "Live collaboration off" notice. The old expanding yellow pill
+  overlapped the document title, so the off state is never rendered as inline
+  text in the header.
 - The component reads existing reactive state (`SaveStatus`, capabilities,
   provider connection) via `useSyncExternalStore`, the same pattern as
   `subscribeSaveStatus` in `sync.ts`. No new global store.

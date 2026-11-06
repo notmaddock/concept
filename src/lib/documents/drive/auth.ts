@@ -39,6 +39,30 @@ export const isGoogleDriveAuthError = (error: unknown) =>
   error instanceof GoogleDriveAuthError
 export const isGoogleDriveConnected = () => state.connected
 export const isGoogleDriveConfigured = () => state.configured
+
+export interface SessionProfile {
+  name?: string
+  image?: string
+}
+
+let sessionProfile: Promise<SessionProfile | undefined> | undefined
+
+/** Display identity for collaboration presence; failures leave it anonymous. */
+export function getSessionProfile(): Promise<SessionProfile | undefined> {
+  sessionProfile ??= authClient
+    .getSession()
+    .then((result) => {
+      const user = result.data?.user
+      if (!user) return undefined
+      return {
+        name: user.name || undefined,
+        image: user.image || undefined,
+      }
+    })
+    .catch(() => undefined)
+  return sessionProfile
+}
+
 export function subscribeGoogleDriveAuth(listener: () => void) {
   state.listeners.add(listener)
   return () => {

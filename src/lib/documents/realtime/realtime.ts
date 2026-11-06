@@ -24,10 +24,22 @@ export function isRealtimeHandle(value: unknown): value is RealtimeHandle {
 export type RealtimeConnectionStatus =
   'connecting' | 'connected' | 'disconnected' | 'revoked' | 'disabled'
 
+export interface RealtimeCollaborator {
+  clientID: number
+  /** The local user is listed first with `self: true`. */
+  self: boolean
+  name?: string
+  color?: string
+  avatar?: string
+  focusing: boolean
+}
+
 export interface RealtimeState {
   status: RealtimeConnectionStatus
   capabilities?: DocumentCapabilities
   peers: number
+  /** Connected users, including the local user, when the provider exposes them. */
+  collaborators?: RealtimeCollaborator[]
 }
 
 /**

@@ -1,7 +1,7 @@
 import type { RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'
 import type { DocumentPersistence } from '#/lib/documents/storage'
-import { useContext, useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { Awareness } from 'y-protocols/awareness'
 import { LexicalCollaboration } from '@lexical/react/LexicalCollaborationContext'
 import { CollaborationPlugin } from '@lexical/react/LexicalCollaborationPlugin'
@@ -22,6 +22,7 @@ import { DriveIcon } from './icons/DriveIcon'
 import { DocumentWorkspaceContext } from './document-workspace-store'
 import { Nova } from '#/components/nova/Nova'
 import {
+  getSessionProfile,
   isGoogleDriveAuthError,
   isGoogleDriveConnected,
 } from '#/lib/documents/drive/auth'
@@ -63,6 +64,11 @@ export function DocumentEditor({
     provider: LocalProvider
     media: DocumentMediaSession
   } | null>(null)
+  const [profile, setProfile] = useState<{ name?: string; image?: string }>()
+  const awarenessData = useMemo(
+    () => (profile?.image ? { avatar: profile.image } : undefined),
+    [profile?.image],
+  )
 
   useEffect(() => {
     setError('')
@@ -150,6 +156,21 @@ export function DocumentEditor({
       )
     }
   }, [id, documentRef, workspace?.driveConnected])
+
+  useEffect(() => {
+    const connected = workspace?.driveConnected ?? isGoogleDriveConnected()
+    if (!id.startsWith('G') || !connected) {
+      setProfile(undefined)
+      return
+    }
+    let active = true
+    void getSessionProfile().then((next) => {
+      if (active) setProfile(next)
+    })
+    return () => {
+      active = false
+    }
+  }, [id, workspace?.driveConnected])
 
   useEffect(() => {
     if (ready && window.document.activeElement === window.document.body)
@@ -257,6 +278,8 @@ export function DocumentEditor({
               collaboration={
                 <CollaborationPlugin
                   id={id}
+                  username={profile?.name}
+                  awarenessData={awarenessData}
                   providerFactory={(_, documents) => {
                     documents.set(id, session.doc)
                     return session.provider

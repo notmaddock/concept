@@ -109,6 +109,47 @@ it('keeps the trigger compact when live collaboration is off', async () => {
   expect(document.body.textContent).toContain('Live collaboration off')
 })
 
+it('lists connected collaborators with names and activity stats', async () => {
+  const withCollaborators: RealtimeState = {
+    ...connected,
+    collaborators: [
+      {
+        clientID: 1,
+        self: true,
+        name: 'Ada Lovelace',
+        color: 'rgb(1, 2, 3)',
+        focusing: true,
+      },
+      {
+        clientID: 2,
+        self: false,
+        name: 'Grace Hopper',
+        color: 'rgb(4, 5, 6)',
+        focusing: false,
+      },
+    ],
+  }
+  await act(async () => {
+    root.render(
+      <DocumentAccessStatus
+        readOnly={false}
+        realtime={withCollaborators}
+        liveCollaboration={true}
+        onLiveCollaborationChange={() => {}}
+      />,
+    )
+  })
+  await act(async () => container.querySelector('button')!.click())
+  const text = document.body.textContent
+  expect(text).toContain('Collaborators')
+  expect(text).toContain('2 online · 1 editing')
+  expect(text).toContain('Ada Lovelace')
+  expect(text).toContain('(you)')
+  expect(text).toContain('Grace Hopper')
+  expect(text).toContain('Editing')
+  expect(text).toContain('Viewing')
+})
+
 it('toggles the live collaboration kill switch from the menu', async () => {
   const onLiveCollaborationChange = vi.fn()
   await act(async () => {

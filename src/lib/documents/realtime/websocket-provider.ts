@@ -15,6 +15,7 @@ import {
 } from './protocol'
 import type { DocumentCapabilities } from './capabilities'
 import type {
+  RealtimeCollaborator,
   RealtimeHandle,
   RealtimeProvider,
   RealtimeState,
@@ -25,6 +26,41 @@ const messageAwareness = 3
 
 /** A ticket stops being reused this long before its actual expiry. */
 const ticketReuseMarginMs = 60_000
+
+function objectRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
+}
+
+function collaboratorFromState(
+  clientID: number,
+  state: unknown,
+  self: boolean,
+): RealtimeCollaborator | undefined {
+  const record = objectRecord(state)
+  if (!record) return undefined
+  const data = objectRecord(record.awarenessData)
+  const name =
+    typeof record.name === 'string' && record.name.trim()
+      ? record.name.trim()
+      : undefined
+  const color = typeof record.color === 'string' ? record.color : undefined
+  const avatar =
+    typeof data?.avatar === 'string'
+      ? data.avatar
+      : typeof data?.image === 'string'
+        ? data.image
+        : undefined
+  return {
+    clientID,
+    self,
+    name,
+    color,
+    avatar,
+    focusing: record.focusing === true,
+  }
+}
 
 export interface WebSocketLike {
   binaryType: string
@@ -99,6 +135,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
   private socket?: WebSocketLike
   private ticket?: RealtimeTicket
   private state: RealtimeState = { status: 'disconnected', peers: 0 }
+  private collaboratorsKey?: string
   private pendingUpdates: Uint8Array[] = []
   private readonly awarenessDirty = new Set<number>()
   private updateTimer?: ReturnType<typeof setInterval>
@@ -131,7 +168,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
     this.stopTimers()
     this.socket?.close()
     this.socket = undefined
-    this.setState({ status: 'disconnected', peers: 0 })
+    this.setState({ status: 'disconnected', peers: 0, collaborators: [] })
   }
 
   close(): void {
@@ -208,12 +245,26 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
   }
 
   private updatePeers() {
-    let peers = 0
-    for (const [clientID, state] of this.awareness.getStates())
+    const collaborators: RealtimeCollaborator[] = []
+    const local = collaboratorFromState(
+      this.awareness.clientID,
+      this.awareness.getLocalState(),
+      true,
+    )
+    if (local) collaborators.push(local)
+    for (const [clientID, state] of this.awareness.getStates()) {
+      if (clientID === this.awareness.clientID) continue
       // Removed clients linger as null at runtime despite the declared type.
-      if (clientID !== this.awareness.clientID && (state as unknown) !== null)
-        peers++
-    if (peers !== this.state.peers) this.setState({ ...this.state, peers })
+      const peer = collaboratorFromState(clientID, state, false)
+      if (peer) collaborators.push(peer)
+    }
+    const peers = collaborators.filter(
+      (collaborator) => !collaborator.self,
+    ).length
+    const key = JSON.stringify(collaborators)
+    if (peers === this.state.peers && key === this.collaboratorsKey) return
+    this.collaboratorsKey = key
+    this.setState({ ...this.state, peers, collaborators })
   }
 
   private setState(state: RealtimeState) {
@@ -228,6 +279,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
       status: 'connecting',
       capabilities: this.state.capabilities,
       peers: 0,
+      collaborators: [],
     })
     try {
       const ticket = await this.ensureTicket()
@@ -290,6 +342,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
       status: 'disconnected',
       capabilities: this.state.capabilities,
       peers: 0,
+      collaborators: [],
     })
     const delay = this.backoff
     this.backoff = Math.min(this.backoff * 2, realtimePolicy.reconnectMaxMs)
@@ -347,6 +400,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
         status: 'connected',
         capabilities: message.capabilities,
         peers: 0,
+        collaborators: [],
       })
       if (this.doc) {
         this.startTimers()
@@ -360,6 +414,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
         this.awareness.setLocalState({ presence: true })
       this.awarenessDirty.add(this.awareness.clientID)
       this.sendAwareness()
+      this.updatePeers()
       return
     }
     if (message.type === 'revoked') {
@@ -369,6 +424,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
         status: 'revoked',
         capabilities: message.capabilities,
         peers: 0,
+        collaborators: [],
       })
       return
     }

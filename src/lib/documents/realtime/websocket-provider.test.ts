@@ -269,8 +269,21 @@ describe('WebSocketRealtimeProvider', () => {
     expect(remote.getStates().get(provider.awareness.clientID)).not.toBeNull()
 
     expect(provider.getState().peers).toBe(0)
+    expect(provider.getState().collaborators).toMatchObject([
+      {
+        clientID: provider.awareness.clientID,
+        self: true,
+        focusing: false,
+      },
+    ])
     const peerAwareness = new Awareness(new Doc())
-    peerAwareness.setLocalState({ presence: true })
+    peerAwareness.setLocalState({
+      presence: true,
+      name: 'Ada',
+      color: 'rgb(1, 2, 3)',
+      focusing: true,
+      awarenessData: { avatar: 'https://example.com/ada.png' },
+    })
     const encoder = encoding.createEncoder()
     encoding.writeVarUint(encoder, 3)
     encoding.writeVarUint8Array(
@@ -279,5 +292,13 @@ describe('WebSocketRealtimeProvider', () => {
     )
     socket.receive(encoding.toUint8Array(encoder))
     expect(provider.getState().peers).toBe(1)
+    expect(provider.getState().collaborators).toContainEqual({
+      clientID: peerAwareness.clientID,
+      self: false,
+      name: 'Ada',
+      color: 'rgb(1, 2, 3)',
+      avatar: 'https://example.com/ada.png',
+      focusing: true,
+    })
   })
 })
