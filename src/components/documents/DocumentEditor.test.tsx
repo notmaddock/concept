@@ -204,6 +204,7 @@ it('renders an Open the Google Drive file picker action when a Google Drive docu
   const openGoogleDrivePicker = vi.fn()
   const mockWorkspace = {
     driveConnected: true,
+    saveStatus: { phase: 'local' },
     openGoogleDrivePicker,
     driveLoading: false,
     pickerLoading: false,
@@ -278,9 +279,10 @@ it('recovers a failed Drive session when its connection changes without changing
   const renderEditor = (connected: boolean) => (
     <DocumentWorkspaceContext.Provider
       value={
-        { driveConnected: connected } as React.ContextType<
-          typeof DocumentWorkspaceContext
-        >
+        {
+          driveConnected: connected,
+          saveStatus: { phase: 'local' },
+        } as React.ContextType<typeof DocumentWorkspaceContext>
       }
     >
       <DocumentEditor

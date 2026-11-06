@@ -203,7 +203,7 @@ export function DocumentEditor({
   if (!session) return <DocumentLoading />
 
   const isReadOnly = Boolean(
-    workspace?.saveStatus?.readOnly ||
+    workspace?.saveStatus.readOnly ||
     workspace?.document?.readOnly ||
     workspace?.document?.drive?.readOnly,
   )
