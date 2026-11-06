@@ -23,6 +23,13 @@ export interface RoomSocket {
   close: (code?: number, reason?: string) => void
 }
 
+/** The subset of a client that survives hibernation. */
+export interface RoomClientSnapshot {
+  adapterId: string
+  userId: string
+  capabilities: DocumentCapabilities
+}
+
 /** Drive-backed capability check for one user; undefined means no access. */
 export interface DriveVerifier {
   verify: (
@@ -80,6 +87,39 @@ export class DocumentRoom {
 
   clientCount() {
     return this.clients.size
+  }
+
+  /** The admitted client behind an adapter id, for persisting its attachment. */
+  client(adapterId: string) {
+    const client = this.clients.get(adapterId)
+    return client
+      ? {
+          userId: client.userId,
+          capabilities: client.capabilities,
+        }
+      : undefined
+  }
+
+  /**
+   * Re-registers a socket that came back from hibernation. The DO persists
+   * `RoomClientSnapshot` with each WebSocket, so a woken object can relay and
+   * revalidate without replaying the ticket handshake.
+   */
+  restore(
+    socket: Pick<RoomSocket, 'send' | 'close'> | undefined,
+    snapshot: RoomClientSnapshot,
+  ): void {
+    if (!socket) return
+    this.clients.set(snapshot.adapterId, {
+      // Spread would drop prototype methods on a real WebSocket, so wrap it.
+      socket: {
+        id: snapshot.adapterId,
+        send: (data) => socket.send(data),
+        close: (code, reason) => socket.close(code, reason),
+      },
+      userId: snapshot.userId,
+      capabilities: snapshot.capabilities,
+    })
   }
 
   /** Verifies the ticket and admits the socket. Returns false when rejected. */

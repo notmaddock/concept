@@ -250,6 +250,57 @@ describe('DocumentRoom relay', () => {
   })
 })
 
+describe('DocumentRoom hibernation restore', () => {
+  it('exposes the admitted client so the DO can persist an attachment', async () => {
+    const verifier = makeVerifier({ 'user-1': editorCaps })
+    const room = new DocumentRoom({
+      fileId,
+      secret,
+      verifier,
+      now: () => 500_000,
+    })
+    await room.admit(new FakeSocket('s1'), await ticketFor('user-1', editorCaps))
+    expect(room.client('s1')).toEqual({
+      userId: 'user-1',
+      capabilities: editorCaps,
+    })
+    expect(room.client('missing')).toBeUndefined()
+  })
+
+  it('relays and enforces capabilities for a socket restored from an attachment', async () => {
+    const verifier = makeVerifier({ 'user-1': editorCaps })
+    const room = new DocumentRoom({
+      fileId,
+      secret,
+      verifier,
+      now: () => 500_000,
+    })
+    const restored = new FakeSocket('s1')
+    room.restore(restored, {
+      adapterId: 's1',
+      userId: 'user-1',
+      capabilities: viewerCaps,
+    })
+    expect(room.clientCount()).toBe(1)
+    // A restored view-only client is still refused server-side.
+    const source = new Doc()
+    source.getMap('root').set('key', 'value')
+    room.receive('s1', updateMessage(encodeStateAsUpdate(source)))
+    expect(restored.lastControl()?.type).toBe('error')
+  })
+
+  it('ignores a restore whose socket already disconnected', () => {
+    const verifier = makeVerifier({})
+    const room = new DocumentRoom({ fileId, secret, verifier })
+    room.restore(undefined, {
+      adapterId: 'gone',
+      userId: 'user-1',
+      capabilities: editorCaps,
+    })
+    expect(room.clientCount()).toBe(0)
+  })
+})
+
 describe('DocumentRoom revocation', () => {
   it('closes the socket when view is lost', async () => {
     let now = 500_000
