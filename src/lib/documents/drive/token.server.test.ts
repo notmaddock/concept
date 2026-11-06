@@ -80,7 +80,11 @@ function request(path = 'token', init: RequestInit = {}) {
 
 it('returns only connection status without fetching or refreshing tokens', async () => {
   const response = await handleDriveToken(request('session'), bindings)
-  expect(await response.json()).toEqual({ connected: true, configured: true })
+  expect(await response.json()).toEqual({
+    connected: true,
+    configured: true,
+    accountId: 'provider-account-id',
+  })
   expect(mocks.getAccessToken).not.toHaveBeenCalled()
   expect(mocks.refreshToken).not.toHaveBeenCalled()
   expect(response.headers.get('Cache-Control')).toBe('no-store')

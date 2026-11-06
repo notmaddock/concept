@@ -118,7 +118,11 @@ export async function handleDriveToken(
         item.providerId === 'google' && item.scopes.includes(driveScope),
     )
     if (sessionRequest)
-      return json({ connected: Boolean(account), configured: true })
+      return json({
+        connected: Boolean(account),
+        configured: true,
+        accountId: account?.accountId,
+      })
     if (!account) return reconnect()
     const tokens = await auth.api[
       forceRefresh ? 'refreshToken' : 'getAccessToken'
