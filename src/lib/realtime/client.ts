@@ -168,6 +168,7 @@ export class RealtimeClient {
           )
           if (!frame) return
           if (frame.type === FrameType.StateVector) {
+            this.queuePresence()
             const key = Array.from(frame.payload).join(',')
             if (!this.seenVectors.has(key)) {
               if (this.seenVectors.size >= 128) this.seenVectors.clear()

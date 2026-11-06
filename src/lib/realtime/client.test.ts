@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Doc, applyUpdate, encodeStateAsUpdate } from 'yjs'
+import { Doc, applyUpdate, encodeStateAsUpdate, encodeStateVector } from 'yjs'
 import { Awareness, applyAwarenessUpdate } from 'y-protocols/awareness'
 import { RealtimeClient } from './client'
 import {
@@ -80,6 +80,58 @@ async function setup(canWrite = () => true, accountId?: string, ready = true) {
 }
 
 describe('realtime batching', () => {
+  it('greets new synchronization requests with current idle presence while coalescing equal vectors', async () => {
+    const { client, doc, socket } = await setup()
+    const awareness = new Awareness(doc)
+    awareness.setLocalState({ name: 'idle peer', cursor: { position: 3 } })
+    client.attachAwareness(awareness)
+    socket.sent = []
+    const newcomer = new Doc()
+    const vector = encodeFrames(
+      FrameType.StateVector,
+      encodeStateVector(newcomer),
+    )[0]
+    const greet = () =>
+      socket.onmessage?.({
+        data: new Uint8Array(vector).buffer,
+      } as MessageEvent)
+    greet()
+    for (let index = 0; index < 20; index++) greet()
+    await vi.advanceTimersByTimeAsync(100)
+    let presence = socket.sent.filter(
+      (bytes) => decodeFrame(bytes).type === FrameType.Presence,
+    )
+    expect(presence).toHaveLength(1)
+    const remoteAwareness = new Awareness(newcomer)
+    applyAwarenessUpdate(
+      remoteAwareness,
+      decodeFrame(presence[0]).payload,
+      null,
+    )
+    expect(remoteAwareness.getStates().get(doc.clientID)).toEqual({
+      name: 'idle peer',
+      cursor: { position: 3 },
+    })
+    socket.sent = []
+    greet()
+    await vi.advanceTimersByTimeAsync(100)
+    presence = socket.sent.filter(
+      (bytes) => decodeFrame(bytes).type === FrameType.Presence,
+    )
+    expect(presence).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(
+      socket.sent.filter(
+        (bytes) => decodeFrame(bytes).type === FrameType.Presence,
+      ),
+    ).toHaveLength(1)
+    client.stop()
+    awareness.destroy()
+    remoteAwareness.destroy()
+    doc.destroy()
+    newcomer.destroy()
+  })
+
   it('uses one upgrade and sends no document or presence data before the authorized ready grant', async () => {
     const { client, doc, socket } = await setup(() => true, undefined, false)
     const awareness = new Awareness(doc)
