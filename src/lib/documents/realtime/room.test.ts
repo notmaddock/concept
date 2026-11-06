@@ -259,7 +259,10 @@ describe('DocumentRoom hibernation restore', () => {
       verifier,
       now: () => 500_000,
     })
-    await room.admit(new FakeSocket('s1'), await ticketFor('user-1', editorCaps))
+    await room.admit(
+      new FakeSocket('s1'),
+      await ticketFor('user-1', editorCaps),
+    )
     expect(room.client('s1')).toEqual({
       userId: 'user-1',
       capabilities: editorCaps,
