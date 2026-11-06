@@ -144,6 +144,8 @@ export class DocumentRealtimeDO extends DurableObject {
   }
 
   private async forget(ws: WorkersWebSocket): Promise<void> {
+    // getWebSockets can still return a socket that is mid-close, so drop its
+    // attachment to keep it from being rebuilt as a live client.
     ws.serializeAttachment(null)
     if (this.ctx.getWebSockets(socketTag).length === 0)
       await this.ctx.storage.deleteAlarm()
