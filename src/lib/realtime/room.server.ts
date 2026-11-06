@@ -1,4 +1,7 @@
-import type { WebSocket } from '@cloudflare/workers-types'
+import type {
+  WebSocket,
+  Request as WorkerRequest,
+} from '@cloudflare/workers-types'
 import { DurableObject } from 'cloudflare:workers'
 import * as Y from 'yjs'
 import * as decoding from 'lib0/decoding'
@@ -71,7 +74,31 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
     return true
   }
 
-  async join(grant: RealtimeGrant, epoch: number): Promise<Response> {
+  async fetch(request: WorkerRequest): Promise<Response> {
+    if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
+      return new Response(null, { status: 426 })
+    try {
+      const grant: RealtimeGrant | null = JSON.parse(
+        request.headers.get('X-Concept-Grant') ?? '',
+      )
+      const epoch = Number(request.headers.get('X-Concept-Epoch'))
+      if (
+        !grant ||
+        typeof grant.userId !== 'string' ||
+        typeof grant.accountId !== 'string' ||
+        typeof grant.readOnly !== 'boolean' ||
+        !Number.isFinite(grant.expiresAt) ||
+        grant.expiresAt > Date.now() + grantLifetimeMs ||
+        !Number.isSafeInteger(epoch)
+      )
+        return new Response(null, { status: 403 })
+      return await this.join(grant, epoch)
+    } catch {
+      return new Response(null, { status: 403 })
+    }
+  }
+
+  private async join(grant: RealtimeGrant, epoch: number): Promise<Response> {
     const current = await this.ctx.storage.get<Epoch>(`auth:${grant.userId}`)
     if (current?.value !== epoch || grant.expiresAt <= Date.now())
       return new Response(null, { status: 409 })

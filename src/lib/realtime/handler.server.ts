@@ -43,7 +43,16 @@ export async function handleRealtime(
       )
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
       throw new AccessFailure(426)
-    return await room.join(grant, epoch)
+    // WebSocket responses cross fetch bindings, but are not RPC-serializable.
+    return await room.fetch(
+      new Request('https://room.internal/', {
+        headers: {
+          Upgrade: 'websocket',
+          'X-Concept-Grant': JSON.stringify(grant),
+          'X-Concept-Epoch': String(epoch),
+        },
+      }),
+    )
   } catch (error) {
     if (room && userId && epoch !== undefined)
       await room.finishAuthorization(userId, epoch, null)
