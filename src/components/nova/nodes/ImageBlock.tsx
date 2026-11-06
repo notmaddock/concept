@@ -31,6 +31,33 @@ import { REPLACE_IMAGE_COMMAND } from '../images/commands'
 import { $isImageNode } from './ImageNode'
 import type { ImageNode } from './ImageNode'
 
+const resizeCorners = [
+  {
+    name: 'top left',
+    position:
+      'top-0 left-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize',
+    direction: -1,
+  },
+  {
+    name: 'top right',
+    position:
+      'top-0 right-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize',
+    direction: 1,
+  },
+  {
+    name: 'bottom left',
+    position:
+      'bottom-0 left-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize',
+    direction: -1,
+  },
+  {
+    name: 'bottom right',
+    position:
+      'bottom-0 right-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize',
+    direction: 1,
+  },
+] as const
+
 export function ImageBlock({
   nodeKey,
   source,
@@ -93,7 +120,7 @@ export function ImageBlock({
           tabIndex={0}
           aria-label={altText ? `Image: ${altText}` : 'Image'}
           aria-pressed={selected}
-          className={`relative max-w-full outline-offset-2 ${selected ? 'outline-2 outline-primary' : ''}`}
+          className={`relative max-w-full outline-offset-[-0.5px] ${selected ? 'outline-1 outline-primary' : ''}`}
           style={{
             width: preview ?? displayWidth ?? source.intrinsicWidth,
             aspectRatio: `${source.intrinsicWidth} / ${source.intrinsicHeight}`,
@@ -161,74 +188,81 @@ export function ImageBlock({
               )}
             </div>
           )}
-          {selected && canEdit && (
-            <button
-              type="button"
-              aria-label="Resize image"
-              className="absolute -right-1 -bottom-1 size-4 cursor-se-resize rounded-sm border-2 border-background bg-primary touch-none"
-              onPointerDown={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                cancelGesture.current?.()
-                const startX = event.clientX
-                const initialWidth =
-                  blockRef.current?.getBoundingClientRect().width ??
-                  source.intrinsicWidth
-                let width = initialWidth
-                const maxWidth =
-                  blockRef.current?.parentElement?.clientWidth ?? initialWidth
-                const cleanup = () => {
-                  window.removeEventListener('pointermove', move)
-                  window.removeEventListener('pointerup', finish)
-                  window.removeEventListener('pointercancel', cancel)
-                  window.removeEventListener('keydown', key)
-                  setPreview(undefined)
-                  cancelGesture.current = null
-                }
-                const move = (pointer: PointerEvent) => {
-                  width = Math.max(
-                    imageMinimumDisplayWidth,
-                    Math.min(maxWidth, initialWidth + pointer.clientX - startX),
-                  )
-                  setPreview(width)
-                }
-                const finish = () => {
-                  cleanup()
-                  mutate((node) => node.setDisplayWidth(width))
-                }
-                const cancel = () => cleanup()
-                const key = (keyboard: KeyboardEvent) => {
-                  if (keyboard.key === 'Escape') {
-                    keyboard.preventDefault()
-                    cancel()
-                  }
-                }
-                cancelGesture.current = cancel
-                window.addEventListener('pointermove', move)
-                window.addEventListener('pointerup', finish)
-                window.addEventListener('pointercancel', cancel)
-                window.addEventListener('keydown', key)
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          {selected &&
+            canEdit &&
+            resizeCorners.map((corner) => (
+              <button
+                key={corner.name}
+                type="button"
+                aria-label={`Resize image from ${corner.name}`}
+                className={`absolute size-3 rounded-none border-0 bg-primary touch-none ${corner.position}`}
+                onPointerDown={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
-                  mutate((node) =>
-                    node.setDisplayWidth(
+                  cancelGesture.current?.()
+                  const startX = event.clientX
+                  const initialWidth =
+                    blockRef.current?.getBoundingClientRect().width ??
+                    source.intrinsicWidth
+                  let width = initialWidth
+                  const maxWidth =
+                    blockRef.current?.parentElement?.clientWidth ?? initialWidth
+                  const cleanup = () => {
+                    window.removeEventListener('pointermove', move)
+                    window.removeEventListener('pointerup', finish)
+                    window.removeEventListener('pointercancel', cancel)
+                    window.removeEventListener('keydown', key)
+                    setPreview(undefined)
+                    cancelGesture.current = null
+                  }
+                  const move = (pointer: PointerEvent) => {
+                    width = Math.max(
+                      imageMinimumDisplayWidth,
                       Math.min(
-                        imageDimensionLimit,
-                        Math.max(
-                          imageMinimumDisplayWidth,
-                          (node.getDisplayWidth() ?? source.intrinsicWidth) +
-                            (event.key === 'ArrowRight' ? 10 : -10),
+                        maxWidth,
+                        initialWidth +
+                          (pointer.clientX - startX) * corner.direction,
+                      ),
+                    )
+                    setPreview(width)
+                  }
+                  const finish = () => {
+                    cleanup()
+                    mutate((node) => node.setDisplayWidth(width))
+                  }
+                  const cancel = () => cleanup()
+                  const key = (keyboard: KeyboardEvent) => {
+                    if (keyboard.key === 'Escape') {
+                      keyboard.preventDefault()
+                      cancel()
+                    }
+                  }
+                  cancelGesture.current = cancel
+                  window.addEventListener('pointermove', move)
+                  window.addEventListener('pointerup', finish)
+                  window.addEventListener('pointercancel', cancel)
+                  window.addEventListener('keydown', key)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    mutate((node) =>
+                      node.setDisplayWidth(
+                        Math.min(
+                          imageDimensionLimit,
+                          Math.max(
+                            imageMinimumDisplayWidth,
+                            (node.getDisplayWidth() ?? source.intrinsicWidth) +
+                              (event.key === 'ArrowRight' ? 10 : -10),
+                          ),
                         ),
                       ),
-                    ),
-                  )
-                }
-              }}
-            />
-          )}
+                    )
+                  }
+                }}
+              />
+            ))}
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem onClick={() => setOptionsOpen(true)}>
