@@ -220,9 +220,10 @@ export const localDocumentStorage: DocumentStorage & {
   archiveAccountCache: (
     id: string,
     replacement: DocumentInfo,
+    isolateLegacy?: boolean,
   ) => Promise<DocumentInfo>
 } = {
-  async archiveAccountCache(id, replacement) {
+  async archiveAccountCache(id, replacement, isolateLegacy = false) {
     await Promise.all(
       [...(activeSessions.get(id) ?? [])].map((session) => session.destroy()),
     )
@@ -231,7 +232,9 @@ export const localDocumentStorage: DocumentStorage & {
         const current = await localDocumentStorage.get(id)
         if (
           !current?.drive ||
-          current.drive.accountId === replacement.drive?.accountId
+          (current.drive.accountId === replacement.drive?.accountId &&
+            (!isolateLegacy ||
+              current.drive.publicAccess === replacement.drive?.publicAccess))
         )
           return current ?? replacement
         const archive: DocumentInfo = {

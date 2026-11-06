@@ -1,4 +1,8 @@
-import { getGoogleDriveAccountId } from './drive/auth'
+import {
+  getGoogleDriveAccountId,
+  isGoogleDriveConnected,
+  settleGoogleDriveSession,
+} from './drive/auth'
 import { openPublicationTransport } from './publication'
 import { Doc } from 'yjs'
 import { localDocumentStorage } from './storage'
@@ -12,6 +16,8 @@ import {
 import {
   DriveError,
   getFileMetadata,
+  isPublicDriveFile,
+  rememberPublicDriveFile,
   getDriveResourceKey,
   rememberDriveResourceKey,
   readConceptFile,
@@ -32,6 +38,7 @@ export async function refreshDriveDocuments() {
         updatedAt: Date.parse(file.modifiedTime ?? '') || Date.now(),
         readOnly: isReadOnly,
         drive: {
+          publicAccess: isPublicDriveFile(file.id),
           resourceKey: getDriveResourceKey(file.id),
           accountId: getGoogleDriveAccountId(),
           fileId: file.id,
@@ -64,7 +71,12 @@ export async function refreshDriveDocuments() {
 
 async function ensureDocument(id: string) {
   const existing = await localDocumentStorage.get(id)
+  if (existing?.drive || id.startsWith('G')) await settleGoogleDriveSession()
   const accountId = getGoogleDriveAccountId()
+  if (existing?.drive?.resourceKey)
+    rememberDriveResourceKey(existing.drive.fileId, existing.drive.resourceKey)
+  if (existing?.drive?.publicAccess)
+    rememberPublicDriveFile(existing.drive.fileId)
   if (existing?.drive?.recoveryOnly) {
     if (existing.drive.accountId !== accountId)
       throw new Error(
@@ -73,10 +85,6 @@ async function ensureDocument(id: string) {
     return existing
   }
   if (existing?.drive && existing.drive.accountId !== accountId) {
-    if (!accountId)
-      throw new Error(
-        'This cached document belongs to a different Google account.',
-      )
     // Read as the new account before moving any previously cached bytes.
     const remote = await readConceptFile(existing.drive.fileId)
     if (accountId !== getGoogleDriveAccountId())
@@ -92,6 +100,8 @@ async function ensureDocument(id: string) {
       drive: {
         fileId: remote.file.id,
         accountId,
+        publicAccess:
+          isPublicDriveFile(remote.file.id) || !isGoogleDriveConnected(),
         resourceKey: getDriveResourceKey(remote.file.id),
         offlineAvailable: false,
         readOnly: isDriveFileReadOnly(remote.file),
@@ -100,8 +110,40 @@ async function ensureDocument(id: string) {
     clearSaveStatus(id)
     return replacement
   }
-  if (existing?.drive?.resourceKey)
-    rememberDriveResourceKey(existing.drive.fileId, existing.drive.resourceKey)
+  if (
+    existing?.drive &&
+    !accountId &&
+    !isGoogleDriveConnected() &&
+    !existing.drive.publicAccess
+  ) {
+    const remote = await readConceptFile(existing.drive.fileId)
+    if (accountId !== getGoogleDriveAccountId())
+      throw new Error(
+        'Google account changed. Try opening this document again.',
+      )
+    rememberPublicDriveFile(existing.drive.fileId)
+    await documentSessions.get(id)?.stop()
+    const replacement = await localDocumentStorage.archiveAccountCache(
+      id,
+      {
+        id,
+        name: remote.file.name.replace(/\.concept$/i, ''),
+        updatedAt: Date.parse(remote.file.modifiedTime ?? '') || Date.now(),
+        readOnly: isDriveFileReadOnly(remote.file),
+        drive: {
+          fileId: remote.file.id,
+          publicAccess: true,
+          accountId,
+          resourceKey: getDriveResourceKey(remote.file.id),
+          offlineAvailable: false,
+          readOnly: isDriveFileReadOnly(remote.file),
+        },
+      },
+      true,
+    )
+    clearSaveStatus(id)
+    return replacement
+  }
   if (existing || !id.startsWith('G')) return existing
   const { file } = await getFileMetadata(id.slice(1))
   const isReadOnly = isDriveFileReadOnly(file)
@@ -111,6 +153,7 @@ async function ensureDocument(id: string) {
     updatedAt: Date.parse(file.modifiedTime ?? '') || Date.now(),
     readOnly: isReadOnly,
     drive: {
+      publicAccess: isPublicDriveFile(file.id) || !isGoogleDriveConnected(),
       resourceKey: getDriveResourceKey(file.id),
       accountId: getGoogleDriveAccountId(),
       fileId: file.id,
@@ -175,6 +218,7 @@ export const documentStorage: DocumentStorage = {
     if (
       info?.drive &&
       !info.drive.recoveryOnly &&
+      !info.drive.publicAccess &&
       !info.readOnly &&
       !info.drive.readOnly
     ) {
@@ -355,6 +399,7 @@ export async function recheckDocumentAccess(id: string) {
     throw new Error(
       'This cached document belongs to a different Google account.',
     )
+  if (info.drive.publicAccess) rememberPublicDriveFile(info.drive.fileId)
   await readConceptFile(info.drive.fileId)
   if (info.drive.quarantined)
     throw new Error(

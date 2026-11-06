@@ -26,11 +26,14 @@ import { DocumentSync, documentSessions, getSaveStatus } from './sync'
 import {
   DriveError,
   getFileMetadata,
+  registerPublicDriveFile,
   readConceptFile,
   updateConceptFile,
 } from './drive/api'
 import type { DriveCapabilities } from './drive/api'
 import type { DocumentInfo } from './storage'
+
+const publicFiles = vi.hoisted(() => new Set<string>())
 
 vi.mock('../realtime/client', async (importOriginal) => {
   const original = await importOriginal<typeof RealtimeModule>()
@@ -55,6 +58,11 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 
 vi.mock('./drive/api', async (importOriginal) => ({
   ...(await importOriginal<typeof DriveApi>()),
+  isPublicDriveFile: (id: string) => publicFiles.has(id),
+  rememberPublicDriveFile: (id: string) => {
+    publicFiles.add(id)
+  },
+  registerPublicDriveFile: vi.fn(async () => {}),
   readConceptFile: vi.fn(),
   getFileMetadata: vi.fn(),
   getDriveResourceKey: () => undefined,
@@ -136,6 +144,7 @@ function deferred<T>() {
 }
 
 beforeEach(() => {
+  publicFiles.clear()
   vi.stubGlobal('Blob', NodeBlob)
   previousRetryJitter = assetRetryPolicy.jitter
   assetRetryPolicy.jitter = 0
@@ -1182,4 +1191,46 @@ it('checks an image publication sooner while preserving the no-upload watcher po
   await session.sync()
   expect(records.has(asset.descriptor.id)).toBe(true)
   expect(write).not.toHaveBeenCalled()
+})
+
+it('saves an anonymous public edit without requiring a Google account connection', async () => {
+  info.drive!.publicAccess = true
+  await start()
+  local.getMap('settings').set('anonymous-edit', true)
+  await session.sync()
+  expect(publicFiles.has(info.drive!.fileId)).toBe(true)
+  expect(registerPublicDriveFile).not.toHaveBeenCalled()
+  expect(write).toHaveBeenCalledOnce()
+  expect(getSaveStatus(info.id).phase).toBe('synced')
+  expect(info.drive?.publicAccess).toBe(true)
+})
+
+it('keeps public publisher credential failures separate from the anonymous visitor account', async () => {
+  info.drive!.publicAccess = true
+  read.mockRejectedValueOnce(new DriveError(401, 'Publisher unavailable'))
+  await start()
+  expect(getSaveStatus(info.id).phase).toBe('error')
+  expect(session.access).toMatchObject({
+    kind: 'unverified',
+    reason: 'temporary',
+  })
+})
+
+it('registers an authenticated publisher independently of realtime and tolerates private-file denial', async () => {
+  const auth = await import('./drive/auth')
+  const connected = vi
+    .spyOn(auth, 'isGoogleDriveConnected')
+    .mockReturnValue(true)
+  vi.mocked(registerPublicDriveFile).mockRejectedValueOnce(
+    new DriveError(403, 'Private file'),
+  )
+  try {
+    await start()
+    expect(registerPublicDriveFile).toHaveBeenCalledExactlyOnceWith(
+      info.drive!.fileId,
+    )
+    expect(getSaveStatus(info.id).phase).toBe('synced')
+  } finally {
+    connected.mockRestore()
+  }
 })

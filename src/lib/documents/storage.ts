@@ -9,6 +9,7 @@ export interface DocumentInfo {
   recoveryMissingAssets?: AssetId[]
   importing?: boolean
   drive?: {
+    publicAccess?: boolean
     resourceKey?: string
     accountId?: string
     quarantined?: boolean

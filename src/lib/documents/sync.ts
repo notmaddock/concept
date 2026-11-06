@@ -31,6 +31,9 @@ import {
   DriveError,
   assertDriveFileReadable,
   getFileMetadata,
+  isPublicDriveFile,
+  rememberPublicDriveFile,
+  registerPublicDriveFile,
   getDriveResourceKey,
   isDriveFileReadOnly,
   readConceptFile,
@@ -136,6 +139,14 @@ export class DocumentSync {
   private readonly abort = new AbortController()
   private isStopped = () => this.stopped
 
+  private get usesPublicAccess() {
+    return Boolean(
+      this.info.drive &&
+      (this.info.drive.publicAccess ||
+        isPublicDriveFile(this.info.drive.fileId)),
+    )
+  }
+
   get isReadOnly() {
     return (
       !canEditLocally(this.access) ||
@@ -234,6 +245,8 @@ export class DocumentSync {
   }
 
   async start() {
+    if (this.info.drive?.publicAccess)
+      rememberPublicDriveFile(this.info.drive.fileId)
     if (this.info.drive)
       this.unsubscribeAuth = subscribeGoogleDriveAuth(() => {
         if (this.info.drive?.accountId !== getGoogleDriveAccountId()) {
@@ -244,7 +257,7 @@ export class DocumentSync {
             ),
             false,
           )
-        } else if (isGoogleDriveConnected()) {
+        } else if (isGoogleDriveConnected() || this.usesPublicAccess) {
           if (this.initialized) this.check()
         } else this.fail(new GoogleDriveAuthError(), false)
       })
@@ -266,6 +279,10 @@ export class DocumentSync {
       }
       try {
         await this.download()
+        if (isGoogleDriveConnected()) {
+          await registerPublicDriveFile(this.info.drive.fileId).catch(() => {})
+          this.assertAccount()
+        }
       } catch (error) {
         this.fail(error, false)
         if (
@@ -322,7 +339,11 @@ export class DocumentSync {
     })
     this.unsubscribePublication = this.publication?.subscribe((hint) => {
       if (hint.validator === this.etag) return
-      if (this.info.drive && isGoogleDriveConnected()) this.publicationHint()
+      if (
+        this.info.drive &&
+        (isGoogleDriveConnected() || this.usesPublicAccess)
+      )
+        this.publicationHint()
     })
     document.addEventListener('visibilitychange', this.visibilityChanged)
     this.scheduleMissingCheck()
@@ -405,6 +426,7 @@ export class DocumentSync {
         ? {
             ...current.drive,
             dirty: this.dirty,
+            publicAccess: this.usesPublicAccess,
             quarantined:
               this.info.drive?.quarantined ?? current.drive.quarantined,
             etag: this.etag,
@@ -485,6 +507,8 @@ export class DocumentSync {
     if (this.isStopped() || epoch !== this.accessEpoch) return
     this.assertAccount()
     assertDriveFileReadable(remote.file)
+    if (this.info.drive && isPublicDriveFile(this.info.drive.fileId))
+      this.info.drive.publicAccess = true
     const parsed = await readConcept(
       typeof remote.content === 'string'
         ? new TextEncoder().encode(remote.content)
@@ -850,11 +874,12 @@ export class DocumentSync {
             this.info.readOnly || this.info.drive.readOnly
               ? 'viewer'
               : 'editor',
-          reason: isGoogleDriveAuthError(error)
-            ? 'authentication'
-            : !navigator.onLine
-              ? 'offline'
-              : 'temporary',
+          reason:
+            isGoogleDriveAuthError(error) && !this.usesPublicAccess
+              ? 'authentication'
+              : !navigator.onLine
+                ? 'offline'
+                : 'temporary',
         }
       }
     }
@@ -868,8 +893,9 @@ export class DocumentSync {
     const message =
       error instanceof Error ? error.message : 'Could not save changes.'
     const auth =
-      isGoogleDriveAuthError(error) ||
-      (error instanceof DriveError && error.status === 401)
+      !this.usesPublicAccess &&
+      (isGoogleDriveAuthError(error) ||
+        (error instanceof DriveError && error.status === 401))
     const renameFailed =
       Boolean(this.remoteFilename) &&
       documentName(this.doc, this.info.name) !==

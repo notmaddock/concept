@@ -18,15 +18,21 @@ import { snapshotRevision } from './package'
 import { captureSnapshot } from './working'
 import {
   getFileMetadata,
+  registerPublicDriveFile,
   listConceptFiles,
   readConceptFile,
   trashConceptFile,
   updateConceptFile,
 } from './drive/api'
 
+const publicFiles = vi.hoisted(() => new Set<string>())
 const auth = vi.hoisted(() => {
   class AuthRequired extends Error {}
-  return { AuthRequired, accountId: undefined as string | undefined }
+  return {
+    AuthRequired,
+    accountId: undefined as string | undefined,
+    connected: true,
+  }
 })
 
 vi.mock('./drive/auth', () => ({
@@ -34,11 +40,17 @@ vi.mock('./drive/auth', () => ({
   isGoogleDriveAuthError: (error: unknown) =>
     error instanceof auth.AuthRequired,
   subscribeGoogleDriveAuth: () => () => {},
-  isGoogleDriveConnected: () => true,
+  isGoogleDriveConnected: () => auth.connected,
+  settleGoogleDriveSession: async () => {},
 }))
 
 vi.mock('./drive/api', async (importOriginal) => ({
   ...(await importOriginal<typeof DriveApi>()),
+  isPublicDriveFile: (id: string) => publicFiles.has(id),
+  rememberPublicDriveFile: (id: string) => {
+    publicFiles.add(id)
+  },
+  registerPublicDriveFile: vi.fn(async () => {}),
   getFileMetadata: vi.fn(),
   getDriveResourceKey: () => undefined,
   rememberDriveResourceKey: vi.fn(),
@@ -59,6 +71,8 @@ let sessions: Array<DocumentPersistence>
 
 beforeEach(() => {
   auth.accountId = undefined
+  auth.connected = true
+  publicFiles.clear()
   vi.clearAllMocks()
   vi.stubGlobal('indexedDB', new IDBFactory())
   docs = []
@@ -624,8 +638,11 @@ it('denies opening cached shared content belonging to another account', async ()
       offlineAvailable: true,
     },
   })
+  vi.mocked(readConceptFile).mockRejectedValueOnce(
+    new Error('Private file unavailable'),
+  )
   await expect(documentStorage.get('Gforeign')).rejects.toThrow(
-    'different Google account',
+    'Private file unavailable',
   )
   expect(await documentStorage.list()).toEqual([])
   await expect(recoverDocumentLocally('Gforeign')).rejects.toThrow(
@@ -651,4 +668,86 @@ it('recovers quarantined changes into a detached local document before resetting
     offlineAvailable: false,
   })
   expect(updateConceptFile).not.toHaveBeenCalled()
+})
+
+it('opens and saves a public shared file anonymously and restores its offline mode', async () => {
+  auth.connected = false
+  publicFiles.add(info.drive!.fileId)
+  const opened = await documentStorage.get(info.id)
+  expect(opened?.drive).toMatchObject({
+    publicAccess: true,
+    accountId: undefined,
+  })
+  const { doc, session } = open()
+  await session.whenSynced
+  doc.getMap('settings').set('anonymous', true)
+  await documentSessions.get(info.id)?.sync()
+  expect(updateConceptFile).toHaveBeenCalledOnce()
+  expect(registerPublicDriveFile).not.toHaveBeenCalled()
+  await setDocumentOfflineAvailable(info.id, true)
+  await session.destroy()
+  publicFiles.clear()
+  vi.mocked(readConceptFile).mockRejectedValue(new TypeError('Offline'))
+  const reopened = open()
+  await reopened.session.whenSynced
+  expect(publicFiles.has(info.drive!.fileId)).toBe(true)
+  expect(reopened.doc.getMap('settings').get('anonymous')).toBe(true)
+  expect(getSaveStatus(info.id).phase).not.toBe('auth-required')
+})
+
+it('isolates the signed-in account cache before an anonymous public open', async () => {
+  remote.getText('private').insert(0, 'prior account work')
+  await cache({ ...info.drive!, accountId: 'previous-account', dirty: true })
+  const published = new Doc()
+  docs.push(published)
+  initializeDocument(published)
+  published.getMap('metadata').set('name', 'Public document')
+  remote = published
+  auth.connected = false
+  publicFiles.add(info.drive!.fileId)
+  const opened = await documentStorage.get(info.id)
+  expect(opened?.drive).toMatchObject({
+    publicAccess: true,
+    accountId: undefined,
+  })
+  const current = open()
+  await current.session.whenSynced
+  expect(current.doc.getText('private').toString()).toBe('')
+  const archived = (await localDocumentStorage.list()).find(
+    (item) => item.drive?.recoveryOnly,
+  )
+  expect(archived?.drive?.accountId).toBe('previous-account')
+  expect(await documentStorage.list()).not.toContainEqual(archived)
+})
+
+it('keeps unclaimed legacy edits in recovery instead of merging them into a public document', async () => {
+  remote.getText('private').insert(0, 'unclaimed legacy draft')
+  await cache({ ...info.drive!, dirty: true })
+  const published = new Doc()
+  docs.push(published)
+  initializeDocument(published)
+  published.getMap('metadata').set('name', 'Public document')
+  remote = published
+  auth.connected = false
+  const opened = await documentStorage.get(info.id)
+  expect(opened?.drive?.publicAccess).toBe(true)
+  const current = open()
+  await current.session.whenSynced
+  expect(current.doc.getText('private').toString()).toBe('')
+  const archived = (await localDocumentStorage.list()).find(
+    (item) => item.drive?.recoveryOnly,
+  )
+  expect(archived?.drive?.quarantined).toBe(true)
+  expect(archived?.drive?.dirty).toBe(true)
+})
+
+it('removes an anonymous public document locally without trying to trash its publisher file', async () => {
+  auth.connected = false
+  await localDocumentStorage.put({
+    ...info,
+    drive: { ...info.drive!, publicAccess: true },
+  })
+  await documentStorage.delete(info.id)
+  expect(trashConceptFile).not.toHaveBeenCalled()
+  expect(await localDocumentStorage.get(info.id)).toBeUndefined()
 })
