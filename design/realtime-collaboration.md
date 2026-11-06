@@ -40,13 +40,15 @@ revisions.
 
 ## Tunables
 
-| Constant                 | Default | Purpose                                                               |
-| ------------------------ | ------- | --------------------------------------------------------------------- |
-| `revalidationIntervalMs` | 60_000  | How often the DO re-checks each connected client's Drive capabilities |
-| `verdictCacheTtlMs`      | 30_000  | Cache TTL for per-`(userId, fileId)` capability verdicts              |
-| `ticketTtlMs`            | 300_000 | Lifetime of a join ticket                                             |
-| `updateIntervalMs`       | 150     | How often pending Yjs updates are batched and sent over the WebSocket |
-| `awarenessIntervalMs`    | 500     | How often awareness (presence/cursor) state is sent                   |
+| Constant                     | Default | Purpose                                                               |
+| ---------------------------- | ------- | --------------------------------------------------------------------- |
+| `revalidationIntervalMs`     | 60_000  | How often the DO re-checks capabilities while the room is active      |
+| `idleRevalidationIntervalMs` | 900_000 | Revalidation cadence once the room has been quiet for `idleAfterMs`   |
+| `idleAfterMs`                | 300_000 | Quiet period after the last join/save before revalidation backs off   |
+| `verdictCacheTtlMs`          | 30_000  | Cache TTL for per-`(userId, fileId)` capability verdicts              |
+| `ticketTtlMs`                | 300_000 | Lifetime of a join ticket                                             |
+| `updateIntervalMs`           | 150     | How often pending Yjs updates are batched and sent over the WebSocket |
+| `awarenessIntervalMs`        | 500     | How often awareness (presence/cursor) state is sent                   |
 
 ## Minimizing roundtrips
 
@@ -108,6 +110,11 @@ Rules this design must keep:
   starts a billable window, so batching matters: awareness is sent on an
   interval rather than per cursor move, and updates are batched at
   `updateIntervalMs`.
+- **A wake is cheap; a timer is not.** Billing is duration while executing,
+  so an alarm that wakes, makes one Drive call, and sleeps costs a fraction of
+  a second. The expensive state is being resident, not being woken. Revalidate
+  on activity (join, save) and back off to `idleRevalidationIntervalMs` when
+  nothing has happened, so an open tab does not cost a Drive call per minute.
 - `src/worker/realtime-do.test.ts` guards these invariants; keep them passing.
 
 ## Capabilities model
