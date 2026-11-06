@@ -175,15 +175,22 @@ realtime provider's connection state:
   edit icons. The popover lists each capability on its own line with a green
   (granted) or gray (denied) indicator, including the reserved comment
   permission when capabilities are known.
-- **Connected collaborators** are listed with their name, cursor/profile
-  color, optional avatar from awareness, and a live Editing/Viewing state.
+- **Connected collaborators** are listed with their name, a cursor-color
+  swatch, optional avatar from awareness, and a live Editing/Viewing state.
   Available low-cost stats (online count, editing count, connection status) are
-  shown without adding new instrumentation.
-- The **user-facing kill switch** (the "Live collaboration" preference) lives in
-  this indicator's menu.
+  shown without adding new instrumentation. Editing collaborators are
+  actionable: selecting one scrolls the document to their caret.
+- **The trigger expands into a pill** the same way the sync status does
+  (animated label, container-query gated): "View only" when the user cannot
+  edit, or "N collaborators" when other people are online. The collaborator
+  count excludes the local user and switches between singular and plural.
+- The **user-facing kill switch** (the "Live collaboration" preference) is a
+  switch in this indicator's menu and applies immediately: turning it off
+  disconnects the realtime transport, turning it on creates and connects it.
 - When collaboration is off (user preference or `REALTIME_ENABLED=false`), the
   trigger stays compact: the permission icon gets an amber status dot and the
-  menu shows a "Live collaboration off" notice. The old expanding yellow pill
+  menu shows a "Live collaboration off" notice explaining that changes sync
+  through Drive and reconcile automatically. The old expanding yellow pill
   overlapped the document title, so the off state is never rendered as inline
   text in the header.
 - The component reads existing reactive state (`SaveStatus`, capabilities,
