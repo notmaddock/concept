@@ -20,6 +20,8 @@ import { Doc } from 'yjs'
 import type { ImportFormat } from './formats'
 import { importFormats } from './formats'
 import { captureSnapshot } from '../working'
+import { imageTransferLimits } from '../image-transfer'
+import { packageLimits } from '../limits'
 import { LocalProvider } from '../local-provider'
 
 export async function convertImport(file: File, format: ImportFormat) {
@@ -30,7 +32,13 @@ export async function convertImport(file: File, format: ImportFormat) {
     )
   )
     throw new Error(`Choose a ${definition?.label ?? 'supported'} file.`)
+  const byteLimit =
+    format === 'html'
+      ? imageTransferLimits.bytes * 3
+      : packageLimits.documentBytes
+  if (file.size > byteLimit) throw new Error('Import file is too large.')
   let content = await file.text()
+  if (content.length > byteLimit) throw new Error('Import file is too large.')
   const assets: AssetRecord[] = []
   if (format === 'html') {
     const html = sanitizedHtml(content)
