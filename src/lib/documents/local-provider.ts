@@ -8,6 +8,7 @@ import { applyUpdate, encodeStateAsUpdate, encodeStateVector } from 'yjs'
 import type { Doc } from 'yjs'
 import type { Provider } from '@lexical/yjs'
 import type { DocumentPersistence } from './storage'
+import { documentSessions } from './sync'
 
 type Message =
   | { type: 'request'; vector: Uint8Array }
@@ -30,6 +31,18 @@ export class LocalProvider
   private channel?: BroadcastChannel
   private resumeAfterPageHide = false
   private savedAwareness: ReturnType<Awareness['getLocalState']> = null
+  private detachRealtimeAwareness?: () => void
+
+  private canWrite() {
+    if (!this.id.startsWith('G')) return true
+    return documentSessions.get(this.id)?.access.kind === 'editor'
+  }
+
+  private canRead() {
+    if (!this.id.startsWith('G')) return true
+    const access = documentSessions.get(this.id)?.access.kind
+    return access === 'editor' || access === 'viewer'
+  }
 
   private onPageHide = () => {
     this.resumeAfterPageHide = this.connected
@@ -63,7 +76,8 @@ export class LocalProvider
   }
 
   private onDocumentUpdate = (update: Uint8Array, origin: unknown) => {
-    if (origin !== this) this.send({ type: 'update', update })
+    if (origin !== this && this.canWrite())
+      this.send({ type: 'update', update })
   }
 
   private onAwarenessUpdate = (
@@ -74,7 +88,7 @@ export class LocalProvider
     }: { added: Array<number>; updated: Array<number>; removed: Array<number> },
     origin: unknown,
   ) => {
-    if (origin !== this)
+    if (origin !== this && this.canRead())
       this.send({
         type: 'awareness',
         update: encodeAwarenessUpdate(this.localAwareness, [
@@ -86,8 +100,9 @@ export class LocalProvider
   }
 
   private onMessage = ({ data }: MessageEvent<Message>) => {
-    if (!this.connected) return
+    if (!this.connected || !this.canRead()) return
     if (data.type === 'request') {
+      if (!this.canWrite()) return
       this.send({
         type: 'response',
         vector: encodeStateVector(this.doc),
@@ -102,7 +117,7 @@ export class LocalProvider
     } else if (data.type === 'response') {
       applyUpdate(this.doc, data.update, this)
       const update = encodeStateAsUpdate(this.doc, data.vector)
-      if (update.byteLength > 2) {
+      if (update.byteLength > 2 && this.canWrite()) {
         this.send({
           type: 'update',
           update,
@@ -125,11 +140,15 @@ export class LocalProvider
       .then(() => {
         if (!this.connected || revision !== this.revision) return
         this.initialize?.(this.doc)
+        const session = documentSessions.get(this.id)
+        this.detachRealtimeAwareness = session?.realtime?.attachAwareness(
+          this.localAwareness,
+        )
         if (this.savedAwareness && !this.localAwareness.getLocalState())
           this.localAwareness.setLocalState(this.savedAwareness)
         if (typeof BroadcastChannel !== 'undefined') {
           this.channel = new BroadcastChannel(
-            `concept-document-sync:${this.id}`,
+            `concept-document-sync:${session?.info.drive?.accountId ?? 'local'}:${this.id}`,
           )
           this.channel.onmessage = this.onMessage
         }
@@ -152,6 +171,8 @@ export class LocalProvider
 
   disconnect() {
     this.connected = false
+    this.detachRealtimeAwareness?.()
+    this.detachRealtimeAwareness = undefined
     ++this.revision
     this.savedAwareness =
       this.localAwareness.getLocalState() ?? this.savedAwareness

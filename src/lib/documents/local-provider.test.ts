@@ -3,6 +3,7 @@ import { Doc, XmlText, encodeStateAsUpdate } from 'yjs'
 import { TestBroadcastChannel, flushBroadcasts } from '#/test/broadcast-channel'
 import { LocalProvider } from './local-provider'
 import { initializeDocument } from './initial-document'
+import { DocumentSync, documentSessions } from './sync'
 
 let providers: Array<LocalProvider>
 let docs: Array<Doc>
@@ -17,6 +18,7 @@ beforeEach(() => {
 afterEach(() => {
   providers.forEach((provider) => provider.destroy())
   docs.forEach((doc) => doc.destroy())
+  documentSessions.clear()
   expect(TestBroadcastChannel.channels.size).toBe(0)
   vi.unstubAllGlobals()
 })
@@ -111,4 +113,36 @@ it('restores awareness and catches up edits after reconnecting', async () => {
   expect(
     second.provider.awareness.getStates().get(first.doc.clientID)?.name,
   ).toBe('Returning tab')
+})
+
+it('does not publish viewer edits or initial-state responses across local tabs', async () => {
+  const viewer = peer('Gshared')
+  const session = new DocumentSync(
+    {
+      id: 'Gshared',
+      name: 'Shared',
+      updatedAt: 0,
+      drive: {
+        fileId: 'shared',
+        offlineAvailable: false,
+        accountId: 'account',
+      },
+    },
+    viewer.doc,
+    { whenSynced: Promise.resolve(), destroy: async () => {} },
+  )
+  session.access = { kind: 'viewer', checkedAt: Date.now() }
+  documentSessions.set('Gshared', session)
+  viewer.provider.connect()
+  await flushBroadcasts()
+  const sent = TestBroadcastChannel.sent
+  viewer.doc.getText('content').insert(0, 'unsynced private work')
+  await flushBroadcasts()
+  expect(TestBroadcastChannel.sent).toBe(sent)
+  const channel = [...TestBroadcastChannel.channels][0]
+  expect(channel.name).toBe('concept-document-sync:account:Gshared')
+  channel.onmessage?.({
+    data: { type: 'request', vector: new Uint8Array([0]) },
+  } as MessageEvent)
+  expect(TestBroadcastChannel.sent).toBe(sent)
 })
