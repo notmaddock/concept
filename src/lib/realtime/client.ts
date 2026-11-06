@@ -34,6 +34,12 @@ interface Options {
   config?: Partial<RealtimeConfig>
 }
 
+interface Grant {
+  readOnly: boolean
+  expiresAt: number
+  accountId?: string
+}
+
 export class RealtimeClient {
   private config: RealtimeConfig
   private socket?: WebSocket
@@ -41,6 +47,10 @@ export class RealtimeClient {
   private generation = 0
   private timer?: ReturnType<typeof setTimeout>
   private retry?: ReturnType<typeof setTimeout>
+  private renewal?: ReturnType<typeof setTimeout>
+  private expiry?: ReturnType<typeof setTimeout>
+  private connectionId?: string
+  private renewalAbort?: AbortController
   private presenceTimer?: ReturnType<typeof setTimeout>
   private updates: Array<Uint8Array> = []
   private queuedBytes = 0
@@ -53,6 +63,7 @@ export class RealtimeClient {
   private seenVectors = new Set<string>()
   private isCurrent = (generation: number) =>
     !this.stopped && generation === this.generation
+  private isConnected = () => this.socket?.readyState === WebSocket.OPEN
 
   constructor(private options: Options) {
     this.config = realtimeConfig({ ...realtime, ...options.config })
@@ -80,6 +91,10 @@ export class RealtimeClient {
 
   private async connect() {
     const generation = ++this.generation
+    clearTimeout(this.renewal)
+    clearTimeout(this.expiry)
+    this.renewalAbort?.abort()
+    this.connectionId = undefined
     this.clearQueue()
     this.assembler.clear()
     this.seenVectors.clear()
@@ -102,11 +117,7 @@ export class RealtimeClient {
         } else this.scheduleReconnect()
         return
       }
-      const grant = (await response.json()) as {
-        readOnly: boolean
-        expiresAt: number
-        accountId?: string
-      }
+      const grant = (await response.json()) as Grant
       if (!this.isCurrent(generation)) return
       if (
         this.options.accountId &&
@@ -137,10 +148,7 @@ export class RealtimeClient {
         this.send(FrameType.StateVector, encodeStateVector(this.options.doc))
         this.queuePresence()
         clearTimeout(this.retry)
-        this.retry = setTimeout(
-          () => void this.connect(),
-          Math.min(30_000, this.expiresAt - Date.now()),
-        )
+        this.scheduleExpiry(generation)
       }
       socket.onmessage = (event: MessageEvent<unknown>) => {
         if (
@@ -155,15 +163,25 @@ export class RealtimeClient {
               type?: string
               readOnly?: boolean
               expiresAt?: number
+              connectionId?: string
+              accountId?: string
             }
             if (
               ready.type !== 'ready' ||
               typeof ready.readOnly !== 'boolean' ||
-              !Number.isFinite(ready.expiresAt)
+              !Number.isFinite(ready.expiresAt) ||
+              typeof ready.connectionId !== 'string' ||
+              !ready.connectionId ||
+              ready.connectionId.length > 128 ||
+              (this.options.accountId &&
+                ready.accountId !== this.options.accountId)
             )
               throw new Error('Invalid realtime ready frame.')
             this.writable = !ready.readOnly
-            this.expiresAt = Math.min(this.expiresAt, ready.expiresAt!)
+            this.expiresAt = Math.min(ready.expiresAt!, Date.now() + 60_000)
+            this.connectionId = ready.connectionId
+            this.scheduleExpiry(generation)
+            this.scheduleRenewal(generation)
             if (!this.writable) this.clearQueue()
             return
           }
@@ -206,11 +224,105 @@ export class RealtimeClient {
       socket.onclose = () => {
         if (this.stopped || generation !== this.generation) return
         this.clearQueue()
+        clearTimeout(this.renewal)
+        clearTimeout(this.expiry)
+        this.connectionId = undefined
         this.scheduleReconnect()
       }
       socket.onerror = () => socket.close()
     } catch {
       if (generation === this.generation) this.scheduleReconnect()
+    }
+  }
+
+  private scheduleExpiry(generation: number) {
+    clearTimeout(this.expiry)
+    this.expiry = setTimeout(
+      () => {
+        if (!this.isCurrent(generation)) return
+        this.clearQueue()
+        this.renewalAbort?.abort()
+        this.socket?.close()
+        this.scheduleReconnect()
+      },
+      Math.max(0, this.expiresAt - Date.now()),
+    )
+  }
+
+  private scheduleRenewal(generation: number, retry = false) {
+    clearTimeout(this.renewal)
+    this.renewal = setTimeout(
+      () => void this.renew(generation),
+      Math.min(retry ? 5000 : 30_000, Math.max(0, this.expiresAt - Date.now())),
+    )
+  }
+
+  private async renew(generation: number) {
+    if (
+      !this.isCurrent(generation) ||
+      !this.connectionId ||
+      !this.isConnected() ||
+      Date.now() >= this.expiresAt
+    )
+      return
+    const query = new URLSearchParams({
+      fileId: this.options.fileId,
+      connectionId: this.connectionId,
+    })
+    if (this.options.resourceKey)
+      query.set('resourceKey', this.options.resourceKey)
+    const abort = new AbortController()
+    this.renewalAbort = abort
+    try {
+      const response = await fetch(`/api/realtime/access?${query}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        signal: abort.signal,
+      })
+      if (
+        !this.isCurrent(generation) ||
+        !this.isConnected() ||
+        Date.now() >= this.expiresAt
+      )
+        return
+      if (!response.ok) {
+        if ([401, 403, 404].includes(response.status)) {
+          this.stop()
+          this.options.onAccess()
+        } else if (response.status === 409) {
+          this.socket?.close()
+          this.scheduleReconnect()
+        } else this.scheduleRenewal(generation, true)
+        return
+      }
+      const grant = (await response.json()) as Grant
+      if (!this.isCurrent(generation) || Date.now() >= this.expiresAt) return
+      if (
+        typeof grant.readOnly !== 'boolean' ||
+        !Number.isFinite(grant.expiresAt) ||
+        grant.expiresAt <= Date.now() ||
+        (this.options.accountId && grant.accountId !== this.options.accountId)
+      ) {
+        this.stop()
+        this.options.onAccess()
+        return
+      }
+      if (this.writable !== !grant.readOnly) {
+        this.clearQueue()
+        this.socket?.close()
+        this.options.onAccess()
+        this.scheduleReconnect()
+        return
+      }
+      this.expiresAt = Math.min(grant.expiresAt, Date.now() + 60_000)
+      this.scheduleExpiry(generation)
+      this.scheduleRenewal(generation)
+    } catch {
+      if (this.isCurrent(generation) && Date.now() < this.expiresAt)
+        this.scheduleRenewal(generation, true)
+    } finally {
+      if (this.renewalAbort === abort) this.renewalAbort = undefined
     }
   }
 
@@ -314,6 +426,10 @@ export class RealtimeClient {
     ++this.generation
     this.clearQueue()
     clearTimeout(this.retry)
+    clearTimeout(this.renewal)
+    clearTimeout(this.expiry)
+    this.renewalAbort?.abort()
+    this.connectionId = undefined
     clearTimeout(this.presenceTimer)
     this.presenceTimer = undefined
     this.latestPresence = undefined

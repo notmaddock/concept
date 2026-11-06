@@ -66,11 +66,97 @@ async function setup(canWrite = () => true, accountId?: string) {
   await vi.advanceTimersByTimeAsync(0)
   const socket = Socket.instances.at(0)
   socket?.onopen?.()
+  socket?.onmessage?.({
+    data: JSON.stringify({
+      type: 'ready',
+      connectionId: 'connection-id',
+      readOnly: false,
+      expiresAt: Date.now() + 60_000,
+    }),
+  } as MessageEvent)
   if (socket) socket.sent = []
   return { client, doc, socket: socket! }
 }
 
 describe('realtime batching', () => {
+  it('renews the existing room grant without interrupting typing or resynchronizing', async () => {
+    const { client, doc, socket } = await setup()
+    let finishRenewal!: (response: Response) => void
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishRenewal = resolve
+        }),
+    )
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(fetch).toHaveBeenLastCalledWith(
+      '/api/realtime/access?fileId=file&connectionId=connection-id',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    doc.getText('text').insert(0, 'during permission refresh')
+    await vi.advanceTimersByTimeAsync(100)
+    expect(socket.readyState).toBe(1)
+    expect(socket.sent.map((bytes) => decodeFrame(bytes).type)).toEqual([
+      FrameType.Update,
+    ])
+    finishRenewal(
+      Response.json({ readOnly: false, expiresAt: Date.now() + 60_000 }),
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(Socket.instances).toHaveLength(1)
+    expect(socket.readyState).toBe(1)
+    expect(socket.sent.map((bytes) => decodeFrame(bytes).type)).toEqual([
+      FrameType.Update,
+    ])
+    client.stop()
+    doc.destroy()
+  })
+
+  it('expires the live socket when renewal hangs and ignores its late response', async () => {
+    const { client, doc, socket } = await setup()
+    let finishRenewal!: (response: Response) => void
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishRenewal = resolve
+        }),
+    )
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(socket.readyState).toBe(3)
+    finishRenewal(
+      Response.json({ readOnly: false, expiresAt: Date.now() + 60_000 }),
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    doc.getText('text').insert(0, 'kept local after expiry')
+    await vi.advanceTimersByTimeAsync(100)
+    expect(socket.sent).toHaveLength(0)
+    client.stop()
+    doc.destroy()
+  })
+
+  it('keeps the original expiry through provider failures and discards a queued downgrade batch', async () => {
+    const { client, doc, socket } = await setup()
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+    } as Response)
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(socket.readyState).toBe(1)
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ readOnly: true, expiresAt: Date.now() + 60_000 }),
+    } as Response)
+    await vi.advanceTimersByTimeAsync(4950)
+    doc.getText('text').insert(0, 'never sent after downgrade')
+    await vi.advanceTimersByTimeAsync(150)
+    expect(socket.readyState).toBe(3)
+    expect(socket.sent).toHaveLength(0)
+    expect(doc.getText('text').toString()).toBe('never sent after downgrade')
+    client.stop()
+    doc.destroy()
+  })
+
   it('refuses a room grant from a different linked account', async () => {
     const { client, doc } = await setup(() => true, 'expected-account')
     expect(Socket.instances).toHaveLength(0)
