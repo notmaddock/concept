@@ -39,6 +39,7 @@ const bindings = Object.assign({} as Cloudflare.Env, {
 })
 let publicRole: string | undefined
 let downloadRestricted = false
+let inheritedPermissionsDisabled = false
 let currentResourceKey: string | undefined
 let uploaded: string | undefined
 const oldPackageLimit = packageLimits.packageBytes
@@ -54,6 +55,7 @@ beforeEach(() => {
   publicRole = 'writer'
   currentResourceKey = undefined
   downloadRestricted = false
+  inheritedPermissionsDisabled = false
   uploaded = undefined
   publisher.resourceKey = null
   first.mockResolvedValue(publisher)
@@ -105,6 +107,7 @@ beforeEach(() => {
         id: 'file',
         mimeType: 'application/vnd.concept+zip',
         resourceKey: currentResourceKey,
+        inheritedPermissionsDisabled,
         linkShareMetadata: {
           securityUpdateEnabled: Boolean(currentResourceKey),
         },
@@ -366,4 +369,10 @@ it('rechecks public write permission immediately before uploading queued edits',
   expect(response.status).toBe(403)
   expect(uploaded).toBeUndefined()
   expect(invalidateAnonymousGrants).toHaveBeenCalledWith(true)
+})
+
+it('does not infer anonymous content access from ambiguous limited-access ACLs', async () => {
+  inheritedPermissionsDisabled = true
+  expect((await handlePublicDrive(request(), bindings)).status).toBe(403)
+  expect(uploaded).toBeUndefined()
 })

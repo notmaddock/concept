@@ -113,6 +113,9 @@ async function publicPolicy(
     file.capabilities.canModifyContent !== true
   )
     throw new PublicAccessLost(403)
+  // Limited-access ACL entries may describe inherited metadata visibility rather
+  // than effective anonymous content access; do not derive a public grant there.
+  if (file.inheritedPermissionsDisabled) throw new PublicAccessLost(403)
   let publicRole: 'reader' | 'writer' | undefined
   let nextPageToken: string | undefined
   for (let page = 0; page < 10; page++) {
@@ -137,11 +140,6 @@ async function publicPolicy(
     if (!Array.isArray(data.permissions)) throw new AccessFailure(503)
     for (const permission of data.permissions) {
       if (permission.type !== 'anyone' || permission.view) continue
-      if (
-        file.inheritedPermissionsDisabled &&
-        permission.permissionDetails?.some((detail) => detail.inherited)
-      )
-        continue
       if (permission.role === 'writer') publicRole = 'writer'
       else if (
         !publicRole &&

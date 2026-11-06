@@ -98,9 +98,10 @@ export async function handleRealtime(
         },
       }),
     )
+    const forwarded = new Response(upgrade.body, upgrade)
     for (const cookie of headers.getSetCookie())
-      upgrade.headers.append('Set-Cookie', cookie)
-    return upgrade
+      forwarded.headers.append('Set-Cookie', cookie)
+    return forwarded
   } catch (error) {
     const status = error instanceof AccessFailure ? error.status : 503
     if (
