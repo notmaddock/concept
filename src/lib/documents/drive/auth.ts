@@ -23,6 +23,7 @@ type SessionState = {
   accountId?: string
   configured: boolean
   revision: number
+  checked?: boolean
   loading?: Promise<void>
   listeners: Set<() => void>
 }
@@ -82,8 +83,15 @@ export function invalidateGoogleDriveSession() {
   notify()
 }
 
+export async function settleGoogleDriveSession(): Promise<void> {
+  if (!state.checked && !state.loading)
+    await prepareGoogleDriveAuth().catch(() => {})
+  else await state.loading?.catch(() => {})
+}
+
 export function prepareGoogleDriveAuth(): Promise<void> {
   if (state.loading) return state.loading
+  state.checked = true
   const revision = state.revision
   state.loading = fetch('/api/drive/session', {
     credentials: 'same-origin',

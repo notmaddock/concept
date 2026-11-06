@@ -307,3 +307,42 @@ it('retains the account ownership hint across an offline reload without restorin
   const signedOut = await import('./auth')
   expect(signedOut.getGoogleDriveAccountId()).toBeUndefined()
 })
+
+it('settles one initial session check before choosing the public or authenticated path', async () => {
+  let release!: (response: Response) => void
+  fetchMock.mockReturnValueOnce(
+    new Promise<Response>((resolve) => {
+      release = resolve
+    }),
+  )
+  const auth = await import('./auth')
+  const settling = auth.settleGoogleDriveSession()
+  let settled = false
+  void settling.then(() => {
+    settled = true
+  })
+  await Promise.resolve()
+  expect(settled).toBe(false)
+  release(
+    new Response(
+      JSON.stringify({
+        connected: true,
+        configured: true,
+        accountId: 'account-a',
+      }),
+    ),
+  )
+  await settling
+  expect(auth.isGoogleDriveConnected()).toBe(true)
+  await auth.settleGoogleDriveSession()
+  expect(fetchMock).toHaveBeenCalledOnce()
+})
+
+it('does not repeatedly check the app session when anonymous or offline', async () => {
+  fetchMock.mockRejectedValueOnce(new TypeError('Offline'))
+  const auth = await import('./auth')
+  await auth.settleGoogleDriveSession()
+  await auth.settleGoogleDriveSession()
+  expect(auth.isGoogleDriveConnected()).toBe(false)
+  expect(fetchMock).toHaveBeenCalledOnce()
+})
