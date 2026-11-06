@@ -1,5 +1,22 @@
 import { createAuthClient } from 'better-auth/client'
 
+const offlineAccountKey = 'concept-drive-offline-account'
+function readOfflineAccount() {
+  try {
+    return localStorage.getItem(offlineAccountKey) ?? undefined
+  } catch {
+    return undefined
+  }
+}
+function rememberOfflineAccount(accountId?: string) {
+  try {
+    if (accountId) localStorage.setItem(offlineAccountKey, accountId)
+    else localStorage.removeItem(offlineAccountKey)
+  } catch {
+    // Storage restrictions must not prevent an authenticated online session.
+  }
+}
+
 const authClient = createAuthClient()
 type SessionState = {
   connected: boolean
@@ -12,6 +29,7 @@ type SessionState = {
 const hot = import.meta.hot?.data as { driveSession?: SessionState } | undefined
 const state: SessionState = hot?.driveSession ?? {
   connected: false,
+  accountId: readOfflineAccount(),
   configured: true,
   revision: 0,
   listeners: new Set(),
@@ -87,11 +105,16 @@ export function prepareGoogleDriveAuth(): Promise<void> {
         throw new Error('Could not check the Google Drive connection.')
       if (revision !== state.revision) return
       const accountId =
-        typeof data.accountId === 'string' ? data.accountId : undefined
+        response.status === 503
+          ? state.accountId
+          : typeof data.accountId === 'string'
+            ? data.accountId
+            : undefined
       if (accountId !== state.accountId) {
         ++state.revision
         clearToken()
         state.accountId = accountId
+        rememberOfflineAccount(accountId)
       }
       state.connected = data.connected
       state.configured = data.configured
@@ -126,6 +149,8 @@ export async function disconnectGoogleDrive() {
     throw new Error(
       result.error.message || 'Could not disconnect Google Drive.',
     )
+  state.accountId = undefined
+  rememberOfflineAccount()
   invalidateGoogleDriveSession()
 }
 

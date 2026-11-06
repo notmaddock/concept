@@ -274,3 +274,36 @@ it('rejects malformed server connection state', async () => {
   await expect(auth.prepareGoogleDriveAuth()).rejects.toThrow('Could not check')
   expect(auth.isGoogleDriveConnected()).toBe(false)
 })
+
+it('retains the account ownership hint across an offline reload without restoring authorization', async () => {
+  const stored = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => stored.get(key) ?? null,
+    setItem: (key: string, value: string) => stored.set(key, value),
+    removeItem: (key: string) => stored.delete(key),
+  })
+  fetchMock.mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        connected: true,
+        configured: true,
+        accountId: 'account-a',
+      }),
+    ),
+  )
+  const first = await import('./auth')
+  await first.prepareGoogleDriveAuth()
+  expect(first.getGoogleDriveAccountId()).toBe('account-a')
+  vi.resetModules()
+  fetchMock.mockRejectedValueOnce(new TypeError('Network unavailable'))
+  const offline = await import('./auth')
+  await expect(offline.prepareGoogleDriveAuth()).rejects.toThrow(
+    'Network unavailable',
+  )
+  expect(offline.getGoogleDriveAccountId()).toBe('account-a')
+  expect(offline.isGoogleDriveConnected()).toBe(false)
+  await offline.disconnectGoogleDrive()
+  vi.resetModules()
+  const signedOut = await import('./auth')
+  expect(signedOut.getGoogleDriveAccountId()).toBeUndefined()
+})
