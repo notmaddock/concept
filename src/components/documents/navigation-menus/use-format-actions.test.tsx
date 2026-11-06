@@ -1,4 +1,4 @@
-import { act } from 'react'
+import { act, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
@@ -8,6 +8,7 @@ import {
   $getSelection,
   $isRangeSelection,
   $isElementNode,
+  $setSelection,
   createEditor,
 } from 'lexical'
 import { HeadingNode, QuoteNode, registerRichText } from '@lexical/rich-text'
@@ -31,9 +32,20 @@ const choices = formatSections.flatMap((section) =>
 const editorRef: { current: ReturnType<typeof createEditor> | null } = {
   current: null,
 }
-function Harness({ active = true }: { active?: boolean }) {
+function Harness({
+  active = true,
+  documentId = 'doc',
+  replacement,
+}: {
+  active?: boolean
+  documentId?: string
+  replacement?: typeof editor
+}) {
   renders++
-  actions = useFormatActions(editorRef, 'doc', choices, active)
+  actions = useFormatActions(editorRef, documentId, choices, active)
+  useEffect(() => {
+    if (replacement) editorRef.current = replacement
+  }, [replacement])
   return null
 }
 
@@ -62,7 +74,7 @@ beforeEach(async () => {
     },
     { discrete: true },
   )
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
 })
 afterEach(async () => {
   await act(() => root.unmount())
@@ -235,14 +247,14 @@ it('keeps formatting subscribers stable when text changes without format changes
 })
 
 it('pauses hidden formatting controls and refreshes when they become active', async () => {
-  await act(() => root.render(<Harness active={false} />))
+  await act(async () => root.render(<Harness active={false} />))
   expect(actions.disabled).toBe(true)
   await apply({ kind: 'text', value: 'italic' })
   const italic = choices.find(
     (action) => action.kind === 'text' && action.value === 'italic',
   )!
   expect(actions.checked(italic)).toBeUndefined()
-  await act(() => root.render(<Harness />))
+  await act(async () => root.render(<Harness />))
   expect(actions.disabled).toBe(false)
   expect(actions.checked(italic)).toBe(true)
 })
@@ -290,5 +302,83 @@ it('returns focus from a menu before committing formatting and preserves the sel
     })
     editable.remove()
     menu.remove()
+  }
+})
+
+it('keeps the selected range available when a formatting menu takes focus', async () => {
+  await act(() => editor.update(() => $setSelection(null), { discrete: true }))
+  expect(actions.disabled).toBe(false)
+  await act(async () => {
+    await actions.run({ kind: 'text', value: 'italic' })
+  })
+  editor.getEditorState().read(() => {
+    expect($getSelection()?.getTextContent()).toBe('hello')
+    expect($getRoot().getAllTextNodes()[0].hasFormat('italic')).toBe(true)
+  })
+})
+
+it('subscribes to the new editor when it mounts after document navigation', async () => {
+  const replacement = createEditor({
+    onError: (error) => {
+      throw error
+    },
+  })
+  replacement.update(
+    () => {
+      const text = $createTextNode('new document')
+      $getRoot().append($createParagraphNode().append(text))
+      text.select(0, 3)
+    },
+    { discrete: true },
+  )
+  await act(async () =>
+    root.render(<Harness documentId="other" replacement={replacement} />),
+  )
+  expect(actions.disabled).toBe(false)
+  await act(() => replacement.setEditable(false))
+  expect(actions.disabled).toBe(true)
+  await act(() => editor.setEditable(false))
+  await act(() => replacement.setEditable(true))
+  expect(actions.disabled).toBe(false)
+})
+
+it('reconnects after an editor root is replaced without recursively unregistering', async () => {
+  const editable = document.createElement('div')
+  editable.contentEditable = 'true'
+  document.body.append(editable)
+  await act(async () => editor.setRootElement(editable))
+  const replacement = createEditor({
+    onError: (error) => {
+      throw error
+    },
+  })
+  replacement.update(
+    () => {
+      const text = $createTextNode('replacement')
+      $getRoot().append($createParagraphNode().append(text))
+      text.select(0, 3)
+    },
+    { discrete: true },
+  )
+  const frames: FrameRequestCallback[] = []
+  const request = vi
+    .spyOn(window, 'requestAnimationFrame')
+    .mockImplementation((callback) => {
+      frames.push(callback)
+      return frames.length
+    })
+  try {
+    await act(async () => {
+      editor.setRootElement(null)
+      editorRef.current = replacement
+    })
+    expect(actions.disabled).toBe(true)
+    await act(async () => frames.shift()!(0))
+    expect(actions.disabled).toBe(false)
+    await act(async () => replacement.setEditable(false))
+    expect(actions.disabled).toBe(true)
+  } finally {
+    request.mockRestore()
+    editable.remove()
   }
 })
