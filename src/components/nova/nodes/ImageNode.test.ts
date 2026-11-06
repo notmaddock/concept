@@ -11,6 +11,7 @@ import { LocalProvider } from '@/lib/documents/local-provider'
 import { collectReferences } from '@/lib/documents/references'
 import { validateImageSource } from '@/lib/documents/image-schema'
 import { $createImageNode, ImageNode } from './ImageNode'
+import { ResizableNode } from './ResizableNode'
 import type { AssetId } from '@/lib/documents/assets'
 
 vi.mock('./ImageBlock', () => ({ ImageBlock: () => null }))
@@ -246,5 +247,43 @@ it('reloads edited placement metadata and source from a persisted binding snapsh
   } finally {
     original.close()
     reloaded.close()
+  }
+})
+
+it('inherits validated resizing without mutating previous editor snapshots', () => {
+  const { editor, close } = client()
+  try {
+    editor.update(
+      () => {
+        const image = $createImageNode(source('a'), 'Resizable', 200)
+        expect(image).toBeInstanceOf(ResizableNode)
+        $getRoot().append(image)
+      },
+      { discrete: true },
+    )
+    const previous = editor.getEditorState()
+    editor.update(
+      () => {
+        const image = $getRoot().getFirstChildOrThrow<ImageNode>()
+        image.setDisplayWidth(320).setAltText('Resized')
+        expect(() => image.setDisplayWidth(Infinity)).toThrow()
+        expect(() => image.setDisplayWidth(16385)).toThrow()
+      },
+      { discrete: true },
+    )
+    expect(
+      previous.read(() =>
+        $getRoot().getFirstChildOrThrow<ImageNode>().getDisplayWidth(),
+      ),
+    ).toBe(200)
+    expect(
+      editor
+        .getEditorState()
+        .read(() =>
+          $getRoot().getFirstChildOrThrow<ImageNode>().getDisplayWidth(),
+        ),
+    ).toBe(320)
+  } finally {
+    close()
   }
 })

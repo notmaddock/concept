@@ -1,10 +1,9 @@
-import { $applyNodeReplacement, DecoratorNode } from 'lexical'
+import { $applyNodeReplacement } from 'lexical'
 import type {
   DOMConversionMap,
   DOMExportOutput,
   LexicalNode,
   NodeKey,
-  SerializedLexicalNode,
   Spread,
 } from 'lexical'
 import type { ReactElement } from 'react'
@@ -14,6 +13,8 @@ import {
 } from '@/lib/documents/image-schema'
 import type { ImageSource } from '@/lib/documents/image-schema'
 import { ImageBlock } from './ImageBlock'
+import { ResizableNode } from './ResizableNode'
+import type { SerializedResizableNode } from './ResizableNode'
 
 export type SerializedImageNode = Spread<
   {
@@ -23,14 +24,13 @@ export type SerializedImageNode = Spread<
     altText: string
     displayWidth: number | null
   },
-  SerializedLexicalNode
+  SerializedResizableNode
 >
 
-export class ImageNode extends DecoratorNode<ReactElement> {
+export class ImageNode extends ResizableNode<ReactElement> {
   __imageVersion = 1
   __source: ImageSource
   __altText: string
-  __displayWidth: number | null
 
   static getType() {
     return 'image'
@@ -52,14 +52,13 @@ export class ImageNode extends DecoratorNode<ReactElement> {
     displayWidth: number | null = null,
     key?: NodeKey,
   ) {
-    super(key)
+    super(displayWidth, key)
     // Lexical/Yjs constructs an empty instance to discover synchronized fields.
     this.__source =
       source === undefined
         ? (undefined as unknown as ImageSource)
         : validateImageSource(source)
     this.__altText = altText
-    this.__displayWidth = validateImageDisplayWidth(displayWidth)
   }
 
   static importJSON(serialized: SerializedImageNode): ImageNode {
@@ -97,9 +96,6 @@ export class ImageNode extends DecoratorNode<ReactElement> {
   getAltText() {
     return this.getLatest().__altText
   }
-  getDisplayWidth() {
-    return this.getLatest().__displayWidth
-  }
   setSource(source: ImageSource): this {
     this.getWritable().__source = validateImageSource(source)
     return this
@@ -108,16 +104,12 @@ export class ImageNode extends DecoratorNode<ReactElement> {
     this.getWritable().__altText = altText
     return this
   }
-  setDisplayWidth(width: number | null): this {
-    this.getWritable().__displayWidth = validateImageDisplayWidth(width)
-    return this
+  protected validateDisplayWidth(width: number | null): number | null {
+    return validateImageDisplayWidth(width)
   }
   getTextContent() {
     const alt = this.getAltText()
     return alt ? `[Image: ${alt}]` : '[Image]'
-  }
-  isInline() {
-    return false
   }
   createDOM() {
     const element = document.createElement('div')
