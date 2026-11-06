@@ -165,3 +165,41 @@ it('enforces per-user rates across sockets and expires grants after room reconst
   for (const peer of sockets)
     expect(peer.close).toHaveBeenCalledWith(4001, 'Authorization expired')
 })
+
+it('renews only the current authenticated connection without a new socket', async () => {
+  const room = new RealtimeRoom(state, {} as Cloudflare.Env)
+  const existing = socket()
+  sockets = [existing]
+  const epoch = await room.beginAuthorization('user')
+  const grant = {
+    userId: 'user',
+    accountId: 'account',
+    readOnly: false,
+    expiresAt: Date.now() + 55_000,
+  }
+  expect(await room.renewGrant('user', 'wrong-connection', epoch, grant)).toBe(
+    false,
+  )
+  expect(
+    await room.renewGrant('different-user', 'connection', epoch, grant),
+  ).toBe(false)
+  expect(
+    await room.renewGrant('user', 'connection', epoch, {
+      ...grant,
+      accountId: 'different-account',
+    }),
+  ).toBe(false)
+  expect(
+    await room.renewGrant('user', 'connection', epoch, {
+      ...grant,
+      readOnly: true,
+    }),
+  ).toBe(false)
+  expect(await room.renewGrant('user', 'connection', epoch, grant)).toBe(true)
+  expect(existing.deserializeAttachment().expiresAt).toBe(grant.expiresAt)
+  expect(existing.close).not.toHaveBeenCalled()
+  const newer = await room.beginAuthorization('user')
+  expect(await room.renewGrant('user', 'connection', epoch, grant)).toBe(false)
+  await room.finishAuthorization('user', newer, null)
+  expect(await room.renewGrant('user', 'connection', newer, grant)).toBe(false)
+})

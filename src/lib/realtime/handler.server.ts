@@ -32,7 +32,14 @@ export async function handleRealtime(
     const grant = await checkDriveAccess(request, identity, resource)
     if (!(await room.finishAuthorization(userId, epoch, grant)))
       throw new AccessFailure(409)
-    if (url.pathname.endsWith('/access'))
+    if (url.pathname.endsWith('/access')) {
+      const connectionId = url.searchParams.get('connectionId')
+      if (
+        connectionId &&
+        (connectionId.length > 128 ||
+          !(await room.renewGrant(userId, connectionId, epoch, grant)))
+      )
+        throw new AccessFailure(409)
       return Response.json(
         {
           readOnly: grant.readOnly,
@@ -41,6 +48,7 @@ export async function handleRealtime(
         },
         { headers },
       )
+    }
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
       throw new AccessFailure(426)
     // WebSocket responses cross fetch bindings, but are not RPC-serializable.

@@ -79,6 +79,39 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
     return true
   }
 
+  async renewGrant(
+    userId: string,
+    connectionId: string,
+    epoch: number,
+    grant: RealtimeGrant,
+  ): Promise<boolean> {
+    const current = await this.ctx.storage.get<Epoch>(`auth:${userId}`)
+    if (
+      current?.value !== epoch ||
+      grant.userId !== userId ||
+      grant.expiresAt <= Date.now()
+    )
+      return false
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = socket.deserializeAttachment() as Attachment
+      if (
+        attachment.userId !== userId ||
+        attachment.connectionId !== connectionId
+      )
+        continue
+      if (
+        attachment.expiresAt <= Date.now() ||
+        attachment.accountId !== grant.accountId ||
+        attachment.readOnly !== grant.readOnly
+      )
+        return false
+      socket.serializeAttachment({ ...attachment, ...grant, epoch })
+      await this.scheduleExpiry()
+      return true
+    }
+    return false
+  }
+
   async fetch(request: WorkerRequest): Promise<WorkerResponse> {
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
       return new Response(null, { status: 426 })
@@ -129,6 +162,7 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
       JSON.stringify({
         type: 'ready',
         connectionId: attachment.connectionId,
+        accountId: grant.accountId,
         readOnly: grant.readOnly,
         expiresAt: grant.expiresAt,
       }),
