@@ -8,6 +8,7 @@ const nodeTestPatterns = [
   'src/lib/documents/library-channel.test.ts',
   'src/lib/documents/local-provider.test.ts',
   'src/lib/documents/page-setup.test.ts',
+  'src/lib/documents/realtime/**/*.test.ts',
   'src/components/documents/filter-document-action.test.ts',
   'src/components/nova/plugins/FormatToolbarPlugin/color-contrast.test.ts',
 ]
