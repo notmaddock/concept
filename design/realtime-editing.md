@@ -53,17 +53,32 @@ On reconnect, validate current Drive access before joining a room or publishing 
 
 ## Identity and server enforcement
 
-Use the existing authenticated application session and its linked Google account. The server obtains credentials for that exact account and queries Drive itself. Never accept browser-supplied capability flags, an owner token, a guessed room identifier, or a claimed email as authorization. Keep OAuth tokens out of room URLs, frames, logs, and Durable Object attachments.
+For signed-in access, use the existing authenticated application session and its linked Google account. The server obtains credentials for that exact account and queries Drive itself. Never accept browser-supplied capability flags, an owner token, a guessed room identifier, or a claimed email as authorization. Keep OAuth tokens out of room URLs, frames, logs, and Durable Object attachments.
 
 Use a canonical resource key such as `(provider = google-drive, fileId)`; local document IDs and content hashes are not sharing identities. Account changes invalidate sessions, local permission observations, and room grants. Account-scoped cache ownership is required to prevent another signed-in account opening a previous account's cached document through the normal app.
 
-The admission flow is an authenticated same-origin HTTP request followed by a same-origin WebSocket upgrade. Check Origin and session identity; if using tickets, make them short-lived, single-use, bound to user/resource/rights, and never permanent share secrets. Grant no room data before authorization. Resource keys required for legitimate Drive link access must be supported without treating the link itself as an app authorization token.
+The admission flow is a same-origin HTTP request followed by a same-origin WebSocket upgrade, using either the authenticated account or the anonymous public-link grant described below. Check Origin and session identity; if using tickets, make them short-lived, single-use, bound to user/resource/rights, and never permanent share secrets. Grant no room data before authorization. Resource keys required for legitimate Drive link access must be supported without treating the link itself as an app authorization token.
 
-Drive access is evaluated as the requesting user, including group, inherited, domain, link, and shared-drive permissions. Do not reconstruct an ACL from direct permission entries. A successful metadata lookup is not sufficient when content download is prohibited; validate the binary-content read policy too. Require affirmative effective edit/content-modification capabilities for writes. Missing or ambiguous capabilities do not grant writes. Drive remains the final enforcement point on every actual upload.
+Signed-in Drive access is evaluated as the requesting user, including group, inherited, domain, link, and shared-drive permissions. Do not reconstruct an ACL from direct permission entries. A successful metadata lookup is not sufficient when content download is prohibited; validate the binary-content read policy too. Require affirmative effective edit/content-modification capabilities for writes. Missing or ambiguous capabilities do not grant writes. Drive remains the final enforcement point on every actual upload.
 
 Viewers may receive authorized content and send bounded presence/control requests. They may not send Yjs updates, initial document state, or state-vector responses containing document mutations. Yjs protocol replies must be classified by their content, not merely labeled as a harmless handshake. Readers and writers both require read authorization for room delivery. Presence, asset identifiers, and publication hints are also document-scoped data.
 
 Frame limits, bounded sync responses, per-user/room rate limits, backpressure, participant limits, and malformed-update handling are required. No arbitrary peer URLs. Never log content or credentials. Treat authorized editors as capable of sending hostile updates; membership alone does not validate payload safety.
+
+## Anonymous public-link collaboration
+
+User-approved follow-up: public editable links support anonymous collaborative editing and publication without linking Google Drive or opening the picker. A linked editor registers their exact Google account as the file's publisher when opening a public editable file. The backend may continue publishing after that editor closes the tab; OAuth credentials remain in the existing encrypted account store.
+
+- Registration is authenticated and resource-specific. It stores file/publisher references, never document content or plaintext OAuth credentials. Anonymous callers cannot select or substitute a publisher account.
+- Before anonymous metadata reads, content reads, room admission/renewal, and every conditional upload, the backend verifies current public `anyone` access and effective download restrictions through Drive. Publisher edit capability alone is insufficient. Public readers receive read-only grants; public writers may edit. Private files never become accessible through this path.
+- Anonymous visitors receive an opaque HttpOnly session identity. Room attachments contain identity, rights, expiry, and flow-control metadata only. Resource keys remain necessary for protected links and are not a replacement for public access checks.
+- Anonymous complete-package reads and conditional saves use bounded same-origin HTTP endpoints, so realtime remains optional. Save requests carry an ETag and cannot create, trash, move, or target arbitrary publisher files. The backend streams bounded packages rather than decompressing an entire package in Worker memory.
+- Publication is performed using the registered account, so Drive's final upload checks that account's rights. The backend separately enforces public rights before each upload; this is delegated publication, not anonymous OAuth access to Drive.
+- A file needs a registered linked publisher before anonymous access works. Publisher account disconnection or loss of access stops delegated publication. Public permission removal stops future anonymous service access after detection/expiry; already downloaded copies remain recoverable under the local-copy policy.
+
+Routine room authorization refreshes renew the current socket's grant in place. Successful refreshes do not disconnect collaborators or replay synchronization; failed refreshes cannot extend the existing grant past its deadline. Actual connection loss still revalidates and reconciles before sending edits.
+
+Received edits remain locally persistent and dirty until Drive publication is verified. Passive replicas use a bounded durability fallback instead of the local typing save deadline. Publication hints share one coalesced check schedule, with faster bounded checks for missing assets. Local edits retain their independent save deadline.
 
 ## Revocation and offline access
 
@@ -123,7 +138,7 @@ Required scenarios: realtime completely blocked; two offline/concurrent writers 
 ## Implementation decisions
 
 - Explicit recovery of retained unsynced work into a detached local copy is allowed after confirmed total access loss.
-- Accept all effective Drive sharing modes, including anyone-with-link, while requiring an authenticated application session and server-side Drive authorization. The existing OAuth `drive.file` scope may still require selecting a file through the Drive picker.
+- Accept all effective Drive sharing modes, including anyone-with-link, with authenticated own-account access and the user-approved delegated anonymous public-link path. The existing OAuth `drive.file` scope may still require selecting a file through the Drive picker.
 - Start with a 100 ms update period, separate presence coalescing, a 30-second refresh, and a 60-second maximum room grant. These are deployment defaults requiring live quota and latency validation, not provider revocation guarantees.
 
 ## Reference material
