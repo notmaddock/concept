@@ -131,3 +131,32 @@ it('waits for initial session discovery before choosing the anonymous path', asy
   )
   expect(auth.token).toHaveBeenCalledOnce()
 })
+
+it('preserves safe registration diagnostics and cancellation without exposing provider credentials', async () => {
+  auth.connected = true
+  const controller = new AbortController()
+  fetchMock.mockResolvedValueOnce(
+    Response.json(
+      {
+        error: {
+          code: 'publisherPermissionCheckFailed',
+          stage: 'permissions',
+          providerStatus: 403,
+        },
+      },
+      { status: 503 },
+    ),
+  )
+  await expect(
+    registerPublicDriveFile('registration-failure', controller.signal),
+  ).rejects.toMatchObject({
+    status: 503,
+    reason: 'publisherPermissionCheckFailed',
+    stage: 'permissions',
+    providerStatus: 403,
+  })
+  const signal = fetchMock.mock.calls[0][1]?.signal
+  expect(signal?.aborted).toBe(false)
+  controller.abort()
+  expect(signal?.aborted).toBe(true)
+})

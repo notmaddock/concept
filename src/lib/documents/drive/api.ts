@@ -77,6 +77,8 @@ export class DriveError extends Error {
     public readonly status: number,
     message: string,
     public readonly reason?: string,
+    public readonly stage?: string,
+    public readonly providerStatus?: number,
   ) {
     super(message)
     this.name = 'DriveError'
@@ -220,20 +222,37 @@ async function publicRequest(url: string, init: RequestInit = {}) {
       : AbortSignal.timeout(30000),
   })
   if (!response.ok) {
-    await response.body?.cancel()
-    throw new DriveError(
-      response.status,
+    const failure = (await response.json().catch(() => undefined)) as
+      | { error?: { code?: string; stage?: string; providerStatus?: number } }
+      | undefined
+    const reason = failure?.error?.code
+    const message =
       response.status === 412
         ? 'Google Drive has newer changes.'
-        : 'This shared file is unavailable.',
+        : response.status >= 500
+          ? 'Public access could not be verified. Try again shortly.'
+          : 'This shared link is unavailable. Check its sharing permissions.'
+    throw new DriveError(
+      response.status,
+      message,
+      reason,
+      typeof failure?.error?.stage === 'string'
+        ? failure.error.stage
+        : undefined,
+      typeof failure?.error?.providerStatus === 'number'
+        ? failure.error.providerStatus
+        : undefined,
     )
   }
   return response
 }
 
-export async function registerPublicDriveFile(id: string) {
+export async function registerPublicDriveFile(
+  id: string,
+  signal?: AbortSignal,
+) {
   if (!isGoogleDriveConnected() || publicFiles.has(id)) return
-  await publicRequest(publicFileUrl('register', id), { method: 'POST' })
+  await publicRequest(publicFileUrl('register', id), { method: 'POST', signal })
 }
 
 export async function getFileMetadata(id: string, signal?: AbortSignal) {
