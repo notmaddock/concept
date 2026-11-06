@@ -390,3 +390,20 @@ it('requires explicit recovery before importing an incomplete package as a local
   )
   expect(toast.error).not.toHaveBeenCalled()
 })
+
+it('opens Google Drive from the Open dialog and closes before showing the picker', async () => {
+  const onOpenDrive = vi.fn(async () => {
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+  await act(async () =>
+    root.render(
+      <DocumentStorageDialog
+        mode="open"
+        onClose={onClose}
+        onOpenDrive={onOpenDrive}
+      />,
+    ),
+  )
+  await click('Google Drive')
+  expect(onOpenDrive).toHaveBeenCalledOnce()
+})

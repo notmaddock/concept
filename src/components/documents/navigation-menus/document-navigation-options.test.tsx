@@ -266,19 +266,11 @@ it('gates mutation actions in read-only mode while preserving copy and export', 
   workspace.document = undefined
 })
 
-it('opens the Drive picker from File and search without a document open', async () => {
+it('routes opening through the Open dialog', async () => {
   await render(false, false)
-  const option = navigation.options.find((item) => item.id === 'open-drive')!
-  expect(option.disabled).toBe(false)
-  expect(
-    navigation.menus.find((menu) => menu.label === 'File')?.items,
-  ).toContain(option)
-  await option.onSelect()
-  expect(workspace.openGoogleDrivePicker).toHaveBeenCalledOnce()
-  workspace.pickerLoading = true
-  await render(false, false)
-  expect(
-    navigation.options.find((item) => item.id === 'open-drive')?.disabled,
-  ).toBe(true)
-  workspace.pickerLoading = false
+  expect(navigation.options.some((item) => item.id === 'open-drive')).toBe(
+    false,
+  )
+  await navigation.options.find((item) => item.id === 'open')?.onSelect()
+  expect(onOpen).toHaveBeenCalledOnce()
 })
