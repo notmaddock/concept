@@ -46,7 +46,7 @@ revisions.
 | `verdictCacheTtlMs`      | 30_000  | Cache TTL for per-`(userId, fileId)` capability verdicts              |
 | `ticketTtlMs`            | 300_000 | Lifetime of a join ticket                                             |
 | `updateIntervalMs`       | 150     | How often pending Yjs updates are batched and sent over the WebSocket |
-| `awarenessIntervalMs`    | 250     | How often awareness (presence/cursor) state is sent                   |
+| `awarenessIntervalMs`    | 500     | How often awareness (presence/cursor) state is sent                   |
 
 ## Minimizing roundtrips
 
@@ -85,6 +85,30 @@ One Cloudflare Durable Object per Drive `fileId`, using hibernated WebSockets:
   batched at `updateIntervalMs`; the DO relays immediately.
 - The DO does not understand document content and must not be trusted to
   enforce anything by itself; all enforcement decisions come from Drive.
+
+## Hibernation and duration cost
+
+Durable Objects bill duration for as long as they are running, or idle in
+memory but _ineligible_ to hibernate. A pending `setTimeout`/`setInterval`, an
+unfinished `waitUntil` promise, an open outbound request, or the standard
+(non-hibernation) WebSocket API all keep an object resident and billable
+around the clock — even with nobody connected. An early version armed a
+`setInterval` for revalidation and cost ~117 GB-s per 15 minutes continuously.
+
+Rules this design must keep:
+
+- **No timers in the DO.** Revalidation runs on `storage.setAlarm`, armed only
+  while clients are attached and cleared when the last socket closes, so an
+  empty room is free and a busy room wakes briefly once per
+  `revalidationIntervalMs` instead of staying resident.
+- **No in-memory state that must outlive a wake-up.** Hibernation discards it.
+  Per-socket identity and capabilities live in the WebSocket attachment
+  (`serializeAttachment`); the room is rebuilt per event from those.
+- **Message rate is a cost driver.** Every inbound frame wakes the object and
+  starts a billable window, so batching matters: awareness is sent on an
+  interval rather than per cursor move, and updates are batched at
+  `updateIntervalMs`.
+- `src/worker/realtime-do.test.ts` guards these invariants; keep them passing.
 
 ## Capabilities model
 

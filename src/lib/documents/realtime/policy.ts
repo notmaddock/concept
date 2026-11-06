@@ -16,7 +16,7 @@ export const realtimePolicy = {
   /** How often pending Yjs updates are batched and sent over the WebSocket. */
   updateIntervalMs: 150,
   /** How often awareness (presence/cursor) state is sent. */
-  awarenessIntervalMs: 250,
+  awarenessIntervalMs: 500,
   /** How many relayed updates the DO buffers for late joiners (cache only). */
   bufferedUpdates: 128,
   /** Exponential reconnect backoff for the client socket. */
