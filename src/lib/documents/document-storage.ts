@@ -1,3 +1,4 @@
+import { getGoogleDriveAccountId } from './drive/auth'
 import { openPublicationTransport } from './publication'
 import { Doc } from 'yjs'
 import { localDocumentStorage } from './storage'
@@ -11,6 +12,9 @@ import {
 import {
   DriveError,
   getFileMetadata,
+  getDriveResourceKey,
+  rememberDriveResourceKey,
+  readConceptFile,
   isDriveFileReadOnly,
   listConceptFiles,
   trashConceptFile,
@@ -28,6 +32,8 @@ export async function refreshDriveDocuments() {
         updatedAt: Date.parse(file.modifiedTime ?? '') || Date.now(),
         readOnly: isReadOnly,
         drive: {
+          resourceKey: getDriveResourceKey(file.id),
+          accountId: getGoogleDriveAccountId(),
           fileId: file.id,
           offlineAvailable: false,
           readOnly: isReadOnly,
@@ -55,6 +61,12 @@ export async function refreshDriveDocuments() {
 
 async function ensureDocument(id: string) {
   const existing = await localDocumentStorage.get(id)
+  if (existing?.drive && existing.drive.accountId !== getGoogleDriveAccountId())
+    throw new Error(
+      'This cached document belongs to a different Google account.',
+    )
+  if (existing?.drive?.resourceKey)
+    rememberDriveResourceKey(existing.drive.fileId, existing.drive.resourceKey)
   if (existing || !id.startsWith('G')) return existing
   const { file } = await getFileMetadata(id.slice(1))
   const isReadOnly = isDriveFileReadOnly(file)
@@ -63,7 +75,13 @@ async function ensureDocument(id: string) {
     name: file.name.replace(/\.concept$/i, ''),
     updatedAt: Date.parse(file.modifiedTime ?? '') || Date.now(),
     readOnly: isReadOnly,
-    drive: { fileId: file.id, offlineAvailable: false, readOnly: isReadOnly },
+    drive: {
+      resourceKey: getDriveResourceKey(file.id),
+      accountId: getGoogleDriveAccountId(),
+      fileId: file.id,
+      offlineAvailable: false,
+      readOnly: isReadOnly,
+    },
   }
   return localDocumentStorage.patch(id, (current) => current, info)
 }
@@ -71,6 +89,22 @@ async function ensureDocument(id: string) {
 export const documentStorage: DocumentStorage = {
   ...localDocumentStorage,
   get: ensureDocument,
+  subscribe(listener) {
+    return localDocumentStorage.subscribe((change) => {
+      if (
+        change.type === 'delete' ||
+        !change.document.drive ||
+        change.document.drive.accountId === getGoogleDriveAccountId()
+      )
+        listener(change)
+    })
+  },
+  async list() {
+    return (await localDocumentStorage.list()).filter(
+      (info) =>
+        !info.drive || info.drive.accountId === getGoogleDriveAccountId(),
+    )
+  },
   async rename(id, name) {
     const info = await ensureDocument(id)
     const active = documentSessions.get(id)
@@ -215,4 +249,71 @@ export function setDocumentOfflineAvailable(id: string, value: boolean) {
     })
     .catch(() => {})
   return changing
+}
+
+export async function recoverDocumentLocally(id: string) {
+  const source = await localDocumentStorage.get(id)
+  if (!source?.drive) throw new Error('Shared document not found.')
+  if (source.drive.accountId !== getGoogleDriveAccountId())
+    throw new Error(
+      'This cached document belongs to a different Google account.',
+    )
+  const doc = new Doc()
+  const local = localDocumentStorage.open(id, doc)
+  let target:
+    Awaited<ReturnType<typeof localDocumentStorage.createStaged>> | undefined
+  let targetSession: DocumentPersistence | undefined
+  try {
+    await local.whenSynced
+    target = await localDocumentStorage.createStaged()
+    const { copyDocumentAssets } = await import('./assets')
+    await copyDocumentAssets(id, target.id)
+    const recovered = new Doc()
+    targetSession = localDocumentStorage.open(target.id, recovered)
+    try {
+      await targetSession.whenSynced
+      const { applyUpdate, encodeStateAsUpdate } = await import('yjs')
+      applyUpdate(recovered, encodeStateAsUpdate(doc))
+      const name = `${documentName(doc, source.name)} (recovered)`
+      recovered.getMap<string>('metadata').set('name', name)
+      await targetSession.flush?.()
+      const info = {
+        ...target,
+        name,
+        importing: false,
+        recoveryMissingAssets: source.recoveryMissingAssets,
+      }
+      await localDocumentStorage.put(info)
+      await local.destroy()
+      await documentSessions.get(id)?.stop()
+      await localDocumentStorage.resetRecoveredContent(id).catch(() => {})
+      return info
+    } finally {
+      await targetSession.destroy()
+      targetSession = undefined
+      recovered.destroy()
+    }
+  } catch (error) {
+    await targetSession?.destroy()
+    if (target) await localDocumentStorage.delete(target.id).catch(() => {})
+    throw error
+  } finally {
+    await local.destroy()
+    doc.destroy()
+  }
+}
+
+export async function recheckDocumentAccess(id: string) {
+  const info = await localDocumentStorage.get(id)
+  if (!info?.drive) throw new Error('Shared document not found.')
+  if (info.drive.accountId !== getGoogleDriveAccountId())
+    throw new Error(
+      'This cached document belongs to a different Google account.',
+    )
+  await readConceptFile(info.drive.fileId)
+  if (info.drive.quarantined)
+    throw new Error(
+      'Recover your unsynced work as a local copy before reopening this shared file.',
+    )
+  clearSaveStatus(id)
 }

@@ -212,7 +212,26 @@ export const localDocumentStorage: DocumentStorage & {
     initial?: DocumentInfo,
   ) => Promise<DocumentInfo>
   clearContent: (id: string) => Promise<void>
+  resetRecoveredContent: (id: string) => Promise<void>
 } = {
+  async resetRecoveredContent(id) {
+    await withDocumentLock(id, async () => {
+      await removeDocumentContent(id)
+      await deleteDocumentAssets(id, { alreadyLocked: true })
+      await localDocumentStorage.patch(id, (current) => ({
+        ...current,
+        drive: current.drive
+          ? {
+              ...current.drive,
+              dirty: false,
+              quarantined: false,
+              offlineAvailable: false,
+              savedRevision: undefined,
+            }
+          : undefined,
+      }))
+    })
+  },
   async createStaged() {
     const document: DocumentInfo = {
       id: crypto.randomUUID(),

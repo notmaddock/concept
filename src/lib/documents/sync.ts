@@ -1,3 +1,6 @@
+import { RealtimeClient } from '../realtime/client'
+import { accessTiming, canEditLocally } from './access'
+import type { DocumentAccess } from './access'
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
 import { toast } from 'sonner'
 import {
@@ -18,6 +21,7 @@ import { readConcept, decodeUpdate, parseConcept } from './concept-file'
 import { localDocumentStorage } from './storage'
 import type { DocumentInfo, DocumentPersistence } from './storage'
 import {
+  getGoogleDriveAccountId,
   GoogleDriveAuthError,
   isGoogleDriveAuthError,
   isGoogleDriveConnected,
@@ -26,6 +30,7 @@ import {
 import {
   DriveError,
   getFileMetadata,
+  getDriveResourceKey,
   isDriveFileReadOnly,
   readConceptFile,
   updateConceptFile,
@@ -59,6 +64,7 @@ export interface SaveStatus {
   error?: string
   offlineAvailable?: boolean
   readOnly?: boolean
+  access?: DocumentAccess
 }
 
 const emptyStatus: SaveStatus = { phase: 'loading' }
@@ -92,12 +98,16 @@ export function mergeConcept(doc: Doc, content: string) {
 }
 
 export class DocumentSync {
+  realtime?: RealtimeClient
   assets?: DocumentAssetResolver
+  access: DocumentAccess = { kind: 'local' }
+  private permissionTimer?: ReturnType<typeof setInterval>
   private backgroundStatus: SaveStatus = { phase: 'loading' }
   private stopped = false
   private running?: Promise<void>
   private idle?: ReturnType<typeof setTimeout>
   private deadline?: ReturnType<typeof setTimeout>
+  private accessEpoch = 0
   private version = 0
   private dirty = false
   private etag?: string
@@ -118,7 +128,10 @@ export class DocumentSync {
   private isStopped = () => this.stopped
 
   get isReadOnly() {
-    return Boolean(this.info.readOnly || this.info.drive?.readOnly)
+    return (
+      !canEditLocally(this.access) ||
+      Boolean(this.info.readOnly || this.info.drive?.readOnly)
+    )
   }
 
   constructor(
@@ -128,6 +141,13 @@ export class DocumentSync {
     private publication?: PublicationTransport,
     private background = false,
   ) {
+    this.access = info.drive
+      ? {
+          kind: 'unverified',
+          previous: info.readOnly || info.drive.readOnly ? 'viewer' : 'editor',
+          reason: 'temporary',
+        }
+      : { kind: 'local' }
     this.dirty = info.drive?.dirty ?? false
     this.etag = info.drive?.etag
     this.remoteFilename = info.drive?.remoteFilename
@@ -144,6 +164,7 @@ export class DocumentSync {
   }
 
   private setStatus(status: SaveStatus) {
+    status = { ...status, access: this.access }
     if (this.background) this.backgroundStatus = status
     else setSaveStatus(this.info.id, status)
   }
@@ -220,6 +241,7 @@ export class DocumentSync {
       } catch (error) {
         this.fail(error, false)
         if (
+          this.access.kind === 'unavailable' ||
           !(this.info.drive.offlineAvailable || this.dirty) ||
           !hasCachedContent
         )
@@ -262,6 +284,24 @@ export class DocumentSync {
           error,
         }),
       })
+    if (
+      this.info.drive &&
+      (this.access.kind === 'editor' || this.access.kind === 'viewer')
+    ) {
+      this.realtime = new RealtimeClient({
+        doc: this.doc,
+        fileId: this.info.drive.fileId,
+        accountId: this.info.drive.accountId,
+        resourceKey:
+          this.info.drive.resourceKey ??
+          getDriveResourceKey(this.info.drive.fileId),
+        canWrite: () =>
+          this.access.kind === 'editor' && !this.info.drive?.quarantined,
+        onPublication: () => this.sync(true),
+        onAccess: () => this.sync(true),
+      })
+      this.realtime.start()
+    }
     this.doc.on('update', this.changed)
     this.unsubscribeAssets = documentAssets(this.doc)?.subscribe(() => {
       if (this.isStopped()) return
@@ -275,13 +315,28 @@ export class DocumentSync {
     this.scheduleMissingCheck()
     if (this.info.drive)
       this.unsubscribeAuth = subscribeGoogleDriveAuth(() => {
-        if (isGoogleDriveConnected()) this.check()
+        if (this.info.drive?.accountId !== getGoogleDriveAccountId()) {
+          this.fail(
+            new DriveError(
+              404,
+              'This document belongs to a different Google account.',
+            ),
+            false,
+          )
+        } else if (isGoogleDriveConnected()) this.check()
         else this.fail(new GoogleDriveAuthError(), false)
       })
     if (!this.info.drive) {
       await this.persistence.flush?.()
       this.publish('local')
     } else if (this.dirty && !this.isReadOnly) this.schedule()
+    if (this.info.drive)
+      this.permissionTimer = setInterval(() => {
+        if (document.visibilityState !== 'hidden') {
+          if (this.dirty) void this.refreshAccess()
+          else this.check()
+        }
+      }, accessTiming.refreshMs)
     window.addEventListener('focus', this.check)
     window.addEventListener('online', this.check)
     if (!this.background) documentSessions.set(this.info.id, this)
@@ -334,6 +389,8 @@ export class DocumentSync {
         ? {
             ...current.drive,
             dirty: this.dirty,
+            quarantined:
+              this.info.drive?.quarantined ?? current.drive.quarantined,
             etag: this.etag,
             remoteFilename: this.remoteFilename,
             readOnly: this.info.drive?.readOnly ?? current.drive.readOnly,
@@ -371,12 +428,13 @@ export class DocumentSync {
   }
 
   private async download(initial?: DriveFileVersion) {
+    const epoch = ++this.accessEpoch
     const remote = await readConceptFile(
       this.info.drive!.fileId,
       this.abort.signal,
       initial,
     )
-    if (this.isStopped()) return
+    if (this.isStopped() || epoch !== this.accessEpoch) return
     const parsed = await readConcept(
       typeof remote.content === 'string'
         ? new TextEncoder().encode(remote.content)
@@ -389,7 +447,7 @@ export class DocumentSync {
       incoming.assets,
       this.abort.signal,
     )
-    if (this.isStopped()) return
+    if (this.isStopped() || epoch !== this.accessEpoch) return
     // Canonicalize the remote snapshot separately: local edits must never become
     // acknowledged merely because they were present when a download completed.
     const snapshot = new Doc()
@@ -415,16 +473,10 @@ export class DocumentSync {
         name: documentName(snapshot, embeddedName),
         update: encodeStateAsUpdate(snapshot),
       })
+      if (epoch !== this.accessEpoch || this.stopped) return
       this.remoteFilename = remote.file.name
       this.etag = remote.etag
-      const isReadOnly = isDriveFileReadOnly(remote.file)
-      if (isReadOnly) {
-        this.info.readOnly = true
-        if (this.info.drive) this.info.drive.readOnly = true
-      } else if (remote.file.capabilities?.canEdit === true) {
-        this.info.readOnly = false
-        if (this.info.drive) this.info.drive.readOnly = false
-      }
+      this.observeAccess(isDriveFileReadOnly(remote.file))
       const generation = this.version
       this.dirty = await this.differsFrom(this.acknowledged)
       this.dirty ||= generation !== this.version
@@ -449,6 +501,45 @@ export class DocumentSync {
       this.publishSyncState()
     } finally {
       snapshot.destroy()
+    }
+  }
+
+  private async refreshAccess() {
+    if (this.running || this.access.kind === 'unavailable') return
+    const epoch = ++this.accessEpoch
+    try {
+      const current = await getFileMetadata(
+        this.info.drive!.fileId,
+        this.abort.signal,
+      )
+      if (this.stopped || epoch !== this.accessEpoch) return
+      this.observeAccess(isDriveFileReadOnly(current.file))
+      this.setStatus({ ...this.saveStatus, readOnly: this.isReadOnly })
+    } catch (error) {
+      if (epoch === this.accessEpoch) this.fail(error, false)
+    }
+  }
+
+  private observeAccess(readOnly: boolean) {
+    if (this.access.kind === 'unavailable') return
+    const previous = this.access.kind
+    this.access = {
+      kind: readOnly ? 'viewer' : 'editor',
+      checkedAt: Date.now(),
+    }
+    if (previous === 'unverified') this.realtime?.start()
+    this.info.readOnly = readOnly || Boolean(this.info.drive?.quarantined)
+    if (this.info.drive) this.info.drive.readOnly = this.info.readOnly
+    if (readOnly) {
+      if (previous === 'editor') {
+        this.realtime?.stop()
+        this.realtime?.start()
+      }
+      if (this.dirty && this.info.drive) this.info.drive.quarantined = true
+      clearTimeout(this.idle)
+      clearTimeout(this.deadline)
+      this.deadline = undefined
+      this.urgent = false
     }
   }
 
@@ -480,15 +571,26 @@ export class DocumentSync {
     return this.running
   }
 
+  private canPublish() {
+    return (
+      !this.stopped &&
+      !this.isReadOnly &&
+      this.access.kind === 'editor' &&
+      !this.info.drive?.quarantined
+    )
+  }
+
   private async run(checkRemote: boolean) {
-    if (checkRemote || !this.etag) {
+    if (checkRemote || this.dirty || !this.etag) {
+      const epoch = ++this.accessEpoch
       const current =
         this.etag && this.acknowledged
           ? await getFileMetadata(this.info.drive!.fileId, this.abort.signal)
           : undefined
+      if (epoch !== this.accessEpoch || this.stopped) return
       const permissionsChanged =
-        current?.file.capabilities !== undefined &&
-        isDriveFileReadOnly(current.file) !== this.isReadOnly
+        current && isDriveFileReadOnly(current.file) !== this.isReadOnly
+      if (current) this.observeAccess(isDriveFileReadOnly(current.file))
       if (!current || current.etag !== this.etag || permissionsChanged) {
         this.publish('reconciling')
         await this.download(current)
@@ -533,7 +635,7 @@ export class DocumentSync {
         const content = await writePackage(snapshot, {
           signal: this.abort.signal,
         })
-        if (this.isStopped()) return
+        if (!this.canPublish()) return
         const name = snapshot.name
         const filename =
           name === this.remoteFilename?.replace(/\.concept$/i, '')
@@ -547,10 +649,11 @@ export class DocumentSync {
           filename,
           this.abort.signal,
         )
-        if (this.isStopped()) return
+        if (!this.canPublish()) return
         this.etag = remote.etag
         this.remoteFilename = remote.file.name
         this.acknowledged = revision
+        this.realtime?.publish()
         this.publication?.publish({
           protocol: 1,
           storage: 'google-drive',
@@ -591,6 +694,42 @@ export class DocumentSync {
 
   private fail(error: unknown, notify = true) {
     notify &&= this.actionRecovery === 0
+    if (this.info.drive) {
+      ++this.accessEpoch
+      const unavailable =
+        error instanceof DriveError &&
+        (error.status === 404 ||
+          (error.status === 403 &&
+            error.reason !== 'rateLimitExceeded' &&
+            error.reason !== 'userRateLimitExceeded' &&
+            error.reason !== 'dailyLimitExceeded'))
+      if (unavailable) {
+        this.access = { kind: 'unavailable', checkedAt: Date.now() }
+        this.info.readOnly = true
+        this.info.drive.readOnly = true
+        if (this.dirty) this.info.drive.quarantined = true
+        void this.persistMetadata().catch(() => {})
+        this.urgent = false
+        clearTimeout(this.idle)
+        clearTimeout(this.deadline)
+        this.realtime?.stop()
+        this.assets?.close()
+      } else if (this.access.kind !== 'unavailable') {
+        this.realtime?.stop()
+        this.access = {
+          kind: 'unverified',
+          previous:
+            this.info.readOnly || this.info.drive.readOnly
+              ? 'viewer'
+              : 'editor',
+          reason: isGoogleDriveAuthError(error)
+            ? 'authentication'
+            : !navigator.onLine
+              ? 'offline'
+              : 'temporary',
+        }
+      }
+    }
     if (error instanceof IncompleteAssetsError) {
       this.waitingForAssets = true
       this.publish('missing-assets')
@@ -759,6 +898,8 @@ export class DocumentSync {
     if (this.isStopped()) return
     this.stopped = true
     this.abort.abort()
+    this.realtime?.stop()
+    clearInterval(this.permissionTimer)
     clearTimeout(this.idle)
     clearTimeout(this.deadline)
     this.doc.off('update', this.changed)
@@ -778,7 +919,11 @@ export class DocumentSync {
       await (this.info.drive
         ? this.persistMetadata()
         : this.persistence.flush?.())
-    if (!this.background && !documentSessions.has(this.info.id))
+    if (
+      !this.background &&
+      !documentSessions.has(this.info.id) &&
+      this.access.kind !== 'unavailable'
+    )
       clearSaveStatus(this.info.id)
   }
 }

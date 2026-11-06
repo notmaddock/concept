@@ -48,6 +48,7 @@ vi.mock('./drive/api', () => ({
     ),
   readConceptFile: vi.fn(),
   getFileMetadata: vi.fn(),
+  getDriveResourceKey: () => undefined,
   updateConceptFile: vi.fn(),
 }))
 vi.mock('./storage', () => ({
@@ -206,6 +207,7 @@ it('waits for three idle seconds and does not write a clean document', async () 
   expect(write.mock.calls[0][3]).toBe('"base"')
   await session.sync()
   expect(getSaveStatus(info.id).phase).toBe('synced')
+  metadata.mockResolvedValue(version('"saved"'))
   await vi.advanceTimersByTimeAsync(120_000)
   expect(write).toHaveBeenCalledOnce()
 })
@@ -334,6 +336,7 @@ it('keeps edits made during upload pending until a later conditional upload', as
   await saving
   expect(getSaveStatus(info.id).phase).toBe('pending')
   expect(write).toHaveBeenCalledOnce()
+  metadata.mockResolvedValue(version('"first-save"'))
   await vi.advanceTimersByTimeAsync(3000)
   expect(getSaveStatus(info.id).phase).toBe('saving')
   await session.sync()
@@ -461,7 +464,10 @@ it('detects read-only capabilities on download and propagates readOnly to Docume
 it('does not mark dirty or attempt upload when local doc is modified in read-only mode', async () => {
   info.readOnly = true
   info.drive = { ...info.drive!, readOnly: true }
-
+  const readonly = version('"base"')
+  readonly.file.capabilities = { canEdit: false, canModifyContent: false }
+  read.mockResolvedValue({ ...readonly, content: legacyBytes('Test', remote) })
+  metadata.mockResolvedValue(readonly)
   await start()
 
   local.getMap('settings').set('theme', 'dark')
@@ -868,6 +874,7 @@ it('uses foreground asset polling instead of rapid network retries after missing
       ...published,
       content: await packageBytes(remote, [arriving]),
     })
+    metadata.mockClear()
     await vi.advanceTimersByTimeAsync(assetRetryPolicy.initialMs - 1)
     expect(read).toHaveBeenCalledTimes(2)
     expect(metadata).not.toHaveBeenCalled()
@@ -893,4 +900,51 @@ it('leaves explicit recovery failures to the calling action to report once', asy
   expect(toast.error).not.toHaveBeenCalled()
   expect(write).not.toHaveBeenCalled()
   expect(info.drive?.dirty).toBe(true)
+})
+
+it('quarantines unsynced edits on downgrade even if write access returns later', async () => {
+  await start()
+  local.getMap('settings').set('unsynced', true)
+  const viewer = version('"base"')
+  viewer.file.capabilities = { canEdit: false, canModifyContent: false }
+  metadata.mockResolvedValue(viewer)
+  read.mockResolvedValue({ ...viewer, content: legacyBytes('Test', remote) })
+  await session.sync(true)
+  expect(info.drive?.quarantined).toBe(true)
+  const editor = version('"base"')
+  editor.file.capabilities = { canEdit: true, canModifyContent: true }
+  metadata.mockResolvedValue(editor)
+  read.mockResolvedValue({ ...editor, content: legacyBytes('Test', remote) })
+  await session.sync(true)
+  expect(write).not.toHaveBeenCalled()
+  expect(local.getMap('settings').get('unsynced')).toBe(true)
+})
+
+it('retains an unavailable access status after the editor session is detached', async () => {
+  await start()
+  metadata.mockRejectedValue(new DriveError(404, 'File unavailable'))
+  await session.sync(true)
+  expect(getSaveStatus(info.id).access?.kind).toBe('unavailable')
+  expect(session.isReadOnly).toBe(true)
+  await session.stop()
+  expect(getSaveStatus(info.id).access?.kind).toBe('unavailable')
+})
+
+it('ignores an older successful permission response after a newer downgrade', async () => {
+  await start()
+  const late = deferred<ReturnType<typeof version>>()
+  metadata.mockImplementationOnce(() => late.promise)
+  for (let second = 0; second < 30; second++) {
+    local.getMap('settings').set('typing', second)
+    await vi.advanceTimersByTimeAsync(1000)
+  }
+  const viewer = version('"base"')
+  viewer.file.capabilities = { canEdit: false, canModifyContent: false }
+  metadata.mockResolvedValue(viewer)
+  read.mockResolvedValue({ ...viewer, content: legacyBytes('Test', remote) })
+  await session.sync(true)
+  late.resolve(version('"base"'))
+  await vi.advanceTimersByTimeAsync(0)
+  expect(session.access.kind).toBe('viewer')
+  expect(write).not.toHaveBeenCalled()
 })

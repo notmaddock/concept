@@ -4,6 +4,7 @@ import { applyUpdate, Doc, encodeStateAsUpdate, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
   documentStorage,
+  recoverDocumentLocally,
   refreshDriveDocuments,
   setDocumentOfflineAvailable,
 } from './document-storage'
@@ -28,6 +29,7 @@ const auth = vi.hoisted(() => {
 })
 
 vi.mock('./drive/auth', () => ({
+  getGoogleDriveAccountId: () => undefined,
   isGoogleDriveAuthError: (error: unknown) =>
     error instanceof auth.AuthRequired,
   subscribeGoogleDriveAuth: () => () => {},
@@ -52,6 +54,8 @@ vi.mock('./drive/api', () => ({
         file.capabilities.canModifyContent === false),
     ),
   getFileMetadata: vi.fn(),
+  getDriveResourceKey: () => undefined,
+  rememberDriveResourceKey: vi.fn(),
   listConceptFiles: vi.fn(),
   readConceptFile: vi.fn(),
   trashConceptFile: vi.fn(),
@@ -570,4 +574,24 @@ it('keeps the editor session and status when offline preparation overlaps openin
   expect(await localDocumentStorage.get(info.id)).toMatchObject({
     drive: { offlineAvailable: true },
   })
+})
+
+it('denies opening cached shared content belonging to another account', async () => {
+  await localDocumentStorage.put({
+    id: 'Gforeign',
+    name: 'Private',
+    updatedAt: 0,
+    drive: {
+      fileId: 'foreign',
+      accountId: 'other-account',
+      offlineAvailable: true,
+    },
+  })
+  await expect(documentStorage.get('Gforeign')).rejects.toThrow(
+    'different Google account',
+  )
+  expect(await documentStorage.list()).toEqual([])
+  await expect(recoverDocumentLocally('Gforeign')).rejects.toThrow(
+    'different Google account',
+  )
 })
