@@ -5,6 +5,7 @@ import type {
 } from '@cloudflare/workers-types'
 import { DocumentRoom } from '#/lib/documents/realtime/room'
 import { createDriveVerifier } from '#/lib/documents/realtime/drive.server'
+import { parseClientControlMessage } from '#/lib/documents/realtime/protocol'
 import { realtimePolicy } from '#/lib/documents/realtime/policy'
 import type { DocumentCapabilities } from '#/lib/documents/realtime/capabilities'
 
@@ -19,6 +20,8 @@ interface SocketAttachment {
 }
 
 const socketTag = 'room'
+/** Storage key for the last time the room saw a join or a save. */
+const lastActiveKey = 'lastActiveAt'
 
 function isAttachment(value: unknown): value is SocketAttachment {
   if (!value || typeof value !== 'object') return false
@@ -29,6 +32,10 @@ function isAttachment(value: unknown): value is SocketAttachment {
     !!attachment.capabilities &&
     typeof attachment.capabilities === 'object'
   )
+}
+
+function isPublication(data: string): boolean {
+  return parseClientControlMessage(data)?.type === 'publication'
 }
 
 /**
@@ -108,6 +115,7 @@ export class DocumentRealtimeDO extends DurableObject {
       capabilities: admittedClient.capabilities,
     } satisfies SocketAttachment)
     this.ctx.acceptWebSocket(server, [socketTag])
+    await this.markActive()
     await this.armRevalidation()
     return new Response(null, {
       status: 101,
@@ -125,6 +133,12 @@ export class DocumentRealtimeDO extends DurableObject {
     room.restore(ws, attachment)
     const data = typeof message === 'string' ? message : new Uint8Array(message)
     room.receive(attachment.adapterId, data)
+    // A save may have changed the ACL; it also means the room is active, so
+    // keep revalidation on the fast cadence and re-arm for the next pass.
+    if (typeof data === 'string' && isPublication(data)) {
+      await this.markActive()
+      await this.armRevalidation()
+    }
   }
 
   async webSocketClose(ws: WorkersWebSocket): Promise<void> {
@@ -136,9 +150,9 @@ export class DocumentRealtimeDO extends DurableObject {
   }
 
   /**
-   * Wakes once per `revalidationIntervalMs` while clients are attached. An
-   * alarm that finds nobody connected simply stops rearming, which is what
-   * lets the object hibernate.
+   * Wakes once per revalidation interval while clients are attached. An alarm
+   * that finds nobody connected stops rearming, which is what lets the object
+   * hibernate.
    */
   async alarm(): Promise<void> {
     const sockets = this.ctx.getWebSockets(socketTag)
@@ -161,9 +175,30 @@ export class DocumentRealtimeDO extends DurableObject {
   }
 
   private async armRevalidation(): Promise<void> {
-    const at = Date.now() + realtimePolicy.revalidationIntervalMs
+    const at = Date.now() + (await this.revalidationDelayMs())
+    // getAlarm() reports null while this handler is running, so a running
+    // alarm always re-arms, which is the behaviour we want here.
     const existing = await this.ctx.storage.getAlarm()
     // Never push a scheduled pass back: a burst of joins must not starve it.
     if (existing === null || existing > at) await this.ctx.storage.setAlarm(at)
+  }
+
+  /**
+   * Fast cadence while the room is active, slow cadence once it has been
+   * quiet. Saves already trigger a revalidation through the publication hint,
+   * so the timer only needs to catch ACL changes that arrive without a save.
+   */
+  private async revalidationDelayMs(): Promise<number> {
+    const lastActive = await this.ctx.storage.get<number>(lastActiveKey)
+    if (lastActive === undefined) return realtimePolicy.revalidationIntervalMs
+    const idleFor = Date.now() - lastActive
+    return idleFor >= realtimePolicy.idleAfterMs
+      ? realtimePolicy.idleRevalidationIntervalMs
+      : realtimePolicy.revalidationIntervalMs
+  }
+
+  /** Records activity so revalidation can back off once the room goes quiet. */
+  private async markActive(): Promise<void> {
+    await this.ctx.storage.put(lastActiveKey, Date.now())
   }
 }

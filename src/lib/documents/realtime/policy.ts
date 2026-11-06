@@ -4,11 +4,21 @@
  */
 export const realtimePolicy = {
   /**
-   * How often the DO re-checks each connected client's Drive capabilities.
+   * How often the DO re-checks each connected client's Drive capabilities
+   * while the room is active (someone saved, joined, or edited recently).
    * Scheduled with `storage.setAlarm`, never `setInterval`: a pending timer
    * keeps the object in memory and bills duration around the clock.
    */
   revalidationIntervalMs: 60_000,
+  /**
+   * Revalidation cadence once a room has been quiet for `idleAfterMs`. Drive
+   * ACL changes reach us through saves (the publication hint), so a silent
+   * room does not need a Drive call every minute; this bounds the cost of a
+   * tab left open without weakening the save-triggered check.
+   */
+  idleRevalidationIntervalMs: 900_000,
+  /** Quiet period after the last save/join before backing off revalidation. */
+  idleAfterMs: 300_000,
   /** Cache TTL for per-(userId, fileId) capability verdicts. */
   verdictCacheTtlMs: 30_000,
   /** Lifetime of a join ticket. */
