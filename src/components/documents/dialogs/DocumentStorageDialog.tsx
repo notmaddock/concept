@@ -41,6 +41,7 @@ export function DocumentStorageDialog({
   providers = documentSaveProviders,
   onOpenDrive,
   drivePickerDisabled = false,
+  driveConnected = true,
 }: {
   mode: 'open' | 'copy' | 'import'
   importFormat?: ImportFormat
@@ -50,6 +51,7 @@ export function DocumentStorageDialog({
   providers?: Array<DocumentSaveProvider>
   onOpenDrive?: () => Promise<void>
   drivePickerDisabled?: boolean
+  driveConnected?: boolean
 }) {
   const format = importFormats.find((item) => item.id === importFormat)
   const navigate = useNavigate()
@@ -238,7 +240,8 @@ export function DocumentStorageDialog({
                     }}
                     className="h-auto justify-start gap-3 rounded-xl p-4 text-left"
                   >
-                    <DriveIcon /> Google Drive
+                    <DriveIcon />{' '}
+                    {driveConnected ? 'Google Drive' : 'Connect Google Drive'}
                   </Button>
                 )}
                 {sources.map((item) => (
