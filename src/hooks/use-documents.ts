@@ -18,6 +18,7 @@ export function useDocuments(
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
+  const [lookupRevision, setLookupRevision] = useState(0)
   const createPending = useRef(false)
   const deletePending = useRef(new Set<string>())
   const document = documents.find((item) => item.id === id)
@@ -153,7 +154,7 @@ export function useDocuments(
     return () => {
       active = false
     }
-  }, [id, loaded, error, storage, hasDocument])
+  }, [id, loaded, error, storage, hasDocument, lookupRevision])
 
   const createDocument = useCallback(async () => {
     if (createPending.current) return
@@ -217,6 +218,10 @@ export function useDocuments(
   }
 
   return {
+    retryOpen: () => {
+      lookupTarget.current = undefined
+      setLookupRevision((value) => value + 1)
+    },
     documents,
     document,
     loaded:

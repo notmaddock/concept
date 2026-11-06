@@ -86,6 +86,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     connectionRevision,
     openGoogleDrivePicker,
     pickerLoading,
+    retryOpen,
     recoverLocalCopy,
     recheckAccess,
   } = useDocumentWorkspace()
@@ -291,7 +292,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                   {!loaded
                     ? 'Loading documents…'
                     : id?.startsWith('G')
-                      ? 'Access denied or document not found'
+                      ? 'Shared document unavailable'
                       : id && error
                         ? 'Could not open this document'
                         : id
@@ -302,7 +303,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                   {!loaded
                     ? 'Opening your local library.'
                     : id?.startsWith('G')
-                      ? 'Google Drive requires selecting shared files with the file picker to grant access.'
+                      ? 'Check the link and its sharing permissions.'
                       : error
                         ? error
                         : id
@@ -311,6 +312,9 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent className="flex-row flex-wrap justify-center gap-2">
+                {id?.startsWith('G') && (
+                  <Button onClick={retryOpen}>Try again</Button>
+                )}
                 {id?.startsWith('G') && !driveConnected && (
                   <Button
                     disabled={driveLoading}
@@ -319,7 +323,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                     }}
                   >
                     <DriveIcon className="size-4" />
-                    Connect Google Drive
+                    Connect Drive for private access
                   </Button>
                 )}
                 {(!id || id.startsWith('G')) && driveConnected && (

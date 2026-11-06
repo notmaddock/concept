@@ -6,6 +6,8 @@ import { DocumentWorkspace } from './DocumentWorkspace'
 const state = vi.hoisted(() => ({
   access: { kind: 'editor', checkedAt: 1 },
   recoveryOnly: false,
+  missing: false,
+  retry: vi.fn(),
   detached: vi.fn(),
   recover: vi.fn(),
   recheck: vi.fn(),
@@ -16,11 +18,14 @@ vi.mock('./document-workspace-context', () => ({
   useDocumentWorkspace: () => ({
     documents: [],
     loaded: true,
-    document: {
-      id: 'Gshared',
-      name: 'Shared',
-      drive: { fileId: 'shared', recoveryOnly: state.recoveryOnly },
-    },
+    retryOpen: state.retry,
+    document: state.missing
+      ? undefined
+      : {
+          id: 'Gshared',
+          name: 'Shared',
+          drive: { fileId: 'shared', recoveryOnly: state.recoveryOnly },
+        },
     saveStatus: { phase: 'synced', access: state.access },
     recoverLocalCopy: state.recover,
     recheckAccess: state.recheck,
@@ -91,4 +96,14 @@ it('detaches shared content on confirmed access loss and offers explicit recover
   expect(container.querySelector('[data-shared-editor]')).toBeNull()
   expect(container.textContent).toContain('Retained local work')
   expect(container.textContent).not.toContain('Check access')
+  state.missing = true
+  await act(async () => root.render(<DocumentWorkspace id="Gshared" />))
+  expect(container.textContent).toContain('Shared document unavailable')
+  expect(container.textContent).not.toContain('Google Drive requires selecting')
+  expect(container.textContent).toContain('Connect Drive for private access')
+  const retry = [...container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Try again',
+  )!
+  await act(async () => retry.click())
+  expect(state.retry).toHaveBeenCalledOnce()
 })

@@ -319,3 +319,17 @@ it('does not open another document when deleting documents from the root', async
   expect(storage.create).not.toHaveBeenCalled()
   expect(navigate).not.toHaveBeenCalled()
 })
+
+it('retries a shared-link lookup without requiring a Drive connection', async () => {
+  const shared = { id: 'Gshared', name: 'Shared', updatedAt: 1 }
+  vi.mocked(storage.get)
+    .mockRejectedValueOnce(
+      Object.assign(new Error('Unavailable'), { status: 404 }),
+    )
+    .mockResolvedValueOnce(shared)
+  await mount('Gshared')
+  expect(actions.document).toBeUndefined()
+  await act(async () => actions.retryOpen())
+  expect(storage.get).toHaveBeenCalledTimes(2)
+  expect(actions.document).toEqual(shared)
+})
