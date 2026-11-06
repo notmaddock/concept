@@ -20,6 +20,12 @@ const mocks = vi.hoisted(() => ({
   deleteLocal: vi.fn<(id: string) => Promise<void>>(async () => {}),
   openPicker: vi.fn(),
   storageGet: vi.fn(async (_id?: string) => undefined),
+  localGet: vi.fn<() => Promise<DocumentInfo | undefined>>(
+    async () => undefined,
+  ),
+  patch: vi.fn(),
+  forgetPublic: vi.fn(),
+  clearStatus: vi.fn(),
   documents: [] as DocumentInfo[],
   document: undefined as DocumentInfo | undefined,
   status: { phase: 'local' as const },
@@ -56,13 +62,30 @@ vi.mock('#/lib/documents/document-storage', () => ({
     get: (id: string) => mocks.storageGet(id),
   },
 }))
+vi.mock('#/lib/documents/drive/api', () => ({
+  forgetPublicDriveFile: (id: string) => mocks.forgetPublic(id),
+  isPublicDriveFile: () => false,
+  isDriveFileReadOnly: () => false,
+  getFileMetadata: async () => ({
+    file: {
+      capabilities: {
+        canEdit: true,
+        canModifyContent: true,
+        canDownload: true,
+      },
+    },
+  }),
+}))
 vi.mock('#/lib/documents/storage', () => ({
   localDocumentStorage: {
     delete: (id: string) => mocks.deleteLocal(id),
+    get: () => mocks.localGet(),
+    patch: (...args: unknown[]) => mocks.patch(...args),
   },
 }))
 vi.mock('#/lib/documents/sync', () => ({
   documentSessions: new Map(),
+  clearSaveStatus: (id: string) => mocks.clearStatus(id),
   getSaveStatus: () => mocks.status,
   subscribeSaveStatus: () => () => {},
 }))
@@ -84,6 +107,10 @@ beforeEach(() => {
   mocks.navigate.mockClear()
   mocks.deleteLocal.mockClear()
   mocks.openPicker.mockReset()
+  mocks.localGet.mockReset()
+  mocks.patch.mockReset()
+  mocks.forgetPublic.mockClear()
+  mocks.clearStatus.mockClear()
   mocks.storageGet.mockReset()
   mocks.storageGet.mockResolvedValue(undefined)
   container = document.createElement('div')
@@ -372,4 +399,39 @@ it('hides another account’s cached document names even when available offline 
     ),
   )
   expect(workspace.documents).toEqual([])
+})
+
+it('resets delegated public access after explicit picker authorization', async () => {
+  mocks.accountId = 'linked-account'
+  const cached: DocumentInfo = {
+    id: 'Gpicked-public',
+    name: 'Shared',
+    updatedAt: 1,
+    drive: {
+      fileId: 'picked-public',
+      accountId: 'linked-account',
+      publicAccess: true,
+      offlineAvailable: true,
+    },
+  }
+  mocks.localGet.mockResolvedValue(cached)
+  mocks.openPicker.mockResolvedValue({ id: 'picked-public' })
+  function Harness() {
+    workspace = useDocumentWorkspace()
+    return null
+  }
+  await act(async () =>
+    root.render(
+      <DocumentWorkspaceProvider>
+        <Harness />
+      </DocumentWorkspaceProvider>,
+    ),
+  )
+  await act(async () => workspace.openGoogleDrivePicker())
+  expect(mocks.forgetPublic).toHaveBeenCalledWith('picked-public')
+  const patch = mocks.patch.mock.calls[0][1] as (
+    info: DocumentInfo,
+  ) => DocumentInfo
+  expect(patch(cached).drive?.publicAccess).toBe(false)
+  expect(mocks.clearStatus).toHaveBeenCalledWith('Gpicked-public')
 })

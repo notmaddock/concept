@@ -27,9 +27,16 @@ import {
   recheckDocumentAccess,
 } from '#/lib/documents/document-storage'
 import { openGooglePicker } from '#/lib/documents/drive/picker'
+import {
+  forgetPublicDriveFile,
+  getFileMetadata,
+  isDriveFileReadOnly,
+  isPublicDriveFile,
+} from '#/lib/documents/drive/api'
 import { localDocumentStorage } from '#/lib/documents/storage'
 import {
   documentSessions,
+  clearSaveStatus,
   getSaveStatus,
   subscribeSaveStatus,
 } from '#/lib/documents/sync'
@@ -189,7 +196,31 @@ function useWorkspaceState(id?: string) {
       )
       if (!picked) return
       const targetId = `G${picked.id}`
+      forgetPublicDriveFile(picked.id)
+      const access = await getFileMetadata(picked.id)
+      const cached = await localDocumentStorage.get(targetId)
+      if (
+        cached?.drive &&
+        cached.drive.accountId === getGoogleDriveAccountId()
+      ) {
+        await localDocumentStorage.patch(targetId, (current) => ({
+          ...current,
+          readOnly:
+            isDriveFileReadOnly(access.file) ||
+            Boolean(current.drive?.quarantined),
+          drive: current.drive
+            ? {
+                ...current.drive,
+                publicAccess: isPublicDriveFile(picked.id),
+                readOnly:
+                  isDriveFileReadOnly(access.file) ||
+                  Boolean(current.drive.quarantined),
+              }
+            : undefined,
+        }))
+      }
       await documentStorage.get(targetId)
+      clearSaveStatus(targetId)
       if (targetId === id) setConnectionRevision((value) => value + 1)
       await navigate({ to: '/', hash: documentHash(targetId) })
       try {

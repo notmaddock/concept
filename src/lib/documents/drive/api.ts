@@ -192,6 +192,10 @@ export function rememberPublicDriveFile(id: string) {
   publicFiles.add(id)
 }
 
+export function forgetPublicDriveFile(id: string) {
+  publicFiles.delete(id)
+}
+
 export function isPublicDriveFile(id: string) {
   return publicFiles.has(id)
 }
