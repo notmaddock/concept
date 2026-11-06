@@ -145,4 +145,14 @@ it('does not publish viewer edits or initial-state responses across local tabs',
     data: { type: 'request', vector: new Uint8Array([0]) },
   } as MessageEvent)
   expect(TestBroadcastChannel.sent).toBe(sent)
+  session.access = { kind: 'editor', checkedAt: Date.now() }
+  session.info.drive!.quarantined = true
+  viewer.doc
+    .getText('content')
+    .insert(0, 'quarantined after edit access returns')
+  channel.onmessage?.({
+    data: { type: 'request', vector: new Uint8Array([0]) },
+  } as MessageEvent)
+  await flushBroadcasts()
+  expect(TestBroadcastChannel.sent).toBe(sent)
 })

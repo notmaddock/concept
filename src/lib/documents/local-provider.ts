@@ -36,7 +36,8 @@ export class LocalProvider
 
   private canWrite() {
     if (!this.id.startsWith('G')) return true
-    return documentSessions.get(this.id)?.access.kind === 'editor'
+    const session = documentSessions.get(this.id)
+    return session?.access.kind === 'editor' && !session.info.drive?.quarantined
   }
 
   private canRead() {
