@@ -17,6 +17,19 @@ const fields =
 const conditionalFields =
   'id,title,mimeType,modifiedDate,fileSize,version,headRevisionId,etag,capabilities(canEdit,canModifyContent,canComment,canCopy)'
 
+const resourceKeys = new Map<string, string>()
+export function rememberDriveResourceKey(fileId: string, resourceKey: string) {
+  if (
+    !/^[a-zA-Z0-9_-]{1,256}$/.test(fileId) ||
+    !/^[a-zA-Z0-9_-]{1,256}$/.test(resourceKey)
+  )
+    throw new Error('Invalid Google Drive resource key.')
+  if (resourceKeys.size >= 128)
+    resourceKeys.delete(resourceKeys.keys().next().value!)
+  resourceKeys.set(fileId, resourceKey)
+}
+export const getDriveResourceKey = (fileId: string) => resourceKeys.get(fileId)
+
 export interface DriveCapabilities {
   canEdit?: boolean
   canComment?: boolean
@@ -36,10 +49,9 @@ export interface DriveFile {
 }
 
 export function isDriveFileReadOnly(file: DriveFile): boolean {
-  if (!file.capabilities) return false
   return (
-    file.capabilities.canEdit === false ||
-    file.capabilities.canModifyContent === false
+    file.capabilities?.canEdit !== true ||
+    file.capabilities.canModifyContent !== true
   )
 }
 
@@ -52,6 +64,7 @@ export class DriveError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    public readonly reason?: string,
   ) {
     super(message)
     this.name = 'DriveError'
@@ -103,6 +116,12 @@ async function request(
   headers.set('Authorization', `Bearer ${token}`)
   const timeout = AbortSignal.timeout(30000)
   const requestUrl = new URL(url)
+  const resourceId = decodeURIComponent(
+    requestUrl.pathname.split('/').at(-1) ?? '',
+  )
+  const resourceKey = resourceKeys.get(resourceId)
+  if (resourceKey)
+    headers.set('X-Goog-Drive-Resource-Keys', `${resourceId}/${resourceKey}`)
   requestUrl.searchParams.set('supportsAllDrives', 'true')
   const response = await fetch(requestUrl.toString(), {
     ...init,
@@ -128,12 +147,15 @@ async function request(
     throw new GoogleDriveAuthError()
   }
   if (!response.ok) {
-    await response.body?.cancel()
+    const failure = (await response.json().catch(() => undefined)) as
+      { error?: { errors?: Array<{ reason?: string }> } } | undefined
+    const reason = failure?.error?.errors?.[0]?.reason
     throw new DriveError(
       response.status,
       response.status === 412
         ? 'Google Drive has newer changes.'
         : `Google Drive request failed (${response.status}).`,
+      reason,
     )
   }
   return response

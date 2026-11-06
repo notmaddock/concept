@@ -3,6 +3,7 @@ import { createAuthClient } from 'better-auth/client'
 const authClient = createAuthClient()
 type SessionState = {
   connected: boolean
+  accountId?: string
   configured: boolean
   revision: number
   loading?: Promise<void>
@@ -37,6 +38,7 @@ export class GoogleDriveAuthError extends Error {
 
 export const isGoogleDriveAuthError = (error: unknown) =>
   error instanceof GoogleDriveAuthError
+export const getGoogleDriveAccountId = () => state.accountId
 export const isGoogleDriveConnected = () => state.connected
 export const isGoogleDriveConfigured = () => state.configured
 export function subscribeGoogleDriveAuth(listener: () => void) {
@@ -76,6 +78,7 @@ export function prepareGoogleDriveAuth(): Promise<void> {
       const data = (await response.json()) as {
         connected?: unknown
         configured?: unknown
+        accountId?: unknown
       }
       if (
         typeof data.connected !== 'boolean' ||
@@ -83,6 +86,13 @@ export function prepareGoogleDriveAuth(): Promise<void> {
       )
         throw new Error('Could not check the Google Drive connection.')
       if (revision !== state.revision) return
+      const accountId =
+        typeof data.accountId === 'string' ? data.accountId : undefined
+      if (accountId !== state.accountId) {
+        ++state.revision
+        clearToken()
+        state.accountId = accountId
+      }
       state.connected = data.connected
       state.configured = data.configured
       if (!data.connected) {

@@ -8,6 +8,7 @@ import {
 } from './auth'
 import {
   getContainingFolderUrl,
+  rememberDriveResourceKey,
   createConceptFile,
   DriveCreatedFileError,
   DriveError,
@@ -433,4 +434,34 @@ it('reports when Drive does not expose a containing folder', async () => {
   await expect(getContainingFolderUrl('file')).rejects.toThrow(
     'accessible containing folder',
   )
+})
+
+it('requires affirmative effective edit and content modification capabilities', () => {
+  expect(isDriveFileReadOnly(file)).toBe(true)
+  expect(
+    isDriveFileReadOnly({ ...file, capabilities: { canEdit: true } }),
+  ).toBe(true)
+  expect(
+    isDriveFileReadOnly({
+      ...file,
+      capabilities: { canEdit: true, canModifyContent: true },
+    }),
+  ).toBe(false)
+})
+
+it('sends resource keys only for their matching Drive file', async () => {
+  rememberDriveResourceKey('resource-file', 'resource-key')
+  fetchMock.mockImplementation(async () => metadata('"version"'))
+  await getFileMetadata('resource-file')
+  expect(
+    new Headers(fetchMock.mock.calls[0][1]?.headers).get(
+      'X-Goog-Drive-Resource-Keys',
+    ),
+  ).toBe('resource-file/resource-key')
+  await getFileMetadata('other-file')
+  expect(
+    new Headers(fetchMock.mock.calls[1][1]?.headers).has(
+      'X-Goog-Drive-Resource-Keys',
+    ),
+  ).toBe(false)
 })

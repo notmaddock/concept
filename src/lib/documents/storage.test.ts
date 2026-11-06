@@ -253,12 +253,22 @@ it('batches metadata persistence during rapid Drive edits and reports sync failu
     etag: '"v1"',
     file: {
       id: 'drive-id',
+      capabilities: { canEdit: true, canModifyContent: true },
       name: 'Doc.concept',
       mimeType: 'application/vnd.concept+json',
     },
     content: new Uint8Array(
       new TextEncoder().encode(serializeConcept('Doc', remoteDoc)),
     ),
+  })
+  const metadataSpy = vi.spyOn(api, 'getFileMetadata').mockResolvedValue({
+    etag: '"v1"',
+    file: {
+      id: 'drive-id',
+      name: 'Doc.concept',
+      mimeType: 'application/vnd.concept+json',
+      capabilities: { canEdit: true, canModifyContent: true },
+    },
   })
   const { localDocumentStorage: activeLocalStorage } = await import('./storage')
   const patchSpy = vi.spyOn(activeLocalStorage, 'patch')
@@ -296,6 +306,7 @@ it('batches metadata persistence during rapid Drive edits and reports sync failu
     await sync.stop()
     toastSpy.mockRestore()
     updateSpy.mockRestore()
+    metadataSpy.mockRestore()
     readSpy.mockRestore()
     patchSpy.mockRestore()
   }
