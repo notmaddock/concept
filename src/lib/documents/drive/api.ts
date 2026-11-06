@@ -1,6 +1,7 @@
 import { packageLimits } from '../limits'
 import {
   getGoogleDriveToken,
+  isGoogleDriveConnected,
   GoogleDriveAuthError,
   invalidateGoogleDriveSession,
 } from './auth'
@@ -184,11 +185,69 @@ function fileUrl(id: string) {
   return `${conditionalApi}/${encodeURIComponent(id)}`
 }
 
+const publicFiles = new Set<string>()
+
+export function rememberPublicDriveFile(id: string) {
+  publicFiles.add(id)
+}
+
+export function isPublicDriveFile(id: string) {
+  return publicFiles.has(id)
+}
+
+function publicFileUrl(
+  operation: 'metadata' | 'content' | 'register',
+  id: string,
+) {
+  const query = new URLSearchParams({ fileId: id })
+  const key = getDriveResourceKey(id)
+  if (key) query.set('resourceKey', key)
+  return `/api/public-drive/${operation}?${query}`
+}
+
+async function publicRequest(url: string, init: RequestInit = {}) {
+  const response = await fetch(url, {
+    ...init,
+    credentials: 'same-origin',
+    cache: 'no-store',
+    signal: init.signal
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(30000)])
+      : AbortSignal.timeout(30000),
+  })
+  if (!response.ok) {
+    await response.body?.cancel()
+    throw new DriveError(
+      response.status,
+      response.status === 412
+        ? 'Google Drive has newer changes.'
+        : 'This shared file is unavailable.',
+    )
+  }
+  return response
+}
+
+export async function registerPublicDriveFile(id: string) {
+  if (!isGoogleDriveConnected() || publicFiles.has(id)) return
+  await publicRequest(publicFileUrl('register', id), { method: 'POST' })
+}
+
 export async function getFileMetadata(id: string, signal?: AbortSignal) {
   if (!id.trim()) throw new DriveError(400, 'Invalid file ID.')
-  const response = await request(`${fileUrl(id)}?fields=${conditionalFields}`, {
-    signal,
-  })
+  let response: Response
+  if (publicFiles.has(id) || !isGoogleDriveConnected()) {
+    response = await publicRequest(publicFileUrl('metadata', id), { signal })
+    publicFiles.add(id)
+  } else {
+    try {
+      response = await request(`${fileUrl(id)}?fields=${conditionalFields}`, {
+        signal,
+      })
+    } catch (error) {
+      if (!(error instanceof DriveError) || error.status !== 404) throw error
+      response = await publicRequest(publicFileUrl('metadata', id), { signal })
+      publicFiles.add(id)
+    }
+  }
   const file = (await response.json()) as ConditionalFile
   assertDriveFileReadable(normalizeFile(file))
   return {
@@ -312,10 +371,9 @@ export async function readConceptFile(
       attempt === 0 && initial ? initial : await getFileMetadata(id, signal)
     assertDriveFileReadable(before.file)
     const etag = requiredEtag(before.etag)
-    const response = await request(
-      `${api}/${encodeURIComponent(id)}?alt=media`,
-      { signal },
-    )
+    const response = publicFiles.has(id)
+      ? await publicRequest(publicFileUrl('content', id), { signal })
+      : await request(`${api}/${encodeURIComponent(id)}?alt=media`, { signal })
     const content = await readMedia(response, signal)
     const after = await getFileMetadata(id, signal)
     if (etag === requiredEtag(after.etag))
@@ -380,7 +438,7 @@ export function createConceptFile(
   return upload('POST', undefined, name, content, undefined, parentId)
 }
 
-export function updateConceptFile(
+export async function updateConceptFile(
   id: string,
   name: string,
   content: Uint8Array,
@@ -388,6 +446,25 @@ export function updateConceptFile(
   filename?: string,
   signal?: AbortSignal,
 ) {
+  if (publicFiles.has(id)) {
+    if (content.byteLength > packageLimits.packageBytes)
+      throw new DriveError(
+        413,
+        'Concept package exceeds the configured size limit.',
+      )
+    const url = `${publicFileUrl('content', id)}&filename=${encodeURIComponent(filename ?? (name.toLowerCase().endsWith('.concept') ? name : `${name}.concept`))}`
+    const response = await publicRequest(url, {
+      method: 'PUT',
+      signal,
+      headers: {
+        'Content-Type': conceptMimeType,
+        'If-Match': requiredEtag(etag),
+      },
+      body: new Blob([new Uint8Array(content)]),
+    })
+    const result = (await response.json()) as ConditionalFile
+    return { file: normalizeFile(result), etag: requiredEtag(result.etag) }
+  }
   return upload('PUT', id, name, content, etag, 'root', filename, signal)
 }
 
