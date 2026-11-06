@@ -113,11 +113,7 @@ export function prepareGoogleDriveAuth(): Promise<void> {
         throw new Error('Could not check the Google Drive connection.')
       if (revision !== state.revision) return
       const accountId =
-        response.status === 503
-          ? state.accountId
-          : typeof data.accountId === 'string'
-            ? data.accountId
-            : undefined
+        typeof data.accountId === 'string' ? data.accountId : state.accountId
       if (accountId !== state.accountId) {
         ++state.revision
         clearToken()

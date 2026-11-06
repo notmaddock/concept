@@ -393,3 +393,20 @@ it('requires renewed identity before claiming anonymous publishing was disconnec
   )
   expect(sdk.signOut).not.toHaveBeenCalled()
 })
+
+it('preserves cached ownership when an app session expires without explicit sign-out', async () => {
+  const stored = new Map<string, string>([
+    ['concept-drive-offline-account', 'previous-account'],
+  ])
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => stored.get(key) ?? null,
+    setItem: (key: string, value: string) => stored.set(key, value),
+    removeItem: (key: string) => stored.delete(key),
+  })
+  fetchMock.mockResolvedValueOnce(session(false))
+  const auth = await import('./auth')
+  await auth.prepareGoogleDriveAuth()
+  expect(auth.getGoogleDriveAccountId()).toBe('previous-account')
+  expect(auth.isGoogleDriveConnected()).toBe(false)
+  expect(stored.get('concept-drive-offline-account')).toBe('previous-account')
+})

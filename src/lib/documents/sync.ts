@@ -496,7 +496,7 @@ export class DocumentSync {
   }
 
   private async download(initial?: DriveFileVersion) {
-    this.assertAccount()
+    this.assertRemoteAccess()
     const epoch = ++this.accessEpoch
     this.lastReconciledAt = Date.now()
     const remote = await readConceptFile(
@@ -603,7 +603,10 @@ export class DocumentSync {
       this.realtime = new RealtimeClient({
         doc: this.doc,
         fileId: this.info.drive.fileId,
-        accountId: this.info.drive.accountId,
+        accountId:
+          this.usesPublicAccess && !isGoogleDriveConnected()
+            ? undefined
+            : this.info.drive.accountId,
         resourceKey:
           this.info.drive.resourceKey ??
           getDriveResourceKey(this.info.drive.fileId),
@@ -629,11 +632,17 @@ export class DocumentSync {
       )
   }
 
+  private assertRemoteAccess() {
+    this.assertAccount()
+    if (this.info.drive && !this.usesPublicAccess && !isGoogleDriveConnected())
+      throw new GoogleDriveAuthError()
+  }
+
   private async refreshAccess() {
     if (this.running || this.access.kind === 'unavailable') return
     const epoch = ++this.accessEpoch
     try {
-      this.assertAccount()
+      this.assertRemoteAccess()
       const current = await getFileMetadata(
         this.info.drive!.fileId,
         this.abort.signal,
@@ -715,13 +724,14 @@ export class DocumentSync {
       !this.stopped &&
       !this.isReadOnly &&
       this.access.kind === 'editor' &&
+      (isGoogleDriveConnected() || this.usesPublicAccess) &&
       this.info.drive?.accountId === getGoogleDriveAccountId() &&
       !this.info.drive?.quarantined
     )
   }
 
   private async run(checkRemote: boolean, deferRemoteSave: boolean) {
-    this.assertAccount()
+    this.assertRemoteAccess()
     if (checkRemote || this.dirty || !this.etag) {
       const epoch = ++this.accessEpoch
       const current =

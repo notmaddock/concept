@@ -1,3 +1,4 @@
+import * as driveAuth from './drive/auth'
 import type * as RealtimeModule from '../realtime/client'
 import { RealtimeClient, realtimeOrigin } from '../realtime/client'
 import type { PublicationTransport } from './publication'
@@ -144,6 +145,7 @@ function deferred<T>() {
 }
 
 beforeEach(() => {
+  vi.spyOn(driveAuth, 'isGoogleDriveConnected').mockReturnValue(true)
   publicFiles.clear()
   vi.stubGlobal('Blob', NodeBlob)
   previousRetryJitter = assetRetryPolicy.jitter
@@ -216,6 +218,7 @@ afterEach(async () => {
   local.destroy()
   remote.destroy()
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 it('waits for three idle seconds and does not write a clean document', async () => {
@@ -1194,6 +1197,7 @@ it('checks an image publication sooner while preserving the no-upload watcher po
 })
 
 it('saves an anonymous public edit without requiring a Google account connection', async () => {
+  vi.mocked(driveAuth.isGoogleDriveConnected).mockReturnValue(false)
   info.drive!.publicAccess = true
   await start()
   local.getMap('settings').set('anonymous-edit', true)
@@ -1206,6 +1210,7 @@ it('saves an anonymous public edit without requiring a Google account connection
 })
 
 it('keeps public publisher credential failures separate from the anonymous visitor account', async () => {
+  vi.mocked(driveAuth.isGoogleDriveConnected).mockReturnValue(false)
   info.drive!.publicAccess = true
   read.mockRejectedValueOnce(new DriveError(401, 'Publisher unavailable'))
   await start()
@@ -1248,4 +1253,38 @@ it('stops scheduled reconciliation and remote-save fallback after confirmed acce
   expect(metadata).toHaveBeenCalledOnce()
   expect(write).not.toHaveBeenCalled()
   expect(session.access.kind).toBe('unavailable')
+})
+
+it('retains a private offline copy after authentication expiry without attempting anonymous access', async () => {
+  vi.mocked(driveAuth.isGoogleDriveConnected).mockReturnValue(false)
+  await start()
+  expect(local.getText('root').toString()).toBe('base')
+  expect(session.access).toMatchObject({
+    kind: 'unverified',
+    reason: 'authentication',
+  })
+  expect(getSaveStatus(info.id).phase).toBe('auth-required')
+  expect(session.isReadOnly).toBe(false)
+  await session.sync(true)
+  await vi.advanceTimersByTimeAsync(60_000)
+  expect(read).not.toHaveBeenCalled()
+  expect(metadata).not.toHaveBeenCalled()
+  expect(write).not.toHaveBeenCalled()
+  expect(session.access.kind).toBe('unverified')
+})
+
+it('does not bind an anonymous socket grant to the remembered offline account identity', async () => {
+  info.drive!.accountId = 'remembered-account'
+  info.drive!.publicAccess = true
+  const account = vi
+    .spyOn(driveAuth, 'getGoogleDriveAccountId')
+    .mockReturnValue('remembered-account')
+  vi.mocked(driveAuth.isGoogleDriveConnected).mockReturnValue(false)
+  try {
+    await start()
+    expect(vi.mocked(RealtimeClient).mock.calls[0][0].accountId).toBeUndefined()
+    expect(session.access.kind).toBe('editor')
+  } finally {
+    account.mockRestore()
+  }
 })

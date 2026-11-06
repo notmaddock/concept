@@ -36,6 +36,7 @@ const auth = vi.hoisted(() => {
 })
 
 vi.mock('./drive/auth', () => ({
+  GoogleDriveAuthError: auth.AuthRequired,
   getGoogleDriveAccountId: () => auth.accountId,
   isGoogleDriveAuthError: (error: unknown) =>
     error instanceof auth.AuthRequired,
@@ -750,4 +751,25 @@ it('removes an anonymous public document locally without trying to trash its pub
   await documentStorage.delete(info.id)
   expect(trashConceptFile).not.toHaveBeenCalled()
   expect(await localDocumentStorage.get(info.id)).toBeUndefined()
+})
+
+it('preserves a named private offline cache when its app session expires', async () => {
+  auth.accountId = 'previous-account'
+  auth.connected = false
+  remote.getText('private').insert(0, 'available offline')
+  await cache({
+    ...info.drive!,
+    accountId: auth.accountId,
+    offlineAvailable: true,
+  })
+  const opened = open()
+  await opened.session.whenSynced
+  expect(opened.doc.getText('private').toString()).toBe('available offline')
+  expect(getSaveStatus(info.id).access).toMatchObject({
+    kind: 'unverified',
+    reason: 'authentication',
+  })
+  expect(getSaveStatus(info.id).phase).toBe('auth-required')
+  expect(readConceptFile).not.toHaveBeenCalled()
+  expect(publicFiles.size).toBe(0)
 })

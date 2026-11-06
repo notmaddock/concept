@@ -237,6 +237,10 @@ it('preserves a rename made while a local document is closed when it is reopened
 })
 
 it('batches metadata persistence during rapid Drive edits and reports sync failures via toast', async () => {
+  const driveAuth = await import('./drive/auth')
+  const connected = vi
+    .spyOn(driveAuth, 'isGoogleDriveConnected')
+    .mockReturnValue(true)
   const { toast } = await import('sonner')
   const toastSpy = vi.spyOn(toast, 'error').mockImplementation(() => '')
   const api = await import('./drive/api')
@@ -314,6 +318,7 @@ it('batches metadata persistence during rapid Drive edits and reports sync failu
     await sync.stop()
     toastSpy.mockRestore()
     updateSpy.mockRestore()
+    connected.mockRestore()
     metadataSpy.mockRestore()
     readSpy.mockRestore()
     patchSpy.mockRestore()
