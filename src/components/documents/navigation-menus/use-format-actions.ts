@@ -195,13 +195,14 @@ export function useFormatActions(
   useEffect(() => {
     let frame = 0
     let disposed = false
+    let detachedEditor: LexicalEditor | null = null
     let cleanup = () => {}
     savedSelection.current = null
     setState({ enabled: false, checked: [] })
     function connect() {
       if (disposed) return
       const editor = editorRef.current
-      if (!editor) {
+      if (!editor || (editor === detachedEditor && !editor.getRootElement())) {
         frame = requestAnimationFrame(connect)
         return
       }
@@ -244,6 +245,7 @@ export function useFormatActions(
         (root, previousRoot) => {
           if (!root && previousRoot && !disposed && !disconnected) {
             disconnected = true
+            detachedEditor = editor
             cleanup()
             savedSelection.current = null
             setState({ enabled: false, checked: [] })

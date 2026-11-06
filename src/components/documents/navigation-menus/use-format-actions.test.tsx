@@ -370,9 +370,11 @@ it('reconnects after an editor root is replaced without recursively unregisterin
   try {
     await act(async () => {
       editor.setRootElement(null)
-      editorRef.current = replacement
     })
     expect(actions.disabled).toBe(true)
+    await act(async () => frames.shift()!(0))
+    expect(actions.disabled).toBe(true)
+    editorRef.current = replacement
     await act(async () => frames.shift()!(0))
     expect(actions.disabled).toBe(false)
     await act(async () => replacement.setEditable(false))
