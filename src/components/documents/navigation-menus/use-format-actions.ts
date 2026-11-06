@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   $getParagraphStyle,
   $setParagraphStyle,
@@ -7,6 +7,7 @@ import type { RefObject } from 'react'
 import {
   $createParagraphNode,
   $getSelection,
+  $getNodeByKey,
   $isElementNode,
   $isRangeSelection,
   $isTextNode,
@@ -186,24 +187,40 @@ export function useFormatActions(
   actions: FormatAction[],
   active = true,
 ) {
+  const savedSelection = useRef<RangeSelection | null>(null)
   const [state, setState] = useState<{
     enabled: boolean
     checked: (boolean | undefined)[]
   }>({ enabled: false, checked: [] })
   useEffect(() => {
     let frame = 0
+    let disposed = false
+    let detachedEditor: LexicalEditor | null = null
     let cleanup = () => {}
+    savedSelection.current = null
     setState({ enabled: false, checked: [] })
     function connect() {
+      if (disposed) return
       const editor = editorRef.current
-      if (!editor) {
+      if (!editor || (editor === detachedEditor && !editor.getRootElement())) {
         frame = requestAnimationFrame(connect)
         return
       }
       const update = () => {
         const editorState = editor.getEditorState()
         editorState.read(() => {
-          const selection = $getSelection()
+          const currentSelection = $getSelection()
+          if ($isRangeSelection(currentSelection))
+            savedSelection.current = currentSelection.clone()
+          else if (currentSelection !== null) savedSelection.current = null
+          const saved = savedSelection.current
+          if (
+            saved &&
+            (!$getNodeByKey(saved.anchor.key) ||
+              !$getNodeByKey(saved.focus.key))
+          )
+            savedSelection.current = null
+          const selection = currentSelection ?? savedSelection.current
           const enabled = editor.isEditable() && $isRangeSelection(selection)
           const summary = $isRangeSelection(selection)
             ? $selectionSummary(editorState, selection)
@@ -223,13 +240,32 @@ export function useFormatActions(
       update()
       const unregisterUpdate = editor.registerUpdateListener(update)
       const unregisterEditable = editor.registerEditableListener(update)
+      let disconnected = false
+      const unregisterRoot = editor.registerRootListener(
+        (root, previousRoot) => {
+          if (!root && previousRoot && !disposed && !disconnected) {
+            disconnected = true
+            detachedEditor = editor
+            cleanup()
+            savedSelection.current = null
+            setState({ enabled: false, checked: [] })
+            frame = requestAnimationFrame(connect)
+          }
+        },
+      )
       cleanup = () => {
+        disconnected = true
+        unregisterRoot()
         unregisterUpdate()
         unregisterEditable()
       }
     }
-    if (documentId && active) connect()
+    if (documentId && active) {
+      // A new document may mount its editor after the navigation effect.
+      queueMicrotask(connect)
+    }
     return () => {
+      disposed = true
       cancelAnimationFrame(frame)
       cleanup()
     }
@@ -240,7 +276,7 @@ export function useFormatActions(
     if (!editor || !state.enabled) return
     const selection = editor
       .getEditorState()
-      .read(() => $getSelection()?.clone())
+      .read(() => $getSelection()?.clone() ?? savedSelection.current?.clone())
     await Promise.resolve()
     // Focus before committing: restoring the DOM selection can synchronously fire focus events.
     editor.getRootElement()?.focus({ preventScroll: true })

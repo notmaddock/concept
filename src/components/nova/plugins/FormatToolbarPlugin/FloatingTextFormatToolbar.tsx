@@ -273,7 +273,14 @@ export function FloatingTextFormatToolbar({
           document.body,
         )}
       <PopoverContent
-        side="top"
+        side={
+          panel &&
+          rangeRect &&
+          rangeRect.top < 360 &&
+          window.innerHeight - rangeRect.top - rangeRect.height > rangeRect.top
+            ? 'bottom'
+            : 'top'
+        }
         sideOffset={8}
         align="center"
         initialFocus={false}
@@ -281,7 +288,6 @@ export function FloatingTextFormatToolbar({
         data-format-toolbar="true"
         role="toolbar"
         aria-label="Text formatting"
-        // Leave room for the positioner’s collision bias so expansion cannot trigger a flip.
         className="max-h-[max(0px,calc(var(--available-height)-2px))] max-w-[calc(100vw-1rem)] w-auto gap-0 rounded-2xl border p-1 shadow-lg"
       >
         {controls}

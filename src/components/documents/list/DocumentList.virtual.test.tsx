@@ -147,3 +147,38 @@ it('focuses newly mounted rows during commit without waiting for a frame', async
   })
   expect(document.activeElement?.textContent).toBe('Document 999')
 })
+
+it('marks only offline-available Drive documents with the offline icon', async () => {
+  const items = [
+    { id: 'local', name: 'Local', updatedAt: 1 },
+    {
+      id: 'Gonline',
+      name: 'Online Drive',
+      updatedAt: 1,
+      drive: { fileId: 'online', offlineAvailable: false },
+    },
+    {
+      id: 'Goffline',
+      name: 'Offline Drive',
+      updatedAt: 1,
+      drive: { fileId: 'offline', offlineAvailable: true },
+    },
+  ]
+  await act(() =>
+    root.render(<DocumentList documents={items} onDelete={vi.fn()} />),
+  )
+  const indicators = container.querySelectorAll(
+    '[aria-label="Available offline"]',
+  )
+  expect(indicators).toHaveLength(1)
+  expect(indicators[0].closest('li')?.textContent).toContain('Offline Drive')
+  expect(
+    indicators[0].querySelector('.lucide-hard-drive-download'),
+  ).not.toBeNull()
+  expect(indicators[0].getAttribute('title')).toBe('Available offline')
+  items[2].drive!.offlineAvailable = false
+  await act(() =>
+    root.render(<DocumentList documents={[...items]} onDelete={vi.fn()} />),
+  )
+  expect(container.querySelector('[aria-label="Available offline"]')).toBeNull()
+})

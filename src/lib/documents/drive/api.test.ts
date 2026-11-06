@@ -7,6 +7,7 @@ import {
   invalidateGoogleDriveSession,
 } from './auth'
 import {
+  getContainingFolderUrl,
   createConceptFile,
   DriveCreatedFileError,
   DriveError,
@@ -412,4 +413,24 @@ it('rejects oversized declared media before consuming the body or making an uplo
   } finally {
     packageLimits.packageBytes = previous
   }
+})
+
+it('looks up the current containing folder without requiring a file ETag', async () => {
+  fetchMock.mockResolvedValueOnce(
+    new Response(JSON.stringify({ parents: ['folder/id'] })),
+  )
+  await expect(getContainingFolderUrl('file/id')).resolves.toBe(
+    'https://drive.google.com/drive/folders/folder%2Fid',
+  )
+  const url = new URL(String(fetchMock.mock.calls[0][0]))
+  expect(url.pathname).toBe('/drive/v3/files/file%2Fid')
+  expect(url.searchParams.get('fields')).toBe('parents')
+  expect(url.searchParams.get('supportsAllDrives')).toBe('true')
+})
+
+it('reports when Drive does not expose a containing folder', async () => {
+  fetchMock.mockResolvedValueOnce(new Response('{}'))
+  await expect(getContainingFolderUrl('file')).rejects.toThrow(
+    'accessible containing folder',
+  )
 })

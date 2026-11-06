@@ -1,0 +1,32 @@
+.document-save-status {
+  gap: 0;
+  padding-inline: 4px;
+}
+
+.document-save-status-label {
+  overflow: hidden;
+  max-width: 0;
+  opacity: 0;
+  transition:
+    max-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin-inline-start 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+
+@container document-header (min-width: 48rem) {
+  .document-save-status[data-expanded='true'] {
+    background-color: var(--secondary);
+  }
+
+  .document-save-status[data-expanded='true'] .document-save-status-label {
+    max-width: 16rem;
+    margin-inline-start: 6px;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .document-save-status-label {
+    transition: none;
+  }
+}

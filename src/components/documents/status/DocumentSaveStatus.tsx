@@ -4,11 +4,13 @@ import {
   CloudCheckIcon,
   CloudOffIcon,
   CloudUploadIcon,
+  FolderOpenIcon,
   HardDriveIcon,
   LoaderCircleIcon,
 } from 'lucide-react'
 import type { SaveStatus } from '#/lib/documents/sync'
 import { Button } from '#/components/ui/button'
+import { Toggle } from '#/components/ui/toggle'
 import {
   Popover,
   PopoverContent,
@@ -16,12 +18,13 @@ import {
   PopoverTrigger,
 } from '#/components/ui/popover'
 import { DriveIcon } from '../icons/DriveIcon'
+import './document-save-status.css'
 
 const labels: Record<SaveStatus['phase'], string> = {
   loading: 'Loading saved changes',
   local: 'All changes saved locally',
   synced: 'All changes saved to Drive',
-  pending: 'Waiting to sync',
+  pending: 'Waiting to save',
   saving: 'Saving to Drive',
   reconciling: 'Reconciling external changes',
   offline: 'Offline',
@@ -47,6 +50,7 @@ export function DocumentSaveStatus({
   onConnect,
   onSaveToDrive,
   onOfflineChange,
+  onOpenContainingFolder,
 }: {
   status: SaveStatus
   provider?: 'google-drive'
@@ -54,6 +58,7 @@ export function DocumentSaveStatus({
   onConnect?: () => void
   onSaveToDrive?: () => void
   onOfflineChange?: (value: boolean) => void
+  onOpenContainingFolder?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [now, setNow] = useState(Date.now)
@@ -68,7 +73,7 @@ export function DocumentSaveStatus({
     status.readOnly && status.phase === 'synced'
       ? 'View only · Synced with Drive'
       : !provider && status.phase === 'saving'
-        ? 'Saving locally'
+        ? 'Saving to this device'
         : !provider && status.phase === 'error'
           ? 'Could not save locally'
           : labels[status.phase]
@@ -83,6 +88,7 @@ export function DocumentSaveStatus({
           : status.phase === 'offline'
             ? CloudOffIcon
             : CircleAlertIcon
+  const expanded = status.phase !== 'local' && status.phase !== 'synced'
   const metadata = [
     [
       'Size',
@@ -98,13 +104,23 @@ export function DocumentSaveStatus({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={<Button variant="ghost" size="icon-xs" />}
+        render={
+          <Button
+            variant="ghost"
+            size="xs"
+            className="document-save-status text-muted-foreground"
+          />
+        }
         aria-label={label}
         title={label}
+        data-expanded={expanded}
       >
         <Icon
           className={`size-4 text-muted-foreground${working ? ' animate-spin' : ''}`}
         />
+        <span className="document-save-status-label" aria-hidden="true">
+          {label}
+        </span>
       </PopoverTrigger>
       <PopoverContent
         align="start"
@@ -156,13 +172,20 @@ export function DocumentSaveStatus({
           <p className="text-xs text-muted-foreground">{status.error}</p>
         )}
         {provider && onOfflineChange && (
-          <Button
+          <Toggle
             variant="outline"
             size="sm"
-            aria-pressed={status.offlineAvailable ?? false}
-            onClick={() => onOfflineChange(!status.offlineAvailable)}
+            pressed={status.offlineAvailable ?? false}
+            onPressedChange={onOfflineChange}
           >
-            Available offline{status.offlineAvailable ? ' · On' : ' · Off'}
+            <HardDriveIcon className="size-4" />
+            Available offline
+          </Toggle>
+        )}
+        {onOpenContainingFolder && (
+          <Button variant="outline" size="sm" onClick={onOpenContainingFolder}>
+            <FolderOpenIcon className="size-4" />
+            Open containing folder
           </Button>
         )}
         {!provider && onSaveToDrive && (

@@ -124,43 +124,95 @@ export const documentStorage: DocumentStorage = {
     await localDocumentStorage.delete(id)
     clearSaveStatus(id)
   },
-  open(id, doc) {
-    let local: DocumentPersistence | undefined
-    let sync: DocumentSync | undefined
-    let closed = false
-    let closing: Promise<void> | undefined
-    const isClosed = () => closed
-    const whenSynced = (async () => {
+  open: openDocumentSession,
+}
+
+function openDocumentSession(id: string, doc: Doc, background = false) {
+  let local: DocumentPersistence | undefined
+  let sync: DocumentSync | undefined
+  let closed = false
+  let closing: Promise<void> | undefined
+  const isClosed = () => closed
+  const whenSynced = (async () => {
+    const info = await ensureDocument(id)
+    if (!info || isClosed()) throw new Error('Document not found')
+    local = localDocumentStorage.open(id, doc)
+    await local.whenSynced
+    if (isClosed()) return
+    sync = new DocumentSync(
+      info,
+      doc,
+      local,
+      info.drive ? openPublicationTransport(info.drive.fileId) : undefined,
+      background,
+    )
+    await sync.start()
+  })()
+  return {
+    whenSynced,
+    async setOfflineAvailable(value: boolean) {
+      await whenSynced
+      if (!sync)
+        throw new Error('Could not prepare this document for offline use.')
+      await sync.setOfflineAvailable(value)
+    },
+    async flush() {
+      await whenSynced
+      await local?.flush?.()
+    },
+    destroy() {
+      closed = true
+      const stopping = sync?.stop()
+      closing ??= (async () => {
+        await whenSynced.catch(() => {})
+        await stopping
+        await local?.destroy()
+        await localDocumentStorage.clearContent(id)
+      })()
+      return closing
+    },
+  }
+}
+
+const offlineChanges = new Map<string, Promise<void>>()
+
+export function setDocumentOfflineAvailable(id: string, value: boolean) {
+  const previous = offlineChanges.get(id) ?? Promise.resolve()
+  const changing = previous
+    .catch(() => {})
+    .then(async () => {
       const info = await ensureDocument(id)
-      if (!info || isClosed()) throw new Error('Document not found')
-      local = localDocumentStorage.open(id, doc)
-      await local.whenSynced
-      if (isClosed()) return
-      sync = new DocumentSync(
-        info,
-        doc,
-        local,
-        info.drive ? openPublicationTransport(info.drive.fileId) : undefined,
-      )
-      await sync.start()
-    })()
-    return {
-      whenSynced,
-      async flush() {
-        await whenSynced
-        await local?.flush?.()
-      },
-      destroy() {
-        closed = true
-        const stopping = sync?.stop()
-        closing ??= (async () => {
-          await whenSynced.catch(() => {})
-          await stopping
-          await local?.destroy()
-          await localDocumentStorage.clearContent(id)
-        })()
-        return closing
-      },
-    }
-  },
+      if (!info?.drive) return
+      const active = documentSessions.get(id)
+      if (active) {
+        await active.setOfflineAvailable(value)
+        return
+      }
+      if (!value) {
+        await localDocumentStorage.patch(id, (current) => ({
+          ...current,
+          drive: current.drive
+            ? { ...current.drive, offlineAvailable: false }
+            : undefined,
+        }))
+        await localDocumentStorage.clearContent(id)
+        return
+      }
+      const doc = new Doc()
+      const session = openDocumentSession(id, doc, true)
+      try {
+        await session.setOfflineAvailable(true)
+        await documentSessions.get(id)?.setOfflineAvailable(true)
+      } finally {
+        await session.destroy()
+        doc.destroy()
+      }
+    })
+  offlineChanges.set(id, changing)
+  void changing
+    .finally(() => {
+      if (offlineChanges.get(id) === changing) offlineChanges.delete(id)
+    })
+    .catch(() => {})
+  return changing
 }

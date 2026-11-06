@@ -93,6 +93,7 @@ export function mergeConcept(doc: Doc, content: string) {
 
 export class DocumentSync {
   assets?: DocumentAssetResolver
+  private backgroundStatus: SaveStatus = { phase: 'loading' }
   private stopped = false
   private running?: Promise<void>
   private idle?: ReturnType<typeof setTimeout>
@@ -125,16 +126,26 @@ export class DocumentSync {
     readonly doc: Doc,
     private persistence: DocumentPersistence,
     private publication?: PublicationTransport,
+    private background = false,
   ) {
     this.dirty = info.drive?.dirty ?? false
     this.etag = info.drive?.etag
     this.remoteFilename = info.drive?.remoteFilename
-    setSaveStatus(info.id, {
+    this.setStatus({
       phase: 'loading',
       offlineAvailable: info.drive?.offlineAvailable,
       lastSyncedAt: info.drive?.lastSyncedAt,
       readOnly: this.isReadOnly,
     })
+  }
+
+  private get saveStatus() {
+    return this.background ? this.backgroundStatus : getSaveStatus(this.info.id)
+  }
+
+  private setStatus(status: SaveStatus) {
+    if (this.background) this.backgroundStatus = status
+    else setSaveStatus(this.info.id, status)
   }
 
   private content() {
@@ -153,13 +164,13 @@ export class DocumentSync {
   private publish(phase: SaveStatus['phase'], error?: string) {
     if (this.isStopped()) return
     const status = {
-      ...getSaveStatus(this.info.id),
+      ...this.saveStatus,
       phase,
       error,
       etag: this.etag,
       readOnly: this.isReadOnly,
     }
-    setSaveStatus(this.info.id, status)
+    this.setStatus(status)
     if (
       phase === 'loading' ||
       phase === 'saving' ||
@@ -181,8 +192,8 @@ export class DocumentSync {
       }))
       .then(({ revision, size }) => {
         if (this.stopped || version !== this.metadataVersion) return
-        setSaveStatus(this.info.id, {
-          ...getSaveStatus(this.info.id),
+        this.setStatus({
+          ...this.saveStatus,
           size,
           revision,
         })
@@ -227,7 +238,7 @@ export class DocumentSync {
         recover: this.info.drive
           ? async () => {
               await this.sync(true)
-              const status = getSaveStatus(this.info.id)
+              const status = this.saveStatus
               if (status.phase === 'auth-required')
                 throw new GoogleDriveAuthError()
               if (status.phase === 'error' || status.phase === 'offline')
@@ -273,7 +284,7 @@ export class DocumentSync {
     } else if (this.dirty && !this.isReadOnly) this.schedule()
     window.addEventListener('focus', this.check)
     window.addEventListener('online', this.check)
-    documentSessions.set(this.info.id, this)
+    if (!this.background) documentSessions.set(this.info.id, this)
   }
 
   private changed = () => {
@@ -336,7 +347,7 @@ export class DocumentSync {
     if (this.dirty && this.isReadOnly) {
       const message =
         'Unsynced changes are preserved in this browser. Make a copy to keep editing this view-only document.'
-      const previous = getSaveStatus(this.info.id)
+      const previous = this.saveStatus
       this.publish('error', message)
       if (previous.phase !== 'error' || previous.error !== message)
         toast.error(message, { id: `drive-sync:${this.info.id}` })
@@ -428,8 +439,8 @@ export class DocumentSync {
               readOnly: this.info.drive?.readOnly,
             },
       )
-      setSaveStatus(this.info.id, {
-        ...getSaveStatus(this.info.id),
+      this.setStatus({
+        ...this.saveStatus,
         ...(lastSyncedAt === undefined ? {} : { lastSyncedAt }),
         remoteRevision: remote.file.headRevisionId ?? remote.file.version,
         offlineAvailable: info.drive?.offlineAvailable,
@@ -463,11 +474,7 @@ export class DocumentSync {
           return
         }
         this.scheduleMissingCheck()
-        if (
-          this.dirty &&
-          !this.stopped &&
-          getSaveStatus(this.info.id).phase === 'pending'
-        )
+        if (this.dirty && !this.stopped && this.saveStatus.phase === 'pending')
           this.schedule()
       })
     return this.running
@@ -563,8 +570,8 @@ export class DocumentSync {
           savedRevision,
           revision: remoteRevision,
         })
-        setSaveStatus(this.info.id, {
-          ...getSaveStatus(this.info.id),
+        this.setStatus({
+          ...this.saveStatus,
           lastSyncedAt,
           remoteRevision,
         })
@@ -713,7 +720,7 @@ export class DocumentSync {
           this.missingAttempts = 0
           return
         }
-        if (getSaveStatus(this.info.id).offlineAvailable)
+        if (this.saveStatus.offlineAvailable)
           void this.setOfflineAvailable(false).catch(() => {})
         const delay = Math.min(
           assetReconciliation.maximumMs,
@@ -742,8 +749,8 @@ export class DocumentSync {
         ? { ...current.drive, offlineAvailable: value }
         : undefined,
     }))
-    setSaveStatus(this.info.id, {
-      ...getSaveStatus(this.info.id),
+    this.setStatus({
+      ...this.saveStatus,
       offlineAvailable: value,
     })
   }
@@ -771,6 +778,7 @@ export class DocumentSync {
       await (this.info.drive
         ? this.persistMetadata()
         : this.persistence.flush?.())
-    if (!documentSessions.has(this.info.id)) clearSaveStatus(this.info.id)
+    if (!this.background && !documentSessions.has(this.info.id))
+      clearSaveStatus(this.info.id)
   }
 }

@@ -1,3 +1,4 @@
+import { DriveIcon } from '../icons/DriveIcon'
 import { DocumentFilePicker } from './DocumentFilePicker'
 import { importFormats } from '#/lib/documents/import/formats'
 import type { ImportFormat } from '#/lib/documents/import/formats'
@@ -38,6 +39,9 @@ export function DocumentStorageDialog({
   onClose,
   sources = documentSources,
   providers = documentSaveProviders,
+  onOpenDrive,
+  drivePickerDisabled = false,
+  driveConnected = true,
 }: {
   mode: 'open' | 'copy' | 'import'
   importFormat?: ImportFormat
@@ -45,6 +49,9 @@ export function DocumentStorageDialog({
   onClose: () => void
   sources?: Array<DocumentSource>
   providers?: Array<DocumentSaveProvider>
+  onOpenDrive?: () => Promise<void>
+  drivePickerDisabled?: boolean
+  driveConnected?: boolean
 }) {
   const format = importFormats.find((item) => item.id === importFormat)
   const navigate = useNavigate()
@@ -223,6 +230,20 @@ export function DocumentStorageDialog({
             {!openSource ? (
               <fieldset className="grid gap-2">
                 <legend className="mb-2 text-sm font-medium">Open from</legend>
+                {onOpenDrive && (
+                  <Button
+                    variant="outline"
+                    disabled={drivePickerDisabled}
+                    onClick={() => {
+                      onClose()
+                      void onOpenDrive()
+                    }}
+                    className="h-auto justify-start gap-3 rounded-xl p-4 text-left"
+                  >
+                    <DriveIcon />{' '}
+                    {driveConnected ? 'Google Drive' : 'Connect Google Drive'}
+                  </Button>
+                )}
                 {sources.map((item) => (
                   <Button
                     key={item.id}

@@ -420,6 +420,15 @@ export function DocumentWorkspaceProvider({
                 ? { name: document.name, doc: documentRef.current }
                 : undefined
             }
+            onOpenDrive={
+              workspace.driveConnected
+                ? workspace.openGoogleDrivePicker
+                : workspace.connectDrive
+            }
+            driveConnected={workspace.driveConnected}
+            drivePickerDisabled={
+              workspace.driveLoading || workspace.pickerLoading
+            }
             onClose={closeFileDialog}
           />
         )}

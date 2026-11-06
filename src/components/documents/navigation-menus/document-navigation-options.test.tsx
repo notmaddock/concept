@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Root } from 'react-dom/client'
 import type { NavigationMenuItem } from './document-navigation-options'
 import { useDocumentNavigationOptions } from './document-navigation-options'
+import { formatSections } from './format-options'
 
 const theme = vi.hoisted(() => ({ theme: 'light', setTheme: vi.fn() }))
 vi.mock('#/components/theme-provider', () => ({ useTheme: () => theme }))
@@ -78,7 +79,7 @@ it('exposes every menu action to search with the same state and handler', async 
   expect(menuActions.length).toBeGreaterThan(100)
   expect(
     navigation.menus.find((menu) => menu.label === 'Format')?.items,
-  ).toHaveLength(13)
+  ).toHaveLength(formatSections.length)
 
   expect(navigation.options).toHaveLength(menuActions.length)
   for (const [index, option] of navigation.options.entries()) {
@@ -266,19 +267,11 @@ it('gates mutation actions in read-only mode while preserving copy and export', 
   workspace.document = undefined
 })
 
-it('opens the Drive picker from File and search without a document open', async () => {
+it('routes opening through the Open dialog', async () => {
   await render(false, false)
-  const option = navigation.options.find((item) => item.id === 'open-drive')!
-  expect(option.disabled).toBe(false)
-  expect(
-    navigation.menus.find((menu) => menu.label === 'File')?.items,
-  ).toContain(option)
-  await option.onSelect()
-  expect(workspace.openGoogleDrivePicker).toHaveBeenCalledOnce()
-  workspace.pickerLoading = true
-  await render(false, false)
-  expect(
-    navigation.options.find((item) => item.id === 'open-drive')?.disabled,
-  ).toBe(true)
-  workspace.pickerLoading = false
+  expect(navigation.options.some((item) => item.id === 'open-drive')).toBe(
+    false,
+  )
+  await navigation.options.find((item) => item.id === 'open')?.onSelect()
+  expect(onOpen).toHaveBeenCalledOnce()
 })

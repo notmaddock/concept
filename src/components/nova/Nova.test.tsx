@@ -2,7 +2,15 @@ import { act, createRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  $getSelection,
+} from 'lexical'
 import type { LexicalEditor } from 'lexical'
+import { $createImageNode } from './nodes/ImageNode'
+import type { AssetId } from '#/lib/documents/assets'
 import { Nova } from './Nova'
 
 vi.mock('./plugins/DragPlugin/DragPlugin', () => ({
@@ -54,6 +62,49 @@ describe('Nova editor mode and read-only behavior', () => {
     expect(
       container.querySelector('[data-testid="floating-format-toolbar-plugin"]'),
     ).not.toBeNull()
+  })
+
+  it('triple-clicks a text block without including the image below it', async () => {
+    const editorRef = createRef<LexicalEditor>()
+    await act(async () => root.render(<Nova editorRef={editorRef} />))
+    const editor = editorRef.current!
+    await act(async () =>
+      editor.update(
+        () => {
+          $getRoot()
+            .clear()
+            .append(
+              $createParagraphNode().append(
+                $createTextNode('Entire text block'),
+              ),
+              $createImageNode({
+                assetId: `sha256:${'a'.repeat(64)}` as AssetId,
+                intrinsicWidth: 640,
+                intrinsicHeight: 480,
+              }),
+            )
+        },
+        { discrete: true },
+      ),
+    )
+    const text = container.querySelector('[data-document-content] p span')!
+    const event = new MouseEvent('mousedown', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      detail: 3,
+    })
+    await act(async () => {
+      text.dispatchEvent(event)
+    })
+    expect(event.defaultPrevented).toBe(true)
+    editor.getEditorState().read(() => {
+      const selection = $getSelection()!
+      expect(selection.getTextContent()).toBe('Entire text block')
+      expect(
+        selection.getNodes().some((node) => node.getType() === 'image'),
+      ).toBe(false)
+    })
   })
 
   it('sets editor to non-editable and suppresses mutation affordances in view-only mode', async () => {

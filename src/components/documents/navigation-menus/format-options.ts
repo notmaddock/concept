@@ -171,11 +171,12 @@ export const formatSections = [
     ),
   },
   {
-    id: 'spacing',
-    label: 'Line & paragraph spacing',
+    id: 'line-spacing',
+    label: 'Line spacing',
     icon: PilcrowIcon,
     choices: [
       ...[
+        ['Default', ''],
         ['Single', '1'],
         ['1.15', '1.15'],
         ['1.5', '1.5'],
@@ -189,17 +190,27 @@ export const formatSections = [
           value,
         }),
       ),
-      ...['before', 'after'].flatMap((side) =>
-        [0, 4, 8, 12, 16, 24].map((size) =>
-          choice(`space-${side}-${size}`, `${size} pt ${side} paragraph`, {
-            kind: 'paragraph',
-            property: side === 'before' ? 'margin-top' : 'margin-bottom',
-            value: `${size}pt`,
-          }),
-        ),
-      ),
     ],
   },
+  ...(['before', 'after'] as const).map((side) => ({
+    id: `space-${side}`,
+    label: `Space ${side} paragraph`,
+    icon: PilcrowIcon,
+    choices: [
+      choice(`space-${side}-default`, 'Default', {
+        kind: 'paragraph',
+        property: side === 'before' ? 'margin-top' : 'margin-bottom',
+        value: '',
+      }),
+      ...[0, 4, 8, 12, 16, 24].map((size) =>
+        choice(`space-${side}-${size}`, `${size} pt`, {
+          kind: 'paragraph',
+          property: side === 'before' ? 'margin-top' : 'margin-bottom',
+          value: `${size}pt`,
+        }),
+      ),
+    ],
+  })),
   {
     id: 'lists',
     label: 'Lists',

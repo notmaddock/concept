@@ -151,15 +151,6 @@ export const documentNavigation: MenuDefinition[] = [
         onSelect: (context) => context.onOpen?.(),
       },
       {
-        id: 'open-drive',
-        label: 'Open from Google Drive',
-        keywords: ['open file', 'shared', 'picker', 'cloud'],
-        icon: DriveIcon,
-        focusAfterSelect: 'action',
-        onSelect: (context) => context.onOpenDrive?.(),
-        disabled: (context) => Boolean(context.drivePickerDisabled),
-      },
-      {
         id: 'import',
         label: 'Import from…',
         icon: FolderOpenIcon,
