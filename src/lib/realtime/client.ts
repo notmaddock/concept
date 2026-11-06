@@ -27,6 +27,7 @@ interface Options {
   doc: Doc
   fileId: string
   resourceKey?: string
+  accountId?: string
   canWrite: () => boolean
   onPublication: () => unknown
   onAccess: () => unknown
@@ -104,8 +105,17 @@ export class RealtimeClient {
       const grant = (await response.json()) as {
         readOnly: boolean
         expiresAt: number
+        accountId?: string
       }
       if (!this.isCurrent(generation)) return
+      if (
+        this.options.accountId &&
+        grant.accountId !== this.options.accountId
+      ) {
+        this.stop()
+        this.options.onAccess()
+        return
+      }
       if (
         typeof grant.readOnly !== 'boolean' ||
         !Number.isFinite(grant.expiresAt) ||

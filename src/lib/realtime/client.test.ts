@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Doc, applyUpdate, encodeStateAsUpdate } from 'yjs'
+import { Awareness, applyAwarenessUpdate } from 'y-protocols/awareness'
 import { RealtimeClient } from './client'
 import {
   FrameType,
@@ -38,7 +39,7 @@ afterEach(() => {
   Socket.instances = []
 })
 
-async function setup(canWrite = () => true) {
+async function setup(canWrite = () => true, accountId?: string) {
   vi.useFakeTimers()
   vi.stubGlobal('WebSocket', Socket)
   vi.stubGlobal('location', {
@@ -47,30 +48,35 @@ async function setup(canWrite = () => true) {
   })
   vi.stubGlobal(
     'fetch',
-    vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: async () => ({ readOnly: false, expiresAt: Date.now() + 60_000 }),
-      }),
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ readOnly: false, expiresAt: Date.now() + 60_000 }),
+    }),
   )
   const doc = new Doc()
   const client = new RealtimeClient({
     doc,
     fileId: 'file',
+    accountId,
     canWrite,
     onAccess: vi.fn(),
     onPublication: vi.fn(),
   })
   client.start()
   await vi.advanceTimersByTimeAsync(0)
-  const socket = Socket.instances[0]
-  socket.onopen?.()
-  socket.sent = []
-  return { client, doc, socket }
+  const socket = Socket.instances.at(0)
+  socket?.onopen?.()
+  if (socket) socket.sent = []
+  return { client, doc, socket: socket! }
 }
 
 describe('realtime batching', () => {
+  it('refuses a room grant from a different linked account', async () => {
+    const { client, doc } = await setup(() => true, 'expected-account')
+    expect(Socket.instances).toHaveLength(0)
+    client.stop()
+    doc.destroy()
+  })
   it('flushes continuous typing on the first deadline, merges updates, and sends nothing while idle', async () => {
     const { client, doc, socket } = await setup()
     doc.getText('text').insert(0, 'a')
@@ -107,6 +113,64 @@ describe('realtime batching', () => {
     await vi.advanceTimersByTimeAsync(100)
     expect(socket.readyState).toBe(3)
     expect(doc.getText('text').toString()).toBe('safe locally')
+    client.stop()
+    doc.destroy()
+  })
+
+  it('persists remote mutations through the document event without echoing them', async () => {
+    const { client, doc, socket } = await setup()
+    const author = new Doc()
+    author.getText('text').insert(0, 'remote')
+    const changed = vi.fn()
+    doc.on('update', changed)
+    const frame = encodeFrames(FrameType.Update, encodeStateAsUpdate(author))[0]
+    socket.onmessage?.({ data: new Uint8Array(frame).buffer } as MessageEvent)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(doc.getText('text').toString()).toBe('remote')
+    expect(changed).toHaveBeenCalledOnce()
+    expect(socket.sent.map((bytes) => decodeFrame(bytes).type)).toEqual([
+      FrameType.Ack,
+    ])
+    client.stop()
+    doc.destroy()
+    author.destroy()
+  })
+
+  it('coalesces presence separately and retains only the latest state', async () => {
+    const { client, doc, socket } = await setup()
+    const awareness = new Awareness(doc)
+    client.attachAwareness(awareness)
+    awareness.setLocalState({ name: 'first' })
+    await vi.advanceTimersByTimeAsync(60)
+    awareness.setLocalState({ name: 'latest' })
+    await vi.advanceTimersByTimeAsync(40)
+    expect(socket.sent).toHaveLength(1)
+    const frame = decodeFrame(socket.sent[0])
+    expect(frame.type).toBe(FrameType.Presence)
+    const remoteDoc = new Doc()
+    const remote = new Awareness(remoteDoc)
+    applyAwarenessUpdate(remote, frame.payload, null)
+    expect(remote.getStates().get(doc.clientID)).toEqual({ name: 'latest' })
+    client.stop()
+    awareness.destroy()
+    remote.destroy()
+    doc.destroy()
+    remoteDoc.destroy()
+  })
+
+  it('discards queued frames after disconnect and begins reconnection with fresh access and a state vector', async () => {
+    const { client, doc, socket } = await setup()
+    doc.getText('text').insert(0, 'offline work')
+    socket.readyState = 3
+    socket.onclose?.()
+    await vi.advanceTimersByTimeAsync(5000)
+    const reconnected = Socket.instances[1]
+    reconnected.onopen?.()
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(reconnected.sent.map((bytes) => decodeFrame(bytes).type)).toEqual([
+      FrameType.StateVector,
+    ])
+    expect(doc.getText('text').toString()).toBe('offline work')
     client.stop()
     doc.destroy()
   })
