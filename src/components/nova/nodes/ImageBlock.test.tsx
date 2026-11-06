@@ -125,8 +125,41 @@ it('commits mounted metadata controls through bidirectional Yjs and persisted re
         }),
       )
     })
+    expect(
+      document.querySelector('[role="menuitemradio"][aria-checked="true"]')!
+        .textContent,
+    ).toContain('Align left')
     await act(async () => {
-      document.querySelector<HTMLElement>('[role="menuitem"]')!.click()
+      Array.from(
+        document.querySelectorAll<HTMLElement>('[role="menuitemradio"]'),
+      )
+        .find((item) => item.textContent.includes('Align right'))!
+        .click()
+    })
+    expect(editor.getEditorState().toJSON().root.children[0]).toMatchObject({
+      alignment: 'right',
+    })
+    expect(
+      container.querySelector<HTMLElement>('[role="button"]')!.style.marginLeft,
+    ).toBe('auto')
+    expect(
+      container.querySelector<HTMLElement>('[role="button"]')!.style
+        .marginRight,
+    ).toBe('0px')
+    await act(async () => {
+      container.querySelector<HTMLElement>('[role="button"]')!.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          button: 2,
+          clientX: 10,
+          clientY: 10,
+        }),
+      )
+    })
+    await act(async () => {
+      Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+        .find((item) => item.textContent.includes('Image Options'))!
+        .click()
     })
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()
     expect(document.querySelector('[role="dialog"]')!.textContent).toContain(
@@ -230,6 +263,40 @@ it('commits mounted metadata controls through bidirectional Yjs and persisted re
     expect(
       document.querySelector('[role="dialog"]')!.textContent,
     ).not.toContain('Replace image')
+    await act(async () => {
+      Array.from(document.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Done')!
+        .click()
+    })
+    const openContextMenu = () =>
+      container.querySelector<HTMLElement>('[role="button"]')!.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          button: 2,
+          clientX: 10,
+          clientY: 10,
+        }),
+      )
+    await act(async () => {
+      openContextMenu()
+    })
+    expect(document.querySelector('[role="menuitemradio"]')).toBeNull()
+    expect(
+      Array.from(document.querySelectorAll('[role="menuitem"]')).some((item) =>
+        item.textContent.includes('Delete image'),
+      ),
+    ).toBe(false)
+    await act(async () => editor.setEditable(true))
+    expect(document.querySelectorAll('[role="menuitemradio"]').length).toBe(3)
+    await act(async () => {
+      Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+        .find((item) => item.textContent.includes('Delete image'))!
+        .click()
+    })
+    expect(editor.getEditorState().toJSON().root.children).toHaveLength(1)
+    expect(
+      container.querySelector('[aria-label="Image: Photo description"]'),
+    ).toBeNull()
     restoredProvider.destroy()
     restoredBinding.root.destroy(restoredBinding)
     restoredDoc.destroy()

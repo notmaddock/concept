@@ -13,8 +13,8 @@ import {
 } from '@/lib/documents/image-schema'
 import type { ImageSource } from '@/lib/documents/image-schema'
 import { ImageBlock } from './ImageBlock'
-import { ResizableNode } from './ResizableNode'
-import type { SerializedResizableNode } from './ResizableNode'
+import { ResizableNode, validateNodeAlignment } from './ResizableNode'
+import type { NodeAlignment, SerializedResizableNode } from './ResizableNode'
 
 export type SerializedImageNode = Spread<
   {
@@ -41,6 +41,7 @@ export class ImageNode extends ResizableNode<ReactElement> {
       node.__altText,
       node.__displayWidth,
       node.__key,
+      node.__alignment,
     )
     clone.__imageVersion = node.__imageVersion
     return clone
@@ -51,8 +52,9 @@ export class ImageNode extends ResizableNode<ReactElement> {
     altText = '',
     displayWidth: number | null = null,
     key?: NodeKey,
+    alignment: NodeAlignment = 'left',
   ) {
-    super(displayWidth, key)
+    super(displayWidth, key, alignment)
     // Lexical/Yjs constructs an empty instance to discover synchronized fields.
     this.__source =
       source === undefined
@@ -71,6 +73,9 @@ export class ImageNode extends ResizableNode<ReactElement> {
       validateImageSource(serialized.source),
       serialized.altText,
       validateImageDisplayWidth(serialized.displayWidth),
+      serialized.alignment === undefined
+        ? 'left'
+        : validateNodeAlignment(serialized.alignment),
     )
   }
 
@@ -126,6 +131,9 @@ export class ImageNode extends ResizableNode<ReactElement> {
         if (!encoded) return null
         try {
           const source = validateImageSource(JSON.parse(encoded))
+          const alignment = validateNodeAlignment(
+            element.getAttribute('data-concept-alignment') ?? 'left',
+          )
           const width = element.getAttribute('width')
           const displayWidth =
             width === null ? null : validateImageDisplayWidth(Number(width))
@@ -136,6 +144,7 @@ export class ImageNode extends ResizableNode<ReactElement> {
                 source,
                 element.getAttribute('alt') ?? '',
                 displayWidth,
+                alignment,
               ),
             }),
           }
@@ -148,6 +157,10 @@ export class ImageNode extends ResizableNode<ReactElement> {
   exportDOM(): DOMExportOutput {
     const element = document.createElement('img')
     element.alt = this.getAltText()
+    element.dataset.conceptAlignment = this.getAlignment()
+    element.style.display = 'block'
+    element.style.marginLeft = this.getAlignment() === 'left' ? '0' : 'auto'
+    element.style.marginRight = this.getAlignment() === 'right' ? '0' : 'auto'
     element.dataset.conceptImageAssetId = this.getAssetId()
     element.dataset.conceptImageSource = JSON.stringify(this.getSource())
     const width = this.getDisplayWidth()
@@ -161,6 +174,7 @@ export class ImageNode extends ResizableNode<ReactElement> {
         source={this.getSource()}
         altText={this.getAltText()}
         displayWidth={this.getDisplayWidth()}
+        alignment={this.getAlignment()}
       />
     )
   }
@@ -170,8 +184,11 @@ export function $createImageNode(
   source: ImageSource,
   altText = '',
   displayWidth: number | null = null,
+  alignment: NodeAlignment = 'left',
 ): ImageNode {
-  return $applyNodeReplacement(new ImageNode(source, altText, displayWidth))
+  return $applyNodeReplacement(
+    new ImageNode(source, altText, displayWidth, undefined, alignment),
+  )
 }
 export function $isImageNode(
   node: LexicalNode | null | undefined,

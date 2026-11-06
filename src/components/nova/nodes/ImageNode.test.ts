@@ -78,7 +78,9 @@ it('round trips image placement JSON and rejects invalid or future fields', () =
   try {
     editor.update(
       () => {
-        $getRoot().append($createImageNode(source('a'), 'A photo', 200))
+        $getRoot().append(
+          $createImageNode(source('a'), 'A photo', 200, 'center'),
+        )
       },
       { discrete: true },
     )
@@ -89,6 +91,24 @@ it('round trips image placement JSON and rejects invalid or future fields', () =
       '[Image: A photo]',
     )
     const image = json.root.children[0]
+    expect(image).toMatchObject({ alignment: 'center' })
+    expect(
+      editor
+        .parseEditorState({
+          ...json,
+          root: {
+            ...json.root,
+            children: [{ ...image, alignment: undefined }],
+          },
+        })
+        .toJSON().root.children[0],
+    ).toMatchObject({ alignment: 'left' })
+    expect(() =>
+      editor.parseEditorState({
+        ...json,
+        root: { ...json.root, children: [{ ...image, alignment: 'invalid' }] },
+      }),
+    ).toThrow('Invalid node alignment')
     expect(() =>
       editor.parseEditorState({
         ...json,
@@ -158,6 +178,7 @@ it('merges concurrent replacements as complete source records and presentation i
         getImage()
           .setSource(source('c', 300, 400))
           .setDisplayWidth(150)
+          .setAlignment('right')
       },
       { discrete: true },
     )
@@ -172,6 +193,7 @@ it('merges concurrent replacements as complete source records and presentation i
           source: image.getSource(),
           alt: image.getAltText(),
           width: image.getDisplayWidth(),
+          alignment: image.getAlignment(),
         }
       })
     const result = read(a)
@@ -181,6 +203,7 @@ it('merges concurrent replacements as complete source records and presentation i
     )
     expect(result.alt).toBe('Updated alt')
     expect(result.width).toBe(150)
+    expect(result.alignment).toBe('right')
     expect([...collectReferences(encodeStateAsUpdate(a.doc))]).toEqual([
       result.source.assetId,
     ])
@@ -230,6 +253,7 @@ it('reloads edited placement metadata and source from a persisted binding snapsh
         image
           .setAltText('Persisted photo')
           .setDisplayWidth(321)
+          .setAlignment('right')
           .setSource(source('b', 800, 600))
       },
       { discrete: true },

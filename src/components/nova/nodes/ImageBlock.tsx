@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { ImageIcon } from 'lucide-react'
+import {
+  AlignCenterIcon,
+  AlignLeftIcon,
+  AlignRightIcon,
+  ImageIcon,
+  Trash2Icon,
+} from 'lucide-react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { useLexicalNodeSelection } from '@lexical/react/useLexicalNodeSelection'
 import { useLexicalEditable } from '@lexical/react/useLexicalEditable'
@@ -21,6 +27,9 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSeparator,
 } from '#/components/ui/context-menu'
 import { ImageOptionsDialog } from '../images/ImageOptionsDialog'
 import { useDocumentAsset } from '../media/use-document-asset'
@@ -63,11 +72,13 @@ export function ImageBlock({
   source,
   altText,
   displayWidth,
+  alignment = 'left',
 }: {
   nodeKey: NodeKey
   source: ImageSource
   altText: string
   displayWidth: number | null
+  alignment?: 'left' | 'center' | 'right'
 }) {
   const [editor] = useLexicalComposerContext()
   const editable = useLexicalEditable()
@@ -123,6 +134,8 @@ export function ImageBlock({
           className={`relative max-w-full outline-offset-[-0.5px] ${selected ? 'outline-1 outline-primary' : ''}`}
           style={{
             width: preview ?? displayWidth ?? source.intrinsicWidth,
+            marginLeft: alignment === 'left' ? 0 : 'auto',
+            marginRight: alignment === 'right' ? 0 : 'auto',
             aspectRatio: `${source.intrinsicWidth} / ${source.intrinsicHeight}`,
           }}
           onClick={(event) => {
@@ -269,6 +282,50 @@ export function ImageBlock({
             <ImageIcon aria-hidden="true" />
             Image Options
           </ContextMenuItem>
+          {canEdit && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuRadioGroup
+                aria-label="Image alignment"
+                value={alignment}
+                onValueChange={(value) => {
+                  if (
+                    value === 'left' ||
+                    value === 'center' ||
+                    value === 'right'
+                  )
+                    mutate((node) => node.setAlignment(value))
+                }}
+              >
+                <ContextMenuRadioItem value="left">
+                  <AlignLeftIcon aria-hidden="true" />
+                  Align left
+                </ContextMenuRadioItem>
+                <ContextMenuRadioItem value="center">
+                  <AlignCenterIcon aria-hidden="true" />
+                  Align center
+                </ContextMenuRadioItem>
+                <ContextMenuRadioItem value="right">
+                  <AlignRightIcon aria-hidden="true" />
+                  Align right
+                </ContextMenuRadioItem>
+              </ContextMenuRadioGroup>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                variant="destructive"
+                onClick={() => {
+                  mutate((node) => {
+                    node.selectNext()
+                    node.remove()
+                  })
+                  editor.focus()
+                }}
+              >
+                <Trash2Icon aria-hidden="true" />
+                Delete image
+              </ContextMenuItem>
+            </>
+          )}
         </ContextMenuContent>
       </ContextMenu>
       <ImageOptionsDialog
