@@ -1,7 +1,6 @@
 import {
   anonymousIdentity,
   publicRealtimeGrant,
-  registerPublicPublisher,
 } from '#/lib/documents/drive/public.server'
 import {
   AccessFailure,
@@ -58,15 +57,6 @@ export async function handleRealtime(
       userId,
       identity?.accountId,
     )
-    if (identity && !grant.readOnly && !grant.publicAccess) {
-      // Registration is optional for ordinary private documents. Only a fresh
-      // public writer check can create the delegated publisher relationship.
-      try {
-        await registerPublicPublisher(request, bindings, resource)
-      } catch {
-        /* Private files and unavailable sharing metadata do not disable personal access. */
-      }
-    }
     if (!(await room.finishAuthorization(userId, epoch, grant)))
       throw new AccessFailure(409)
     if (url.pathname.endsWith('/access')) {

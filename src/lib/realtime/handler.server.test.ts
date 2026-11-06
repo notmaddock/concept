@@ -137,3 +137,18 @@ it('denies cross-origin admission before any session, provider or room activity'
   expect(mocks.getIdentity).not.toHaveBeenCalled()
   expect(room.beginAuthorization).not.toHaveBeenCalled()
 })
+
+it('does not block direct socket admission or renewal on optional publisher registration', async () => {
+  mocks.registerPublicPublisher.mockImplementation(() => new Promise(() => {}))
+  room.fetch.mockResolvedValue(new Response('upgrade stub'))
+  const direct = new Request(`${origin}/api/realtime/socket?fileId=file`, {
+    headers: { Origin: origin, Upgrade: 'websocket' },
+  })
+  expect((await handleRealtime(direct, bindings)).status).toBe(200)
+  expect(mocks.checkDriveAccess).toHaveBeenCalledTimes(1)
+  expect(mocks.registerPublicPublisher).not.toHaveBeenCalled()
+  expect(
+    (await handleRealtime(request('&connectionId=current'), bindings)).status,
+  ).toBe(200)
+  expect(mocks.registerPublicPublisher).not.toHaveBeenCalled()
+})
