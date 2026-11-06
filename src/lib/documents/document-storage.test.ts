@@ -595,3 +595,23 @@ it('denies opening cached shared content belonging to another account', async ()
     'different Google account',
   )
 })
+
+it('recovers quarantined changes into a detached local document before resetting shared content', async () => {
+  remote.getMap('settings').set('unsynced', 'retained work')
+  await cache({ ...info.drive!, dirty: true, quarantined: true })
+  const recovered = await recoverDocumentLocally(info.id)
+  expect(recovered.drive).toBeUndefined()
+  expect(recovered.name).toBe(`${info.name} (recovered)`)
+  const copy = new Doc()
+  docs.push(copy)
+  const session = localDocumentStorage.open(recovered.id, copy)
+  sessions.push(session)
+  await session.whenSynced
+  expect(copy.getMap('settings').get('unsynced')).toBe('retained work')
+  expect((await localDocumentStorage.get(info.id))?.drive).toMatchObject({
+    dirty: false,
+    quarantined: false,
+    offlineAvailable: false,
+  })
+  expect(updateConceptFile).not.toHaveBeenCalled()
+})
