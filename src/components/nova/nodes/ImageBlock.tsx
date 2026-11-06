@@ -30,6 +30,9 @@ import {
   ContextMenuRadioGroup,
   ContextMenuRadioItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
 } from '#/components/ui/context-menu'
 import { ImageOptionsDialog } from '../images/ImageOptionsDialog'
 import { useDocumentAsset } from '../media/use-document-asset'
@@ -285,31 +288,39 @@ export function ImageBlock({
           {canEdit && (
             <>
               <ContextMenuSeparator />
-              <ContextMenuRadioGroup
-                aria-label="Image alignment"
-                value={alignment}
-                onValueChange={(value) => {
-                  if (
-                    value === 'left' ||
-                    value === 'center' ||
-                    value === 'right'
-                  )
-                    mutate((node) => node.setAlignment(value))
-                }}
-              >
-                <ContextMenuRadioItem value="left">
-                  <AlignLeftIcon aria-hidden="true" />
-                  Align left
-                </ContextMenuRadioItem>
-                <ContextMenuRadioItem value="center">
+              <ContextMenuSub>
+                <ContextMenuSubTrigger className="gap-2">
                   <AlignCenterIcon aria-hidden="true" />
-                  Align center
-                </ContextMenuRadioItem>
-                <ContextMenuRadioItem value="right">
-                  <AlignRightIcon aria-hidden="true" />
-                  Align right
-                </ContextMenuRadioItem>
-              </ContextMenuRadioGroup>
+                  Align image
+                </ContextMenuSubTrigger>
+                <ContextMenuSubContent>
+                  <ContextMenuRadioGroup
+                    aria-label="Image alignment"
+                    value={alignment}
+                    onValueChange={(value) => {
+                      if (
+                        value === 'left' ||
+                        value === 'center' ||
+                        value === 'right'
+                      )
+                        mutate((node) => node.setAlignment(value))
+                    }}
+                  >
+                    <ContextMenuRadioItem value="left">
+                      <AlignLeftIcon aria-hidden="true" />
+                      Align left
+                    </ContextMenuRadioItem>
+                    <ContextMenuRadioItem value="center">
+                      <AlignCenterIcon aria-hidden="true" />
+                      Align center
+                    </ContextMenuRadioItem>
+                    <ContextMenuRadioItem value="right">
+                      <AlignRightIcon aria-hidden="true" />
+                      Align right
+                    </ContextMenuRadioItem>
+                  </ContextMenuRadioGroup>
+                </ContextMenuSubContent>
+              </ContextMenuSub>
               <ContextMenuSeparator />
               <ContextMenuItem
                 variant="destructive"

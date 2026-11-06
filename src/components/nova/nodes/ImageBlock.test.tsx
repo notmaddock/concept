@@ -125,6 +125,12 @@ it('commits mounted metadata controls through bidirectional Yjs and persisted re
         }),
       )
     })
+    expect(document.querySelector('[role="menuitemradio"]')).toBeNull()
+    await act(async () => {
+      document
+        .querySelector<HTMLElement>('[data-slot="context-menu-sub-trigger"]')!
+        .click()
+    })
     expect(
       document.querySelector('[role="menuitemradio"][aria-checked="true"]')!
         .textContent,
@@ -287,7 +293,10 @@ it('commits mounted metadata controls through bidirectional Yjs and persisted re
       ),
     ).toBe(false)
     await act(async () => editor.setEditable(true))
-    expect(document.querySelectorAll('[role="menuitemradio"]').length).toBe(3)
+    expect(
+      document.querySelector('[data-slot="context-menu-sub-trigger"]')!
+        .textContent,
+    ).toContain('Align image')
     await act(async () => {
       Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
         .find((item) => item.textContent.includes('Delete image'))!
