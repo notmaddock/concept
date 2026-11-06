@@ -39,7 +39,7 @@ afterEach(() => {
   Socket.instances = []
 })
 
-async function setup(canWrite = () => true, accountId?: string) {
+async function setup(canWrite = () => true, accountId?: string, ready = true) {
   vi.useFakeTimers()
   vi.stubGlobal('WebSocket', Socket)
   vi.stubGlobal('location', {
@@ -66,19 +66,73 @@ async function setup(canWrite = () => true, accountId?: string) {
   await vi.advanceTimersByTimeAsync(0)
   const socket = Socket.instances.at(0)
   socket?.onopen?.()
-  socket?.onmessage?.({
-    data: JSON.stringify({
-      type: 'ready',
-      connectionId: 'connection-id',
-      readOnly: false,
-      expiresAt: Date.now() + 60_000,
-    }),
-  } as MessageEvent)
+  if (ready)
+    socket?.onmessage?.({
+      data: JSON.stringify({
+        type: 'ready',
+        connectionId: 'connection-id',
+        readOnly: false,
+        expiresAt: Date.now() + 60_000,
+      }),
+    } as MessageEvent)
   if (socket) socket.sent = []
   return { client, doc, socket: socket! }
 }
 
 describe('realtime batching', () => {
+  it('uses one upgrade and sends no document or presence data before the authorized ready grant', async () => {
+    const { client, doc, socket } = await setup(() => true, undefined, false)
+    const awareness = new Awareness(doc)
+    client.attachAwareness(awareness)
+    awareness.setLocalState({ name: 'latest before admission' })
+    doc.getText('text').insert(0, 'local before admission')
+    await vi.advanceTimersByTimeAsync(100)
+    expect(fetch).not.toHaveBeenCalled()
+    expect(Socket.instances).toHaveLength(1)
+    expect(socket.sent).toHaveLength(0)
+    socket.onmessage?.({
+      data: JSON.stringify({
+        type: 'ready',
+        connectionId: 'admitted',
+        readOnly: false,
+        expiresAt: Date.now() + 60_000,
+      }),
+    } as MessageEvent)
+    expect(socket.sent.map((bytes) => decodeFrame(bytes).type)).toEqual([
+      FrameType.StateVector,
+      FrameType.Presence,
+    ])
+    const remoteDoc = new Doc()
+    const remote = new Awareness(remoteDoc)
+    applyAwarenessUpdate(remote, decodeFrame(socket.sent[1]).payload, null)
+    expect(remote.getStates().get(doc.clientID)).toEqual({
+      name: 'latest before admission',
+    })
+    client.stop()
+    awareness.destroy()
+    remote.destroy()
+    doc.destroy()
+    remoteDoc.destroy()
+  })
+
+  it('ignores inbound data before ready and times out an upgrade without a grant', async () => {
+    const { client, doc, socket } = await setup(() => true, undefined, false)
+    const author = new Doc()
+    author.getText('text').insert(0, 'unadmitted update')
+    socket.onmessage?.({
+      data: new Uint8Array(
+        encodeFrames(FrameType.Update, encodeStateAsUpdate(author))[0],
+      ).buffer,
+    } as MessageEvent)
+    expect(doc.getText('text').toString()).toBe('')
+    expect(socket.sent).toHaveLength(0)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(socket.readyState).toBe(3)
+    client.stop()
+    doc.destroy()
+    author.destroy()
+  })
+
   it('renews the existing room grant without interrupting typing or resynchronizing', async () => {
     const { client, doc, socket } = await setup()
     let finishRenewal!: (response: Response) => void
@@ -159,7 +213,8 @@ describe('realtime batching', () => {
 
   it('refuses a room grant from a different linked account', async () => {
     const { client, doc } = await setup(() => true, 'expected-account')
-    expect(Socket.instances).toHaveLength(0)
+    expect(Socket.instances).toHaveLength(1)
+    expect(Socket.instances[0].readyState).toBe(3)
     client.stop()
     doc.destroy()
   })
@@ -226,6 +281,7 @@ describe('realtime batching', () => {
     const { client, doc, socket } = await setup()
     const awareness = new Awareness(doc)
     client.attachAwareness(awareness)
+    socket.sent = []
     awareness.setLocalState({ name: 'first' })
     await vi.advanceTimersByTimeAsync(60)
     awareness.setLocalState({ name: 'latest' })
@@ -252,7 +308,16 @@ describe('realtime batching', () => {
     await vi.advanceTimersByTimeAsync(5000)
     const reconnected = Socket.instances[1]
     reconnected.onopen?.()
-    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(reconnected.sent).toHaveLength(0)
+    reconnected.onmessage?.({
+      data: JSON.stringify({
+        type: 'ready',
+        connectionId: 'reconnected',
+        readOnly: false,
+        expiresAt: Date.now() + 60_000,
+      }),
+    } as MessageEvent)
+    expect(fetch).not.toHaveBeenCalled()
     expect(reconnected.sent.map((bytes) => decodeFrame(bytes).type)).toEqual([
       FrameType.StateVector,
     ])

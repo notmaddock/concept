@@ -73,6 +73,8 @@ export class RealtimeClient {
     if (!this.stopped || !this.config.enabled) return
     this.stopped = false
     this.options.doc.on('update', this.changed)
+    this.awareness?.off('update', this.presenceChanged)
+    this.awareness?.on('update', this.presenceChanged)
     void this.connect()
   }
 
@@ -89,7 +91,7 @@ export class RealtimeClient {
     this.retry = setTimeout(() => void this.connect(), 5000)
   }
 
-  private async connect() {
+  private connect() {
     const generation = ++this.generation
     clearTimeout(this.renewal)
     clearTimeout(this.expiry)
@@ -104,37 +106,6 @@ export class RealtimeClient {
       const query = new URLSearchParams({ fileId: this.options.fileId })
       if (this.options.resourceKey)
         query.set('resourceKey', this.options.resourceKey)
-      const response = await fetch(`/api/realtime/access?${query}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        cache: 'no-store',
-      })
-      if (!this.isCurrent(generation)) return
-      if (!response.ok) {
-        if ([401, 403, 404].includes(response.status)) {
-          this.options.onAccess()
-          this.stop()
-        } else this.scheduleReconnect()
-        return
-      }
-      const grant = (await response.json()) as Grant
-      if (!this.isCurrent(generation)) return
-      if (
-        this.options.accountId &&
-        grant.accountId !== this.options.accountId
-      ) {
-        this.stop()
-        this.options.onAccess()
-        return
-      }
-      if (
-        typeof grant.readOnly !== 'boolean' ||
-        !Number.isFinite(grant.expiresAt) ||
-        grant.expiresAt <= Date.now()
-      )
-        throw new Error('Invalid realtime grant.')
-      this.writable = !grant.readOnly
-      this.expiresAt = Math.min(grant.expiresAt, Date.now() + 60_000)
       const url = new URL(`/api/realtime/socket?${query}`, location.origin)
       url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
       const socket = new WebSocket(url)
@@ -145,18 +116,14 @@ export class RealtimeClient {
           socket.close()
           return
         }
-        this.send(FrameType.StateVector, encodeStateVector(this.options.doc))
-        this.queuePresence()
-        clearTimeout(this.retry)
-        this.scheduleExpiry(generation)
       }
+      this.expiry = setTimeout(() => {
+        if (!this.isCurrent(generation) || this.connectionId) return
+        socket.close()
+        this.scheduleReconnect()
+      }, 60_000)
       socket.onmessage = (event: MessageEvent<unknown>) => {
-        if (
-          this.stopped ||
-          generation !== this.generation ||
-          Date.now() >= this.expiresAt
-        )
-          return
+        if (this.stopped || generation !== this.generation) return
         try {
           if (typeof event.data === 'string') {
             const ready = JSON.parse(event.data) as {
@@ -170,6 +137,8 @@ export class RealtimeClient {
               ready.type !== 'ready' ||
               typeof ready.readOnly !== 'boolean' ||
               !Number.isFinite(ready.expiresAt) ||
+              ready.expiresAt! <= Date.now() ||
+              Boolean(this.connectionId) ||
               typeof ready.connectionId !== 'string' ||
               !ready.connectionId ||
               ready.connectionId.length > 128 ||
@@ -183,8 +152,14 @@ export class RealtimeClient {
             this.scheduleExpiry(generation)
             this.scheduleRenewal(generation)
             if (!this.writable) this.clearQueue()
+            this.send(
+              FrameType.StateVector,
+              encodeStateVector(this.options.doc),
+            )
+            this.sendInitialPresence()
             return
           }
+          if (!this.connectionId || Date.now() >= this.expiresAt) return
           if (!(event.data instanceof ArrayBuffer))
             throw new Error('Invalid realtime data.')
           this.send(FrameType.Ack, new Uint8Array())
@@ -328,12 +303,16 @@ export class RealtimeClient {
 
   private canWrite() {
     return (
-      this.writable && this.options.canWrite() && Date.now() < this.expiresAt
+      Boolean(this.connectionId) &&
+      this.writable &&
+      this.options.canWrite() &&
+      Date.now() < this.expiresAt
     )
   }
 
   private send(type: FrameType, payload: Uint8Array) {
     if (
+      !this.connectionId ||
       this.socket?.readyState !== WebSocket.OPEN ||
       Date.now() >= this.expiresAt
     )
@@ -391,11 +370,23 @@ export class RealtimeClient {
     this.awareness?.off('update', this.presenceChanged)
     this.awareness = awareness
     awareness.on('update', this.presenceChanged)
-    this.queuePresence()
+    this.sendInitialPresence()
     return () => {
       awareness.off('update', this.presenceChanged)
       if (this.awareness === awareness) this.awareness = undefined
     }
+  }
+
+  private sendInitialPresence() {
+    if (this.stopped || !this.awareness || !this.connectionId) return
+    clearTimeout(this.presenceTimer)
+    this.presenceTimer = undefined
+    this.latestPresence = undefined
+    const presence = encodeAwarenessUpdate(this.awareness, [
+      this.options.doc.clientID,
+    ])
+    if (presence.length <= limits.maxPresenceBytes)
+      this.send(FrameType.Presence, presence)
   }
 
   private presenceChanged = (_changes: unknown, origin: unknown) => {
