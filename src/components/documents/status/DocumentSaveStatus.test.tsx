@@ -55,7 +55,7 @@ it('identifies a local save destination', async () => {
   )
 })
 
-it('uses a controlled offline toggle and exposes the containing folder action', async () => {
+it('uses a controlled offline switch and exposes the containing folder action', async () => {
   const onOfflineChange = vi.fn()
   const onOpenContainingFolder = vi.fn()
   const renderStatus = async (offlineAvailable: boolean) => {
@@ -70,19 +70,20 @@ it('uses a controlled offline toggle and exposes the containing folder action', 
       )
     })
   }
+  const getSwitch = () =>
+    document.body.querySelector<HTMLElement>('[role="switch"]')!
   await renderStatus(false)
   await act(async () => container.querySelector('button')!.click())
-  const toggle = document.body.querySelector<HTMLButtonElement>(
-    '[data-slot="toggle"]',
-  )!
-  expect(toggle.textContent).toBe('Available offline')
-  expect(toggle.getAttribute('aria-pressed')).toBe('false')
-  await act(async () => toggle.click())
-  expect(onOfflineChange).toHaveBeenCalledWith(true, expect.anything())
+  expect(getSwitch().getAttribute('aria-checked')).toBe('false')
+  const label = getSwitch().closest('label')!
+  expect(label.textContent).toContain('Available offline')
+  await act(async () => label.click())
+  expect(onOfflineChange).toHaveBeenCalledWith(true)
   await renderStatus(true)
-  expect(toggle.getAttribute('aria-pressed')).toBe('true')
-  await act(async () => toggle.click())
-  expect(onOfflineChange).toHaveBeenLastCalledWith(false, expect.anything())
+  expect(getSwitch().getAttribute('aria-checked')).toBe('true')
+  await act(async () => getSwitch().click())
+  expect(onOfflineChange).toHaveBeenCalledWith(false)
+  expect(onOfflineChange).toHaveBeenCalledTimes(2)
   const folder = Array.from(document.body.querySelectorAll('button')).find(
     (button) => button.textContent === 'Open containing folder',
   )!

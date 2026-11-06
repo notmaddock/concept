@@ -34,6 +34,12 @@ import { createDocumentAssetResolver } from './asset-session'
 import type { DocumentAssetResolver } from './asset-session'
 import type { PublicationTransport } from './publication'
 import type { DriveFileVersion } from './drive/api'
+import { capabilitiesFromDrive } from './realtime/capabilities'
+import {
+  isLiveCollaborationEnabled,
+  subscribeLiveCollaboration,
+} from './realtime/preferences'
+import type { RealtimeProvider, RealtimeState } from './realtime/realtime'
 
 export const assetReconciliation = assetRetryPolicy
 
@@ -59,12 +65,25 @@ export interface SaveStatus {
   error?: string
   offlineAvailable?: boolean
   readOnly?: boolean
+  realtime?: RealtimeState
 }
 
 const emptyStatus: SaveStatus = { phase: 'loading' }
 const statuses = new Map<string, SaveStatus>()
 const listeners = new Set<() => void>()
 export const documentSessions = new Map<string, DocumentSync>()
+const realtimeProviders = new Map<string, RealtimeProvider>()
+const realtimeProviderListeners = new Set<() => void>()
+export const getRealtimeProvider = (id: string) => realtimeProviders.get(id)
+export function subscribeRealtimeProviders(listener: () => void) {
+  realtimeProviderListeners.add(listener)
+  return () => {
+    realtimeProviderListeners.delete(listener)
+  }
+}
+function notifyRealtimeProviders() {
+  realtimeProviderListeners.forEach((listener) => listener())
+}
 export const subscribeSaveStatus = (listener: () => void) => {
   listeners.add(listener)
   return () => {
@@ -106,6 +125,7 @@ export class DocumentSync {
   private retryCount = 0
   private metadataVersion = 0
   private unsubscribePublication?: () => void
+  private unsubscribeRealtime?: () => void
   private unsubscribeAssets?: () => void
   private missingTimer?: ReturnType<typeof setTimeout>
   private missingAttempts = 0
@@ -114,11 +134,18 @@ export class DocumentSync {
   private urgent = false
   private reconcileAgain = false
   private unsubscribeAuth?: () => void
+  private unsubscribeLiveCollaboration?: () => void
+  private realtimeProvider?: RealtimeProvider
+  private realtimePending = false
   private readonly abort = new AbortController()
   private isStopped = () => this.stopped
 
   get isReadOnly() {
     return Boolean(this.info.readOnly || this.info.drive?.readOnly)
+  }
+
+  get realtime() {
+    return this.realtimeProvider
   }
 
   constructor(
@@ -127,10 +154,19 @@ export class DocumentSync {
     private persistence: DocumentPersistence,
     private publication?: PublicationTransport,
     private background = false,
+    realtime?: RealtimeProvider,
+    private readonly createRealtime?: () => Promise<
+      RealtimeProvider | undefined
+    >,
   ) {
     this.dirty = info.drive?.dirty ?? false
     this.etag = info.drive?.etag
     this.remoteFilename = info.drive?.remoteFilename
+    this.realtimeProvider = realtime
+    if (realtime && !background) {
+      realtimeProviders.set(info.id, realtime)
+      notifyRealtimeProviders()
+    }
     this.setStatus({
       phase: 'loading',
       offlineAvailable: info.drive?.offlineAvailable,
@@ -271,6 +307,12 @@ export class DocumentSync {
     this.unsubscribePublication = this.publication?.subscribe(() => {
       if (this.info.drive && isGoogleDriveConnected()) this.check()
     })
+    if (this.info.drive && !this.background) {
+      this.unsubscribeLiveCollaboration = subscribeLiveCollaboration(() => {
+        void this.applyLiveCollaboration()
+      })
+      await this.applyLiveCollaboration()
+    }
     document.addEventListener('visibilitychange', this.visibilityChanged)
     this.scheduleMissingCheck()
     if (this.info.drive)
@@ -343,6 +385,73 @@ export class DocumentSync {
     }))
   }
 
+  private realtimeChanged() {
+    const provider = this.realtimeProvider
+    if (!provider) return
+    const state = provider.getState()
+    const wasRevoked = this.saveStatus.realtime?.status === 'revoked'
+    const next: RealtimeState =
+      state.status === 'disconnected' && !isLiveCollaborationEnabled()
+        ? { ...state, status: 'disabled', peers: 0, collaborators: [] }
+        : state
+    this.setStatus({ ...this.saveStatus, realtime: next })
+    if (state.status === 'revoked' && !wasRevoked)
+      toast.error('Your access to this document changed on Google Drive.', {
+        id: 'realtime-revoked:' + this.info.id,
+      })
+  }
+
+  /**
+   * Applies the live-collaboration preference to the transport. The provider
+   * is created lazily so a document opened with collaboration off never loads
+   * or connects the realtime channel until the user turns it on.
+   */
+  private async applyLiveCollaboration() {
+    if (this.isStopped() || !this.info.drive || this.background) return
+    if (!isLiveCollaborationEnabled()) {
+      this.realtimeProvider?.disconnect()
+      this.realtimeChanged()
+      return
+    }
+    if (this.realtimeProvider) {
+      this.realtimeProvider.connect()
+      this.realtimeChanged()
+      return
+    }
+    await this.ensureRealtimeProvider()
+  }
+
+  private async ensureRealtimeProvider() {
+    if (
+      this.isStopped() ||
+      this.realtimeProvider ||
+      this.realtimePending ||
+      !this.createRealtime
+    )
+      return
+    this.realtimePending = true
+    try {
+      const provider = await this.createRealtime().catch(() => undefined)
+      if (!provider) return
+      // The preference can change while the provider module or ticket loads.
+      if (this.isStopped() || !isLiveCollaborationEnabled()) {
+        provider.close()
+        return
+      }
+      this.realtimeProvider = provider
+      realtimeProviders.set(this.info.id, provider)
+      notifyRealtimeProviders()
+      provider.attach(this.doc)
+      this.unsubscribeRealtime = provider.subscribe(() =>
+        this.realtimeChanged(),
+      )
+      provider.connect()
+      this.realtimeChanged()
+    } finally {
+      this.realtimePending = false
+    }
+  }
+
   private publishSyncState() {
     if (this.dirty && this.isReadOnly) {
       const message =
@@ -375,6 +484,9 @@ export class DocumentSync {
       this.info.drive!.fileId,
       this.abort.signal,
       initial,
+    )
+    this.realtimeProvider?.sendCapabilities(
+      capabilitiesFromDrive(remote.file.capabilities),
     )
     if (this.isStopped()) return
     const parsed = await readConcept(
@@ -486,6 +598,10 @@ export class DocumentSync {
         this.etag && this.acknowledged
           ? await getFileMetadata(this.info.drive!.fileId, this.abort.signal)
           : undefined
+      if (current)
+        this.realtimeProvider?.sendCapabilities(
+          capabilitiesFromDrive(current.file.capabilities),
+        )
       const permissionsChanged =
         current?.file.capabilities !== undefined &&
         isDriveFileReadOnly(current.file) !== this.isReadOnly
@@ -558,6 +674,7 @@ export class DocumentSync {
           validator: remote.etag,
           revision,
         })
+        this.realtimeProvider?.notifyPublication()
         const generation = this.version
         this.dirty = await this.differsFrom(revision)
         this.dirty ||= generation !== this.version
@@ -767,6 +884,18 @@ export class DocumentSync {
     this.assets?.close()
     this.unsubscribePublication?.()
     this.publication?.close()
+    this.unsubscribeLiveCollaboration?.()
+    this.unsubscribeRealtime?.()
+    this.realtimeProvider?.detach()
+    this.realtimeProvider?.close()
+    if (
+      this.realtimeProvider &&
+      !this.background &&
+      realtimeProviders.get(this.info.id) === this.realtimeProvider
+    ) {
+      realtimeProviders.delete(this.info.id)
+      notifyRealtimeProviders()
+    }
     clearTimeout(this.missingTimer)
     document.removeEventListener('visibilitychange', this.visibilityChanged)
     window.removeEventListener('focus', this.check)

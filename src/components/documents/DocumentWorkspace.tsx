@@ -3,7 +3,7 @@ import {
   DocumentWorkspaceProvider,
   useDocumentWorkspace,
 } from './document-workspace-context'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   FileTextIcon,
@@ -13,6 +13,11 @@ import {
 } from 'lucide-react'
 import { DocumentSaveStatus } from './status/DocumentSaveStatus'
 import { DocumentAccessStatus } from './status/DocumentAccessStatus'
+import {
+  findCollaboratorCaret,
+  revealCollaboratorCaret,
+} from './status/collaborator-cursor'
+import { toast } from 'sonner'
 import { ProvidersDialog } from './dialogs/ProvidersDialog'
 import { Button } from '#/components/ui/button'
 import {
@@ -47,6 +52,12 @@ import {
 import { DocumentNavigation } from './DocumentNavigation'
 import { DocumentList } from './list/DocumentList'
 import { DocumentLoading } from './status/DocumentLoading'
+import {
+  isLiveCollaborationEnabled,
+  setLiveCollaborationEnabled,
+  subscribeLiveCollaboration,
+} from '#/lib/documents/realtime/preferences'
+import type { RealtimeState } from '#/lib/documents/realtime/realtime'
 import { DocumentEditor } from './DocumentEditor'
 import { DriveIcon } from './icons/DriveIcon'
 import { AppToaster } from '#/components/app-toaster'
@@ -73,6 +84,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     deleteDocument,
     documentRef,
     editorRef,
+    cursorsContainerRef,
     pageSetupOpen,
     onPageSetupOpenChange,
     saveStatus,
@@ -88,6 +100,11 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     pickerLoading,
   } = useDocumentWorkspace()
   const [providersOpen, setProvidersOpen] = useState(false)
+  const liveCollaboration = useSyncExternalStore(
+    subscribeLiveCollaboration,
+    isLiveCollaborationEnabled,
+    () => true,
+  )
 
   return (
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
@@ -202,7 +219,26 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                   readOnly={Boolean(
                     document.readOnly || document.drive?.readOnly,
                   )}
-                  provider={document.drive ? 'google-drive' : undefined}
+                  realtime={
+                    (saveStatus as { realtime?: RealtimeState }).realtime
+                  }
+                  storageName={document.drive ? 'Google Drive' : undefined}
+                  liveCollaboration={liveCollaboration}
+                  onLiveCollaborationChange={setLiveCollaborationEnabled}
+                  onJumpToCollaborator={(collaborator) => {
+                    const caret = findCollaboratorCaret(
+                      cursorsContainerRef.current,
+                      collaborator,
+                    )
+                    if (!caret) {
+                      toast.error(
+                        `${collaborator.name ?? 'That collaborator'} is not editing right now.`,
+                        { id: 'realtime-jump' },
+                      )
+                      return
+                    }
+                    revealCollaboratorCaret(caret)
+                  }}
                 />
               </div>
             )}

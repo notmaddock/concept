@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import type { SaveStatus } from '#/lib/documents/sync'
 import { Button } from '#/components/ui/button'
-import { Toggle } from '#/components/ui/toggle'
+import { Switch } from '#/components/ui/switch'
 import {
   Popover,
   PopoverContent,
@@ -172,15 +172,17 @@ export function DocumentSaveStatus({
           <p className="text-xs text-muted-foreground">{status.error}</p>
         )}
         {provider && onOfflineChange && (
-          <Toggle
-            variant="outline"
-            size="sm"
-            pressed={status.offlineAvailable ?? false}
-            onPressedChange={onOfflineChange}
-          >
-            <HardDriveIcon className="size-4" />
-            Available offline
-          </Toggle>
+          <label className="flex items-center justify-between gap-3 text-sm font-medium">
+            <span className="flex items-center gap-2">
+              <HardDriveIcon className="size-4" />
+              Available offline
+            </span>
+            <Switch
+              size="sm"
+              checked={status.offlineAvailable ?? false}
+              onCheckedChange={(value) => onOfflineChange(value)}
+            />
+          </label>
         )}
         {onOpenContainingFolder && (
           <Button variant="outline" size="sm" onClick={onOpenContainingFolder}>

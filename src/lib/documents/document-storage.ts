@@ -15,6 +15,7 @@ import {
   listConceptFiles,
   trashConceptFile,
 } from './drive/api'
+import { createRealtimeProvider } from './realtime/factory'
 
 export async function refreshDriveDocuments() {
   const files = await listConceptFiles()
@@ -139,12 +140,22 @@ function openDocumentSession(id: string, doc: Doc, background = false) {
     local = localDocumentStorage.open(id, doc)
     await local.whenSynced
     if (isClosed()) return
+    const createRealtime =
+      info.drive && !background
+        ? () =>
+            createRealtimeProvider({
+              storage: 'google-drive',
+              fileId: info.drive!.fileId,
+            })
+        : undefined
     sync = new DocumentSync(
       info,
       doc,
       local,
       info.drive ? openPublicationTransport(info.drive.fileId) : undefined,
       background,
+      undefined,
+      createRealtime,
     )
     await sync.start()
   })()

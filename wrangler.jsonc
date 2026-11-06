@@ -1,8 +1,22 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "concept",
-  "main": "@tanstack/react-start/server-entry",
+  "main": "./worker.ts",
   "compatibility_date": "2026-09-11",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "REALTIME",
+        "class_name": "DocumentRealtimeDO",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DocumentRealtimeDO"],
+    },
+  ],
   "observability": {
     "enabled": true,
     "traces": {
@@ -24,6 +38,14 @@
         "migrations_dir": "migrations",
       },
     ],
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "REALTIME",
+          "class_name": "DocumentRealtimeDO",
+        },
+      ],
+    },
   },
   "d1_databases": [
     {

@@ -1,5 +1,19 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "REALTIME",
+        "class_name": "DocumentRealtimeDO",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DocumentRealtimeDO"],
+    },
+  ],
   "d1_databases": [
     {
       "binding": "PREVIEW_DB",

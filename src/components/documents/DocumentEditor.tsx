@@ -1,7 +1,8 @@
 import type { RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'
 import type { DocumentPersistence } from '#/lib/documents/storage'
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
+import type { Awareness } from 'y-protocols/awareness'
 import { LexicalCollaboration } from '@lexical/react/LexicalCollaborationContext'
 import { CollaborationPlugin } from '@lexical/react/LexicalCollaborationPlugin'
 import { FileTextIcon } from 'lucide-react'
@@ -21,6 +22,7 @@ import { DriveIcon } from './icons/DriveIcon'
 import { DocumentWorkspaceContext } from './document-workspace-store'
 import { Nova } from '#/components/nova/Nova'
 import {
+  getSessionProfile,
   isGoogleDriveAuthError,
   isGoogleDriveConnected,
 } from '#/lib/documents/drive/auth'
@@ -29,8 +31,13 @@ import { LocalProvider } from '#/lib/documents/local-provider'
 import { DocumentMediaContext } from '#/components/nova/media/document-media-context'
 import type { DocumentMediaSession } from '#/components/nova/media/document-media-context'
 import { insertDocumentAssets } from '#/lib/documents/asset-session'
-import { documentSessions } from '#/lib/documents/sync'
+import {
+  documentSessions,
+  getRealtimeProvider,
+  subscribeRealtimeProviders,
+} from '#/lib/documents/sync'
 import { documentStorage } from '#/lib/documents/document-storage'
+import { bridgeAwareness } from '#/lib/documents/realtime/awareness-bridge'
 
 export function DocumentEditor({
   documentRef,
@@ -51,11 +58,19 @@ export function DocumentEditor({
   const [error, setError] = useState('')
   const [authError, setAuthError] = useState(false)
   const [ready, setReady] = useState(false)
+  const localCursorsContainerRef = useRef<HTMLDivElement | null>(null)
+  const cursorsContainerRef =
+    workspace?.cursorsContainerRef ?? localCursorsContainerRef
   const [session, setSession] = useState<{
     doc: Doc
     provider: LocalProvider
     media: DocumentMediaSession
   } | null>(null)
+  const [profile, setProfile] = useState<{ name?: string; image?: string }>()
+  const awarenessData = useMemo(
+    () => (profile?.image ? { avatar: profile.image } : undefined),
+    [profile?.image],
+  )
 
   useEffect(() => {
     setError('')
@@ -145,9 +160,51 @@ export function DocumentEditor({
   }, [id, documentRef, workspace?.driveConnected])
 
   useEffect(() => {
+    const connected = workspace?.driveConnected ?? isGoogleDriveConnected()
+    if (!id.startsWith('G') || !connected) {
+      setProfile(undefined)
+      return
+    }
+    let active = true
+    void getSessionProfile().then((next) => {
+      if (active) setProfile(next)
+    })
+    return () => {
+      active = false
+    }
+  }, [id, workspace?.driveConnected])
+
+  useEffect(() => {
     if (ready && window.document.activeElement === window.document.body)
       editorRef?.current?.focus()
   }, [ready, editorRef])
+
+  useEffect(() => {
+    const editor = editorRef?.current
+    if (!ready || !editor || !session) return
+    let unbridge: (() => void) | undefined
+    let bridged: Awareness | undefined
+
+    const attach = () => {
+      const next = getRealtimeProvider(id)?.awareness
+      if (next === bridged) return
+      unbridge?.()
+      bridged = next
+      unbridge = next
+        ? bridgeAwareness(
+            session.provider.awareness as unknown as Awareness,
+            next,
+          )
+        : undefined
+    }
+
+    attach()
+    const unsubscribe = subscribeRealtimeProviders(attach)
+    return () => {
+      unsubscribe()
+      unbridge?.()
+    }
+  }, [ready, id, editorRef, session])
 
   if (error) {
     const connectDrive =
@@ -216,16 +273,21 @@ export function DocumentEditor({
             <Nova
               key={session.doc.guid}
               editorRef={editorRef}
+              cursorsContainerRef={cursorsContainerRef}
               mode={mode}
               pageSetupOpen={pageSetupOpen}
               onPageSetupOpenChange={onPageSetupOpenChange}
               collaboration={
                 <CollaborationPlugin
                   id={id}
+                  username={profile?.name}
+                  awarenessData={awarenessData}
                   providerFactory={(_, documents) => {
                     documents.set(id, session.doc)
                     return session.provider
                   }}
+                  cursorsContainerRef={cursorsContainerRef}
+                  selectionHighlight
                   shouldBootstrap={false}
                 />
               }

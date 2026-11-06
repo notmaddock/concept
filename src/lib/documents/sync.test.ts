@@ -19,6 +19,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
 import { serializeConcept } from './serialization'
 import { DocumentSync, documentSessions, getSaveStatus } from './sync'
+import { setLiveCollaborationEnabled } from './realtime/preferences'
+import type { RealtimeProvider, RealtimeState } from './realtime/realtime'
 import {
   DriveError,
   getFileMetadata,
@@ -109,6 +111,35 @@ async function start() {
   await session.start()
 }
 
+function fakeRealtime() {
+  const listeners = new Set<() => void>()
+  let state: RealtimeState = { status: 'disconnected', peers: 0 }
+  const provider: RealtimeProvider = {
+    handle: { storage: 'google-drive', fileId: 'drive-file' },
+    awareness: {} as RealtimeProvider['awareness'],
+    connect: vi.fn(() => {
+      state = { status: 'connecting', peers: 0 }
+      listeners.forEach((listener) => listener())
+    }),
+    disconnect: vi.fn(() => {
+      state = { status: 'disconnected', peers: 0 }
+    }),
+    close: vi.fn(),
+    attach: vi.fn(),
+    detach: vi.fn(),
+    sendCapabilities: vi.fn(),
+    notifyPublication: vi.fn(),
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    getState: () => state,
+  }
+  return provider
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((done) => {
@@ -181,6 +212,7 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
+  setLiveCollaborationEnabled(true)
   await session.stop()
   unsubscribeAssets()
   unregisterCollector()
@@ -189,6 +221,52 @@ afterEach(async () => {
   local.destroy()
   remote.destroy()
   vi.useRealTimers()
+})
+
+it('connects and disconnects the realtime provider with the live collaboration preference', async () => {
+  const provider = fakeRealtime()
+  session = new DocumentSync(
+    info,
+    local,
+    { whenSynced: Promise.resolve(), flush, destroy: async () => {} },
+    undefined,
+    false,
+    provider,
+  )
+  await session.start()
+  expect(provider.connect).toHaveBeenCalledOnce()
+  expect(getSaveStatus(info.id).realtime?.status).toBe('connecting')
+
+  setLiveCollaborationEnabled(false)
+  expect(provider.disconnect).toHaveBeenCalledOnce()
+  expect(getSaveStatus(info.id).realtime?.status).toBe('disabled')
+
+  setLiveCollaborationEnabled(true)
+  expect(provider.connect).toHaveBeenCalledTimes(2)
+  expect(getSaveStatus(info.id).realtime?.status).toBe('connecting')
+})
+
+it('creates the realtime provider lazily when collaboration is enabled later', async () => {
+  setLiveCollaborationEnabled(false)
+  const provider = fakeRealtime()
+  const createRealtime = vi.fn(async () => provider)
+  session = new DocumentSync(
+    info,
+    local,
+    { whenSynced: Promise.resolve(), flush, destroy: async () => {} },
+    undefined,
+    false,
+    undefined,
+    createRealtime,
+  )
+  await session.start()
+  expect(createRealtime).not.toHaveBeenCalled()
+  expect(provider.connect).not.toHaveBeenCalled()
+
+  setLiveCollaborationEnabled(true)
+  await vi.waitFor(() => expect(provider.connect).toHaveBeenCalledOnce())
+  expect(createRealtime).toHaveBeenCalledOnce()
+  expect(provider.attach).toHaveBeenCalledWith(local)
 })
 
 it('waits for three idle seconds and does not write a clean document', async () => {
