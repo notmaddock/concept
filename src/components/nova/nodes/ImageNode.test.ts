@@ -276,6 +276,11 @@ it('reloads edited placement metadata and source from a persisted binding snapsh
 
 it('inherits validated resizing without mutating previous editor snapshots', () => {
   const { editor, close } = client()
+  const getImage = () => {
+    const node = $getRoot().getFirstChildOrThrow()
+    if (!(node instanceof ImageNode)) throw new Error('Expected image')
+    return node
+  }
   try {
     editor.update(
       () => {
@@ -288,24 +293,16 @@ it('inherits validated resizing without mutating previous editor snapshots', () 
     const previous = editor.getEditorState()
     editor.update(
       () => {
-        const image = $getRoot().getFirstChildOrThrow<ImageNode>()
+        const image = getImage()
         image.setDisplayWidth(320).setAltText('Resized')
         expect(() => image.setDisplayWidth(Infinity)).toThrow()
         expect(() => image.setDisplayWidth(16385)).toThrow()
       },
       { discrete: true },
     )
+    expect(previous.read(() => getImage().getDisplayWidth())).toBe(200)
     expect(
-      previous.read(() =>
-        $getRoot().getFirstChildOrThrow<ImageNode>().getDisplayWidth(),
-      ),
-    ).toBe(200)
-    expect(
-      editor
-        .getEditorState()
-        .read(() =>
-          $getRoot().getFirstChildOrThrow<ImageNode>().getDisplayWidth(),
-        ),
+      editor.getEditorState().read(() => getImage().getDisplayWidth()),
     ).toBe(320)
   } finally {
     close()
