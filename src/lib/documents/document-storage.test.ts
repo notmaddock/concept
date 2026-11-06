@@ -1,3 +1,4 @@
+import type * as DriveApi from './drive/api'
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { applyUpdate, Doc, encodeStateAsUpdate, XmlText } from 'yjs'
@@ -25,34 +26,19 @@ import {
 
 const auth = vi.hoisted(() => {
   class AuthRequired extends Error {}
-  return { AuthRequired }
+  return { AuthRequired, accountId: undefined as string | undefined }
 })
 
 vi.mock('./drive/auth', () => ({
-  getGoogleDriveAccountId: () => undefined,
+  getGoogleDriveAccountId: () => auth.accountId,
   isGoogleDriveAuthError: (error: unknown) =>
     error instanceof auth.AuthRequired,
   subscribeGoogleDriveAuth: () => () => {},
   isGoogleDriveConnected: () => true,
 }))
 
-vi.mock('./drive/api', () => ({
-  DriveError: class extends Error {
-    constructor(
-      readonly status: number,
-      message: string,
-    ) {
-      super(message)
-    }
-  },
-  isDriveFileReadOnly: (file: {
-    capabilities?: { canEdit?: boolean; canModifyContent?: boolean }
-  }) =>
-    Boolean(
-      file.capabilities &&
-      (file.capabilities.canEdit === false ||
-        file.capabilities.canModifyContent === false),
-    ),
+vi.mock('./drive/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof DriveApi>()),
   getFileMetadata: vi.fn(),
   getDriveResourceKey: () => undefined,
   rememberDriveResourceKey: vi.fn(),
@@ -72,6 +58,7 @@ let docs: Array<Doc>
 let sessions: Array<DocumentPersistence>
 
 beforeEach(() => {
+  auth.accountId = undefined
   vi.clearAllMocks()
   vi.stubGlobal('indexedDB', new IDBFactory())
   docs = []
@@ -92,6 +79,11 @@ beforeEach(() => {
     file: {
       id: fileId,
       name: `${info.name}.concept`,
+      capabilities: {
+        canDownload: true,
+        canEdit: true,
+        canModifyContent: true,
+      },
       mimeType: 'application/vnd.concept+json',
       modifiedTime: '2026-11-03T12:00:00.000Z',
       version: '3',
@@ -108,6 +100,47 @@ beforeEach(() => {
     etag: '"saved-version"',
   })
   vi.mocked(trashConceptFile).mockResolvedValue(undefined)
+})
+
+it('opens a fresh authorized account cache while retaining prior account work privately', async () => {
+  await localDocumentStorage.put({
+    ...info,
+    drive: { ...info.drive!, accountId: 'previous', dirty: true },
+  })
+  const previous = new Doc()
+  const previousSession = localDocumentStorage.open(info.id, previous)
+  await previousSession.whenSynced
+  previous.getText('private').insert(0, 'previous account draft')
+  await previousSession.flush?.()
+  await previousSession.destroy()
+  previous.destroy()
+  auth.accountId = 'current'
+  const current = await documentStorage.get(info.id)
+  expect(current?.drive?.accountId).toBe('current')
+  expect(current?.drive?.dirty).toBeUndefined()
+  expect((await documentStorage.list()).map((document) => document.id)).toEqual(
+    [info.id],
+  )
+  const archive = (await localDocumentStorage.list()).find(
+    (document) => document.drive?.recoveryOnly,
+  )
+  expect(archive?.drive?.accountId).toBe('previous')
+  await expect(documentStorage.get(archive!.id)).rejects.toThrow(
+    'different Google account',
+  )
+  auth.accountId = 'previous'
+  const visible = await documentStorage.get(archive!.id)
+  expect(visible?.drive?.recoveryOnly).toBe(true)
+  const recovered = await recoverDocumentLocally(archive!.id)
+  const restored = new Doc()
+  const restoredSession = localDocumentStorage.open(recovered.id, restored)
+  await restoredSession.whenSynced
+  expect(restored.getText('private').toString()).toBe('previous account draft')
+  await restoredSession.destroy()
+  restored.destroy()
+  expect((await localDocumentStorage.get(info.id))?.drive?.accountId).toBe(
+    'current',
+  )
 })
 
 afterEach(async () => {
@@ -379,7 +412,11 @@ it('marks directly opened view-only Drive files as readOnly and preserves it in 
       mimeType: 'application/vnd.concept+json',
       modifiedTime: '2026-11-03T12:00:00.000Z',
       version: '4',
-      capabilities: { canEdit: false, canModifyContent: false },
+      capabilities: {
+        canDownload: true,
+        canEdit: false,
+        canModifyContent: false,
+      },
     },
   })
   const registered = await documentStorage.get(info.id)
@@ -452,7 +489,7 @@ it('rejects a rename when opening the cached document reveals read-only access',
       id: info.drive!.fileId,
       name: `${info.name}.concept`,
       mimeType: 'application/vnd.concept+json',
-      capabilities: { canEdit: false },
+      capabilities: { canDownload: true, canEdit: false },
     },
     content: legacyBytes(info.name, remote),
   })

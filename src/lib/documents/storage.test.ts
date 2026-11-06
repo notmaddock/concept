@@ -253,7 +253,11 @@ it('batches metadata persistence during rapid Drive edits and reports sync failu
     etag: '"v1"',
     file: {
       id: 'drive-id',
-      capabilities: { canEdit: true, canModifyContent: true },
+      capabilities: {
+        canDownload: true,
+        canEdit: true,
+        canModifyContent: true,
+      },
       name: 'Doc.concept',
       mimeType: 'application/vnd.concept+json',
     },
@@ -267,7 +271,11 @@ it('batches metadata persistence during rapid Drive edits and reports sync failu
       id: 'drive-id',
       name: 'Doc.concept',
       mimeType: 'application/vnd.concept+json',
-      capabilities: { canEdit: true, canModifyContent: true },
+      capabilities: {
+        canDownload: true,
+        canEdit: true,
+        canModifyContent: true,
+      },
     },
   })
   const { localDocumentStorage: activeLocalStorage } = await import('./storage')
@@ -310,4 +318,45 @@ it('batches metadata persistence during rapid Drive edits and reports sync failu
     readSpy.mockRestore()
     patchSpy.mockRestore()
   }
+})
+
+it('archives prior account work before replacing a canonical Drive cache', async () => {
+  const id = 'Gshared-account-file'
+  await localDocumentStorage.put({
+    id,
+    name: 'Private draft',
+    updatedAt: 1,
+    drive: {
+      fileId: 'shared-account-file',
+      accountId: 'old-account',
+      offlineAvailable: true,
+      dirty: true,
+    },
+  })
+  const original = await open(id)
+  original.doc.getText('private').insert(0, 'retained old account work')
+  await original.session.flush?.()
+  const replacement = {
+    id,
+    name: 'Fresh remote',
+    updatedAt: 2,
+    drive: {
+      fileId: 'shared-account-file',
+      accountId: 'new-account',
+      offlineAvailable: false,
+    },
+  }
+  await localDocumentStorage.archiveAccountCache(id, replacement)
+  expect(await localDocumentStorage.get(id)).toEqual(replacement)
+  const archived = (await localDocumentStorage.list()).find(
+    (document) => document.drive?.recoveryOnly,
+  )
+  expect(archived?.drive?.accountId).toBe('old-account')
+  expect(archived?.drive?.quarantined).toBe(true)
+  const retained = await open(archived!.id)
+  expect(retained.doc.getText('private').toString()).toBe(
+    'retained old account work',
+  )
+  const fresh = await open(id)
+  expect(fresh.doc.getText('private').toString()).toBe('')
 })

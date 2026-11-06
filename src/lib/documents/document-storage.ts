@@ -41,17 +41,20 @@ export async function refreshDriveDocuments() {
       }
       await localDocumentStorage.patch(
         id,
-        (current) => ({
-          ...current,
-          readOnly: isReadOnly,
-          drive: current.drive
-            ? { ...current.drive, readOnly: isReadOnly }
-            : undefined,
-          name: current.drive?.dirty ? current.name : initial.name,
-          updatedAt: current.drive?.dirty
-            ? current.updatedAt
-            : initial.updatedAt,
-        }),
+        (current) =>
+          current.drive?.accountId !== initial.drive.accountId
+            ? current
+            : {
+                ...current,
+                readOnly: isReadOnly,
+                drive: current.drive
+                  ? { ...current.drive, readOnly: isReadOnly }
+                  : undefined,
+                name: current.drive?.dirty ? current.name : initial.name,
+                updatedAt: current.drive?.dirty
+                  ? current.updatedAt
+                  : initial.updatedAt,
+              },
         initial,
       )
     }),
@@ -61,10 +64,42 @@ export async function refreshDriveDocuments() {
 
 async function ensureDocument(id: string) {
   const existing = await localDocumentStorage.get(id)
-  if (existing?.drive && existing.drive.accountId !== getGoogleDriveAccountId())
-    throw new Error(
-      'This cached document belongs to a different Google account.',
-    )
+  const accountId = getGoogleDriveAccountId()
+  if (existing?.drive?.recoveryOnly) {
+    if (existing.drive.accountId !== accountId)
+      throw new Error(
+        'This cached document belongs to a different Google account.',
+      )
+    return existing
+  }
+  if (existing?.drive && existing.drive.accountId !== accountId) {
+    if (!accountId)
+      throw new Error(
+        'This cached document belongs to a different Google account.',
+      )
+    // Read as the new account before moving any previously cached bytes.
+    const remote = await readConceptFile(existing.drive.fileId)
+    if (accountId !== getGoogleDriveAccountId())
+      throw new Error(
+        'Google account changed. Try opening this document again.',
+      )
+    await documentSessions.get(id)?.stop()
+    const replacement = await localDocumentStorage.archiveAccountCache(id, {
+      id,
+      name: remote.file.name.replace(/\.concept$/i, ''),
+      updatedAt: Date.parse(remote.file.modifiedTime ?? '') || Date.now(),
+      readOnly: isDriveFileReadOnly(remote.file),
+      drive: {
+        fileId: remote.file.id,
+        accountId,
+        resourceKey: getDriveResourceKey(remote.file.id),
+        offlineAvailable: false,
+        readOnly: isDriveFileReadOnly(remote.file),
+      },
+    })
+    clearSaveStatus(id)
+    return replacement
+  }
   if (existing?.drive?.resourceKey)
     rememberDriveResourceKey(existing.drive.fileId, existing.drive.resourceKey)
   if (existing || !id.startsWith('G')) return existing
@@ -136,8 +171,13 @@ export const documentStorage: DocumentStorage = {
     }
   },
   async delete(id) {
-    const info = await localDocumentStorage.get(id)
-    if (info?.drive && !info.readOnly && !info.drive.readOnly) {
+    const info = await ensureDocument(id)
+    if (
+      info?.drive &&
+      !info.drive.recoveryOnly &&
+      !info.readOnly &&
+      !info.drive.readOnly
+    ) {
       try {
         await trashConceptFile(info.drive.fileId)
       } catch (error) {
@@ -170,6 +210,10 @@ function openDocumentSession(id: string, doc: Doc, background = false) {
   const whenSynced = (async () => {
     const info = await ensureDocument(id)
     if (!info || isClosed()) throw new Error('Document not found')
+    if (info.drive?.recoveryOnly)
+      throw new Error(
+        'Recover this archived document as a local copy before opening it.',
+      )
     local = localDocumentStorage.open(id, doc)
     await local.whenSynced
     if (isClosed()) return
@@ -286,7 +330,8 @@ export async function recoverDocumentLocally(id: string) {
       await localDocumentStorage.put(info)
       await local.destroy()
       await documentSessions.get(id)?.stop()
-      await localDocumentStorage.resetRecoveredContent(id).catch(() => {})
+      if (source.drive.recoveryOnly) await localDocumentStorage.delete(id)
+      else await localDocumentStorage.resetRecoveredContent(id).catch(() => {})
       return info
     } finally {
       await targetSession.destroy()

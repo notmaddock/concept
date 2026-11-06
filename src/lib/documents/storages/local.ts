@@ -1,9 +1,13 @@
 import { withDocumentLock } from '../lifecycle-lock'
 import { publishDocumentChange, subscribeToLibrary } from '../library-channel'
 import type { IndexeddbPersistence } from 'y-indexeddb'
-import { Doc, encodeStateAsUpdate } from 'yjs'
+import { Doc, applyUpdate, encodeStateAsUpdate } from 'yjs'
 import { snapshotRevision } from '../package'
-import { openAssetRepository, deleteDocumentAssets } from '../assets'
+import {
+  openAssetRepository,
+  deleteDocumentAssets,
+  copyDocumentAssets,
+} from '../assets'
 import {
   attachDocumentAssets,
   setDocumentRecoveryAssets,
@@ -213,7 +217,80 @@ export const localDocumentStorage: DocumentStorage & {
   ) => Promise<DocumentInfo>
   clearContent: (id: string) => Promise<void>
   resetRecoveredContent: (id: string) => Promise<void>
+  archiveAccountCache: (
+    id: string,
+    replacement: DocumentInfo,
+  ) => Promise<DocumentInfo>
 } = {
+  async archiveAccountCache(id, replacement) {
+    await Promise.all(
+      [...(activeSessions.get(id) ?? [])].map((session) => session.destroy()),
+    )
+    return withDocumentLock(id, async () => {
+      const migrate = async () => {
+        const current = await localDocumentStorage.get(id)
+        if (
+          !current?.drive ||
+          current.drive.accountId === replacement.drive?.accountId
+        )
+          return current ?? replacement
+        const archive: DocumentInfo = {
+          ...current,
+          id: crypto.randomUUID(),
+          importing: true,
+          drive: {
+            ...current.drive,
+            recoveryOnly: true,
+            quarantined: true,
+            readOnly: true,
+            offlineAvailable: true,
+            dirty: true,
+          },
+          readOnly: true,
+        }
+        await localDocumentStorage.put(archive)
+        const source = new Doc()
+        const target = new Doc()
+        const { IndexeddbPersistence } = await import('y-indexeddb')
+        const sourcePersistence = new IndexeddbPersistence(
+          documentDatabaseName(id),
+          source,
+        )
+        const targetPersistence = localDocumentStorage.open(archive.id, target)
+        try {
+          await sourcePersistence.whenSynced
+          await targetPersistence.whenSynced
+          await copyDocumentAssets(id, archive.id)
+          applyUpdate(target, encodeStateAsUpdate(source))
+          await targetPersistence.flush?.()
+          await localDocumentStorage.put({ ...archive, importing: false })
+        } finally {
+          await sourcePersistence.destroy()
+          await targetPersistence.destroy()
+          source.destroy()
+          target.destroy()
+        }
+        // The recovery copy is committed before replacing the canonical cache.
+        await removeDocumentContent(id)
+        await deleteDocumentAssets(id, { alreadyLocked: true })
+        await localDocumentStorage.put(replacement)
+        return replacement
+      }
+      if (typeof navigator === 'undefined' || !('locks' in navigator))
+        return migrate()
+      return navigator.locks.request(
+        `concept-content:${id}`,
+        { ifAvailable: true },
+        async (lock) => {
+          if (!lock)
+            throw new Error(
+              'Close other tabs using this document before switching its cached account.',
+            )
+          return migrate()
+        },
+      )
+    })
+  },
   async resetRecoveredContent(id) {
     await withDocumentLock(id, async () => {
       await removeDocumentContent(id)

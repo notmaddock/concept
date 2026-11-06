@@ -12,6 +12,7 @@ export interface DocumentInfo {
     resourceKey?: string
     accountId?: string
     quarantined?: boolean
+    recoveryOnly?: boolean
     fileId: string
     offlineAvailable: boolean
     dirty?: boolean
