@@ -1,3 +1,4 @@
+import type * as DriveApi from './drive/api'
 import { assetRetryPolicy } from './limits'
 import {
   assetReferenceField,
@@ -25,27 +26,13 @@ import {
   readConceptFile,
   updateConceptFile,
 } from './drive/api'
+import type { DriveCapabilities } from './drive/api'
 import type { DocumentInfo } from './storage'
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 
-vi.mock('./drive/api', () => ({
-  DriveError: class extends Error {
-    constructor(
-      readonly status: number,
-      message: string,
-    ) {
-      super(message)
-    }
-  },
-  isDriveFileReadOnly: (file: {
-    capabilities?: { canEdit?: boolean; canModifyContent?: boolean }
-  }) =>
-    Boolean(
-      file.capabilities &&
-      (file.capabilities.canEdit === false ||
-        file.capabilities.canModifyContent === false),
-    ),
+vi.mock('./drive/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof DriveApi>()),
   readConceptFile: vi.fn(),
   getFileMetadata: vi.fn(),
   getDriveResourceKey: () => undefined,
@@ -84,8 +71,11 @@ function version(etag: string) {
       name: 'Test.concept',
       mimeType: 'application/vnd.concept+json',
       headRevisionId: etag,
-      capabilities: undefined as
-        { canEdit?: boolean; canModifyContent?: boolean } | undefined,
+      capabilities: {
+        canDownload: true,
+        canEdit: true,
+        canModifyContent: true,
+      } as DriveCapabilities,
     },
   }
 }
@@ -447,7 +437,11 @@ it('shows a toast and retains a pending rename when Drive rejects it', async () 
 
 it('detects read-only capabilities on download and propagates readOnly to DocumentInfo', async () => {
   const roVersion = version('"ro-version"')
-  roVersion.file.capabilities = { canEdit: false, canModifyContent: false }
+  roVersion.file.capabilities = {
+    canDownload: true,
+    canEdit: false,
+    canModifyContent: false,
+  }
   read.mockResolvedValueOnce({
     ...roVersion,
     content: legacyBytes(info.name, remote),
@@ -465,7 +459,11 @@ it('does not mark dirty or attempt upload when local doc is modified in read-onl
   info.readOnly = true
   info.drive = { ...info.drive!, readOnly: true }
   const readonly = version('"base"')
-  readonly.file.capabilities = { canEdit: false, canModifyContent: false }
+  readonly.file.capabilities = {
+    canDownload: true,
+    canEdit: false,
+    canModifyContent: false,
+  }
   read.mockResolvedValue({ ...readonly, content: legacyBytes('Test', remote) })
   metadata.mockResolvedValue(readonly)
   await start()
@@ -486,7 +484,7 @@ it('preserves unsynced edits after Drive access becomes view-only', async () => 
   await start()
   local.getMap('settings').set('unsynced-edit', 'recover me')
   const readonly = version('"view-only"')
-  readonly.file.capabilities = { canEdit: false }
+  readonly.file.capabilities = { canDownload: true, canEdit: false }
   metadata.mockResolvedValue(readonly)
   read.mockResolvedValue({
     ...readonly,
@@ -512,7 +510,7 @@ it('retains recoverable cached edits when reopening a view-only document', async
   info.drive = { ...info.drive!, readOnly: true, dirty: true }
   local.getMap('settings').set('cached-edit', 'recover me')
   const readonly = version('"view-only"')
-  readonly.file.capabilities = { canEdit: false }
+  readonly.file.capabilities = { canDownload: true, canEdit: false }
   read.mockResolvedValue({
     ...readonly,
     content: legacyBytes(info.name, remote),
@@ -529,7 +527,7 @@ it('retains recoverable cached edits when reopening a view-only document', async
 it('detects permissions changing without a content ETag change', async () => {
   await start()
   const readonly = version('"base"')
-  readonly.file.capabilities = { canEdit: false }
+  readonly.file.capabilities = { canDownload: true, canEdit: false }
   metadata.mockResolvedValue(readonly)
   read.mockResolvedValue({
     ...readonly,
@@ -542,7 +540,11 @@ it('detects permissions changing without a content ETag change', async () => {
   expect(getSaveStatus(info.id).readOnly).toBe(true)
 
   const editable = version('"base"')
-  editable.file.capabilities = { canEdit: true }
+  editable.file.capabilities = {
+    canDownload: true,
+    canEdit: true,
+    canModifyContent: true,
+  }
   metadata.mockResolvedValue(editable)
   read.mockResolvedValue({
     ...editable,
@@ -752,7 +754,7 @@ it('polls for a reference received while view-only without attempting a publicat
     .mockReturnValue('visible')
   try {
     const readonly = version('"view-only"')
-    readonly.file.capabilities = { canEdit: false }
+    readonly.file.capabilities = { canDownload: true, canEdit: false }
     read.mockResolvedValueOnce({
       ...readonly,
       content: legacyBytes('Test', remote),
@@ -761,7 +763,7 @@ it('polls for a reference received while view-only without attempting a publicat
     const arriving = await assetRecord('readonly late asset')
     referenceAsset(arriving)
     const published = version('"readonly-publication"')
-    published.file.capabilities = { canEdit: false }
+    published.file.capabilities = { canDownload: true, canEdit: false }
     metadata.mockResolvedValue(published)
     read.mockResolvedValue({
       ...published,
@@ -906,13 +908,21 @@ it('quarantines unsynced edits on downgrade even if write access returns later',
   await start()
   local.getMap('settings').set('unsynced', true)
   const viewer = version('"base"')
-  viewer.file.capabilities = { canEdit: false, canModifyContent: false }
+  viewer.file.capabilities = {
+    canDownload: true,
+    canEdit: false,
+    canModifyContent: false,
+  }
   metadata.mockResolvedValue(viewer)
   read.mockResolvedValue({ ...viewer, content: legacyBytes('Test', remote) })
   await session.sync(true)
   expect(info.drive?.quarantined).toBe(true)
   const editor = version('"base"')
-  editor.file.capabilities = { canEdit: true, canModifyContent: true }
+  editor.file.capabilities = {
+    canDownload: true,
+    canEdit: true,
+    canModifyContent: true,
+  }
   metadata.mockResolvedValue(editor)
   read.mockResolvedValue({ ...editor, content: legacyBytes('Test', remote) })
   await session.sync(true)
@@ -939,7 +949,11 @@ it('ignores an older successful permission response after a newer downgrade', as
     await vi.advanceTimersByTimeAsync(1000)
   }
   const viewer = version('"base"')
-  viewer.file.capabilities = { canEdit: false, canModifyContent: false }
+  viewer.file.capabilities = {
+    canDownload: true,
+    canEdit: false,
+    canModifyContent: false,
+  }
   metadata.mockResolvedValue(viewer)
   read.mockResolvedValue({ ...viewer, content: legacyBytes('Test', remote) })
   await session.sync(true)
@@ -947,4 +961,43 @@ it('ignores an older successful permission response after a newer downgrade', as
   await vi.advanceTimersByTimeAsync(0)
   expect(session.access.kind).toBe('viewer')
   expect(write).not.toHaveBeenCalled()
+})
+
+it('blocks content when download permission changes without changing the ETag', async () => {
+  await start()
+  const restricted = version('"base"')
+  restricted.file.capabilities = {
+    canDownload: false,
+    canEdit: true,
+    canModifyContent: true,
+  }
+  metadata.mockResolvedValue(restricted)
+  await session.sync(true)
+  expect(session.access.kind).toBe('unavailable')
+  expect(getSaveStatus(info.id).readOnly).toBe(true)
+  expect(write).not.toHaveBeenCalled()
+})
+
+it('never applies a downloaded package after the signed-in account changes', async () => {
+  const auth = await import('./drive/auth')
+  const account = vi
+    .spyOn(auth, 'getGoogleDriveAccountId')
+    .mockReturnValue(undefined)
+  const pending = deferred<Awaited<ReturnType<typeof readConceptFile>>>()
+  read.mockReturnValue(pending.promise)
+  remote.getMap('settings').set('new-account-data', true)
+  const starting = start()
+  try {
+    await vi.advanceTimersByTimeAsync(0)
+    account.mockReturnValue('another-account')
+    pending.resolve({
+      ...version('"base"'),
+      content: legacyBytes('Test', remote),
+    })
+    await expect(starting).rejects.toThrow('different Google account')
+    expect(local.getMap('settings').has('new-account-data')).toBe(false)
+    expect(session.access.kind).toBe('unavailable')
+  } finally {
+    account.mockRestore()
+  }
 })

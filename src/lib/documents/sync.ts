@@ -29,6 +29,7 @@ import {
 } from './drive/auth'
 import {
   DriveError,
+  assertDriveFileReadable,
   getFileMetadata,
   getDriveResourceKey,
   isDriveFileReadOnly,
@@ -224,6 +225,21 @@ export class DocumentSync {
   }
 
   async start() {
+    if (this.info.drive)
+      this.unsubscribeAuth = subscribeGoogleDriveAuth(() => {
+        if (this.info.drive?.accountId !== getGoogleDriveAccountId()) {
+          this.fail(
+            new DriveError(
+              404,
+              'This document belongs to a different Google account.',
+            ),
+            false,
+          )
+        } else if (isGoogleDriveConnected()) {
+          if (this.initialized) this.check()
+        } else this.fail(new GoogleDriveAuthError(), false)
+      })
+
     if (this.info.drive) {
       const hasCachedContent =
         this.doc.share.has('root') &&
@@ -298,19 +314,6 @@ export class DocumentSync {
     })
     document.addEventListener('visibilitychange', this.visibilityChanged)
     this.scheduleMissingCheck()
-    if (this.info.drive)
-      this.unsubscribeAuth = subscribeGoogleDriveAuth(() => {
-        if (this.info.drive?.accountId !== getGoogleDriveAccountId()) {
-          this.fail(
-            new DriveError(
-              404,
-              'This document belongs to a different Google account.',
-            ),
-            false,
-          )
-        } else if (isGoogleDriveConnected()) this.check()
-        else this.fail(new GoogleDriveAuthError(), false)
-      })
     if (!this.info.drive) {
       await this.persistence.flush?.()
       this.publish('local')
@@ -413,6 +416,7 @@ export class DocumentSync {
   }
 
   private async download(initial?: DriveFileVersion) {
+    this.assertAccount()
     const epoch = ++this.accessEpoch
     const remote = await readConceptFile(
       this.info.drive!.fileId,
@@ -420,11 +424,14 @@ export class DocumentSync {
       initial,
     )
     if (this.isStopped() || epoch !== this.accessEpoch) return
+    this.assertAccount()
+    assertDriveFileReadable(remote.file)
     const parsed = await readConcept(
       typeof remote.content === 'string'
         ? new TextEncoder().encode(remote.content)
         : remote.content,
     )
+    this.assertAccount()
     if (parsed.kind !== 'complete')
       throw new IncompleteAssetsError(parsed.missingAssets)
     const incoming = parsed.snapshot
@@ -433,6 +440,7 @@ export class DocumentSync {
       this.abort.signal,
     )
     if (this.isStopped() || epoch !== this.accessEpoch) return
+    this.assertAccount()
     // Canonicalize the remote snapshot separately: local edits must never become
     // acknowledged merely because they were present when a download completed.
     const snapshot = new Doc()
@@ -461,6 +469,7 @@ export class DocumentSync {
       if (epoch !== this.accessEpoch || this.stopped) return
       this.remoteFilename = remote.file.name
       this.etag = remote.etag
+      this.assertAccount()
       this.observeAccess(isDriveFileReadOnly(remote.file))
       const generation = this.version
       this.dirty = await this.differsFrom(this.acknowledged)
@@ -504,7 +513,9 @@ export class DocumentSync {
           this.info.drive.resourceKey ??
           getDriveResourceKey(this.info.drive.fileId),
         canWrite: () =>
-          this.access.kind === 'editor' && !this.info.drive?.quarantined,
+          this.access.kind === 'editor' &&
+          this.info.drive?.accountId === getGoogleDriveAccountId() &&
+          !this.info.drive?.quarantined,
         onPublication: () => this.sync(true),
         onAccess: () => this.sync(true),
       })
@@ -512,15 +523,29 @@ export class DocumentSync {
     }
   }
 
+  private assertAccount() {
+    if (
+      this.info.drive &&
+      this.info.drive.accountId !== getGoogleDriveAccountId()
+    )
+      throw new DriveError(
+        404,
+        'This document belongs to a different Google account.',
+      )
+  }
+
   private async refreshAccess() {
     if (this.running || this.access.kind === 'unavailable') return
     const epoch = ++this.accessEpoch
     try {
+      this.assertAccount()
       const current = await getFileMetadata(
         this.info.drive!.fileId,
         this.abort.signal,
       )
       if (this.stopped || epoch !== this.accessEpoch) return
+      this.assertAccount()
+      assertDriveFileReadable(current.file)
       this.observeAccess(isDriveFileReadOnly(current.file))
       this.setStatus({ ...this.saveStatus, readOnly: this.isReadOnly })
     } catch (error) {
@@ -585,11 +610,13 @@ export class DocumentSync {
       !this.stopped &&
       !this.isReadOnly &&
       this.access.kind === 'editor' &&
+      this.info.drive?.accountId === getGoogleDriveAccountId() &&
       !this.info.drive?.quarantined
     )
   }
 
   private async run(checkRemote: boolean) {
+    this.assertAccount()
     if (checkRemote || this.dirty || !this.etag) {
       const epoch = ++this.accessEpoch
       const current =
@@ -599,7 +626,11 @@ export class DocumentSync {
       if (epoch !== this.accessEpoch || this.stopped) return
       const permissionsChanged =
         current && isDriveFileReadOnly(current.file) !== this.isReadOnly
-      if (current) this.observeAccess(isDriveFileReadOnly(current.file))
+      if (current) {
+        this.assertAccount()
+        assertDriveFileReadable(current.file)
+        this.observeAccess(isDriveFileReadOnly(current.file))
+      }
       if (!current || current.etag !== this.etag || permissionsChanged) {
         this.publish('reconciling')
         await this.download(current)

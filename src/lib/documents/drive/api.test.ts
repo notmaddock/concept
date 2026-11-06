@@ -30,6 +30,7 @@ const file = {
   id: 'drive-id',
   name: 'Test.concept',
   mimeType: 'application/vnd.concept+json',
+  capabilities: { canDownload: true },
 }
 const fetchMock = vi.fn<typeof fetch>()
 const bytes = (text: string) => new TextEncoder().encode(text)
@@ -51,6 +52,7 @@ function metadata(etag?: string) {
       title: file.name,
       mimeType: file.mimeType,
       etag,
+      capabilities: { canDownload: true },
     }),
   )
 }
@@ -308,7 +310,11 @@ it('requests content capabilities and shared-drive support when opening a file',
   expect(
     isDriveFileReadOnly({
       ...file,
-      capabilities: { canEdit: true, canModifyContent: false },
+      capabilities: {
+        canDownload: true,
+        canEdit: true,
+        canModifyContent: false,
+      },
     }),
   ).toBe(true)
 })
@@ -439,12 +445,19 @@ it('reports when Drive does not expose a containing folder', async () => {
 it('requires affirmative effective edit and content modification capabilities', () => {
   expect(isDriveFileReadOnly(file)).toBe(true)
   expect(
-    isDriveFileReadOnly({ ...file, capabilities: { canEdit: true } }),
+    isDriveFileReadOnly({
+      ...file,
+      capabilities: { canDownload: true, canEdit: true },
+    }),
   ).toBe(true)
   expect(
     isDriveFileReadOnly({
       ...file,
-      capabilities: { canEdit: true, canModifyContent: true },
+      capabilities: {
+        canDownload: true,
+        canEdit: true,
+        canModifyContent: true,
+      },
     }),
   ).toBe(false)
 })
@@ -464,4 +477,22 @@ it('sends resource keys only for their matching Drive file', async () => {
       'X-Goog-Drive-Resource-Keys',
     ),
   ).toBe(false)
+})
+
+it('rejects metadata access without an affirmative content download capability', async () => {
+  fetchMock.mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        id: 'restricted',
+        title: 'Private.concept',
+        mimeType: file.mimeType,
+        etag: '"unchanged"',
+        capabilities: { canEdit: true, canDownload: false },
+      }),
+    ),
+  )
+  await expect(getFileMetadata('restricted')).rejects.toMatchObject({
+    status: 403,
+    reason: 'downloadRestricted',
+  })
 })

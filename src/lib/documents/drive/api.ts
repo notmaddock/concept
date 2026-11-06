@@ -13,9 +13,9 @@ export const conceptMimeType = 'application/vnd.concept+zip'
 export const legacyConceptMimeType = 'application/vnd.concept+json'
 const mimeType = conceptMimeType
 const fields =
-  'id,name,mimeType,modifiedTime,size,version,headRevisionId,capabilities(canEdit,canModifyContent,canComment,canCopy)'
+  'id,name,mimeType,modifiedTime,size,version,headRevisionId,capabilities(canEdit,canModifyContent,canComment,canCopy,canDownload)'
 const conditionalFields =
-  'id,title,mimeType,modifiedDate,fileSize,version,headRevisionId,etag,capabilities(canEdit,canModifyContent,canComment,canCopy)'
+  'id,title,mimeType,modifiedDate,fileSize,version,headRevisionId,etag,capabilities(canEdit,canModifyContent,canComment,canCopy,canDownload)'
 
 const resourceKeys = new Map<string, string>()
 export function rememberDriveResourceKey(fileId: string, resourceKey: string) {
@@ -31,6 +31,7 @@ export function rememberDriveResourceKey(fileId: string, resourceKey: string) {
 export const getDriveResourceKey = (fileId: string) => resourceKeys.get(fileId)
 
 export interface DriveCapabilities {
+  canDownload?: boolean
   canEdit?: boolean
   canComment?: boolean
   canCopy?: boolean
@@ -46,6 +47,15 @@ export interface DriveFile {
   version?: string
   headRevisionId?: string
   capabilities?: DriveCapabilities
+}
+
+export function assertDriveFileReadable(file: DriveFile) {
+  if (file.capabilities?.canDownload !== true)
+    throw new DriveError(
+      403,
+      'This file is not available for content download.',
+      'downloadRestricted',
+    )
 }
 
 export function isDriveFileReadOnly(file: DriveFile): boolean {
@@ -180,6 +190,7 @@ export async function getFileMetadata(id: string, signal?: AbortSignal) {
     signal,
   })
   const file = (await response.json()) as ConditionalFile
+  assertDriveFileReadable(normalizeFile(file))
   return {
     file: normalizeFile(file),
     etag: requiredEtag(file.etag),
@@ -299,6 +310,7 @@ export async function readConceptFile(
   for (let attempt = 0; attempt < 3; attempt++) {
     const before =
       attempt === 0 && initial ? initial : await getFileMetadata(id, signal)
+    assertDriveFileReadable(before.file)
     const etag = requiredEtag(before.etag)
     const response = await request(
       `${api}/${encodeURIComponent(id)}?alt=media`,
