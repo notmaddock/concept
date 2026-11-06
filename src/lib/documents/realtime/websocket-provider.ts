@@ -173,6 +173,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
     this.stopTimers()
     this.socket?.close()
     this.socket = undefined
+    this.clearAwareness()
     this.setState({
       status: 'disconnected',
       capabilities: this.state.capabilities,
@@ -229,6 +230,24 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
 
   getState(): RealtimeState {
     return { ...this.state }
+  }
+
+  /**
+   * Drops every awareness state, including the local one, so a disabled session
+   * stops advertising presence and the editor stops rendering stale cursors.
+   */
+  private clearAwareness() {
+    const clients = [...this.awareness.getStates().keys()]
+    this.awarenessDirty.clear()
+    if (clients.length === 0) return
+    applyAwarenessUpdate(
+      this.awareness,
+      encodeAwarenessUpdate(this.awareness, clients),
+      this,
+    )
+    // y-protocols keeps the local state when its own client is removed.
+    if (this.awareness.getLocalState() !== null)
+      this.awareness.setLocalState(null)
   }
 
   private detachDoc() {

@@ -262,6 +262,8 @@ describe('WebSocketRealtimeProvider', () => {
     expect(socket.closed).toBe(true)
     expect(provider.getState().status).toBe('disconnected')
     expect(provider.getState().capabilities).toEqual(editable)
+    expect(provider.awareness.getStates().size).toBe(0)
+    expect(provider.getState().collaborators).toEqual([])
 
     provider.connect()
     await flush()
