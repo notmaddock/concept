@@ -213,7 +213,6 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                   readOnly={Boolean(
                     document.readOnly || document.drive?.readOnly,
                   )}
-                  provider={document.drive ? 'google-drive' : undefined}
                   realtime={
                     (saveStatus as { realtime?: RealtimeState }).realtime
                   }

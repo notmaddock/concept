@@ -1,10 +1,9 @@
-import { EyeIcon, PencilIcon } from 'lucide-react'
+import { CheckIcon, EyeIcon, EyeOffIcon, PencilIcon, XIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
 import {
   Popover,
   PopoverContent,
-  PopoverDescription,
   PopoverTitle,
   PopoverTrigger,
 } from '#/components/ui/popover'
@@ -21,74 +20,119 @@ const connectionLabels: Record<RealtimeConnectionStatus, string> = {
   disabled: 'Disabled',
 }
 
+function PermissionRow({
+  granted,
+  label,
+}: {
+  granted: boolean
+  label: string
+}) {
+  const Icon = granted ? CheckIcon : XIcon
+  return (
+    <li
+      data-granted={granted}
+      className={`flex items-center gap-2 ${granted ? '' : 'text-muted-foreground'}`}
+    >
+      <Icon
+        aria-hidden="true"
+        className={`size-3.5 shrink-0 ${granted ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground/50'}`}
+      />
+      <span>{label}</span>
+    </li>
+  )
+}
+
 export function DocumentAccessStatus({
   readOnly,
-  provider,
   realtime,
   liveCollaboration,
   onLiveCollaborationChange,
 }: {
   readOnly: boolean
-  provider?: 'google-drive'
   realtime?: RealtimeState
   liveCollaboration?: boolean
   onLiveCollaborationChange?: (enabled: boolean) => void
 }) {
-  const label = readOnly ? 'View only' : 'Can edit'
-  const description = readOnly
-    ? provider
-      ? 'You can only view this document. Ask the owner to give you edit access in Google Drive.'
-      : 'You can only view this local document. Editing is disabled for this copy.'
-    : provider
-      ? 'You can edit this document. Changes sync to Google Drive.'
-      : 'You can edit this document. Changes are saved locally in this browser.'
-
   const viewGranted = realtime?.capabilities?.view ?? true
   const editGranted = realtime?.capabilities?.edit ?? !readOnly
+  const label = !viewGranted
+    ? 'No access'
+    : editGranted
+      ? 'Can edit'
+      : 'View only'
+  const HighestIcon = editGranted
+    ? PencilIcon
+    : viewGranted
+      ? EyeIcon
+      : EyeOffIcon
   const collaborationOff = liveCollaboration === false
+  const commentGranted = realtime?.capabilities?.comment
 
   return (
     <Popover>
       <PopoverTrigger
         render={
           <Button
-            variant={readOnly ? 'secondary' : 'ghost'}
-            size={readOnly ? 'xs' : 'icon-xs'}
-            className="text-muted-foreground"
+            variant="ghost"
+            size="icon-xs"
+            className="relative text-muted-foreground"
           />
         }
-        aria-label={`Document permissions: ${label}`}
-        title={label}
+        aria-label={`Document permissions: ${label}${collaborationOff ? ', live collaboration off' : ''}`}
+        title={collaborationOff ? `${label} · Live collaboration off` : label}
+        data-collaboration-off={collaborationOff ? '' : undefined}
       >
-        {collaborationOff ? (
-          <>
-            <span className="hidden items-center gap-1 rounded-full border border-amber-400/60 bg-amber-100 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-amber-900 @md/document-header:inline-flex dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-200">
-              <EyeIcon className="size-4" />
-              Live collaboration off
-            </span>
-            <EyeIcon
-              className={`size-4 @md/document-header:hidden ${viewGranted ? 'text-emerald-600 dark:text-emerald-400' : ''}`}
-            />
-          </>
-        ) : (
-          <EyeIcon
-            className={`size-4 ${viewGranted ? 'text-emerald-600 dark:text-emerald-400' : ''}`}
+        <HighestIcon className="size-4" />
+        {collaborationOff && (
+          <span
+            aria-hidden="true"
+            className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-amber-500 ring-2 ring-background"
           />
         )}
-        <PencilIcon
-          className={`size-4 ${editGranted ? 'text-emerald-600 dark:text-emerald-400' : ''}`}
-        />
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-72 max-w-[calc(100vw-2rem)] gap-2 rounded-xl p-4"
+        className="w-72 max-w-[calc(100vw-2rem)] gap-3 rounded-xl p-4"
       >
-        <PopoverTitle className="text-sm">{label}</PopoverTitle>
-        <PopoverDescription className="text-xs leading-relaxed">
-          {description}
-        </PopoverDescription>
+        <div className="flex flex-col gap-2">
+          <PopoverTitle className="text-sm">Permissions</PopoverTitle>
+          <ul className="flex flex-col gap-1.5 text-xs">
+            <PermissionRow
+              granted={viewGranted}
+              label={
+                viewGranted
+                  ? 'You can view this file'
+                  : "You can't view this file"
+              }
+            />
+            <PermissionRow
+              granted={editGranted}
+              label={
+                editGranted
+                  ? 'You can edit this file'
+                  : "You can't edit this file"
+              }
+            />
+            {commentGranted !== undefined && (
+              <PermissionRow
+                granted={commentGranted}
+                label={
+                  commentGranted
+                    ? 'You can comment on this file'
+                    : "You can't comment on this file"
+                }
+              />
+            )}
+          </ul>
+        </div>
+        {collaborationOff && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-400/60 bg-amber-100 px-2.5 py-1.5 text-xs font-medium text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-200">
+            <EyeOffIcon aria-hidden="true" className="size-3.5" />
+            Live collaboration off
+          </div>
+        )}
         {liveCollaboration !== undefined && (
-          <div className="mt-1 flex flex-col gap-1.5 border-t pt-3">
+          <div className="flex flex-col gap-1.5 border-t pt-3">
             <label className="flex items-center gap-2 text-xs font-medium">
               <Checkbox
                 checked={liveCollaboration}
