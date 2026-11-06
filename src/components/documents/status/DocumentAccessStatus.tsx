@@ -13,37 +13,43 @@ export function DocumentAccessStatus({
   readOnly,
   provider,
   access,
+  recoveryOnly = false,
 }: {
   readOnly: boolean
   provider?: 'google-drive'
   access?: DocumentAccess
+  recoveryOnly?: boolean
 }) {
-  const unavailable = access?.kind === 'unavailable'
+  const unavailable = !recoveryOnly && access?.kind === 'unavailable'
   const unverified = access?.kind === 'unverified'
-  const label = unavailable
-    ? 'Access unavailable'
-    : unverified
-      ? 'Access unverified'
-      : readOnly
-        ? 'View only'
-        : 'Can edit'
+  const label = recoveryOnly
+    ? 'Local recovery'
+    : unavailable
+      ? 'Access unavailable'
+      : unverified
+        ? 'Access unverified'
+        : readOnly
+          ? 'View only'
+          : 'Can edit'
   const Icon =
     unavailable || unverified
       ? AlertTriangleIcon
       : readOnly
         ? EyeIcon
         : PencilIcon
-  const description = unavailable
-    ? 'You no longer have access to this file, or it is unavailable.'
-    : unverified
-      ? 'Drive access could not be verified. Available offline work is preserved locally.'
-      : readOnly
-        ? provider
-          ? 'You can only view this document. Ask the owner to give you edit access in Google Drive.'
-          : 'You can only view this local document. Editing is disabled for this copy.'
-        : provider
-          ? 'You can edit this document. Changes sync to Google Drive.'
-          : 'You can edit this document. Changes are saved locally in this browser.'
+  const description = recoveryOnly
+    ? 'Recover retained work into a local copy to open it.'
+    : unavailable
+      ? 'You no longer have access to this file, or it is unavailable.'
+      : unverified
+        ? 'Drive access could not be verified. Available offline work is preserved locally.'
+        : readOnly
+          ? provider
+            ? 'You can only view this document. Ask the owner to give you edit access in Google Drive.'
+            : 'You can only view this local document. Editing is disabled for this copy.'
+          : provider
+            ? 'You can edit this document. Changes sync to Google Drive.'
+            : 'You can edit this document. Changes are saved locally in this browser.'
 
   return (
     <Popover>

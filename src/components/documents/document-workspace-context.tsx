@@ -101,7 +101,6 @@ function useWorkspaceState(id?: string) {
   const driveConnected = useSyncExternalStore(
     subscribeGoogleDriveAuth,
     isGoogleDriveConnected,
-    getGoogleDriveAccountId,
     () => false,
   )
   const driveAccountId = useSyncExternalStore(
@@ -273,6 +272,7 @@ function useWorkspaceState(id?: string) {
         (item.drive.accountId === driveAccountId &&
           ((driveConnected && (!driveIds || driveIds.has(item.id))) ||
             item.id === document?.id ||
+            item.drive.recoveryOnly ||
             item.drive.offlineAvailable ||
             item.drive.dirty)),
     ),
@@ -404,6 +404,25 @@ export type DocumentWorkspaceState = ReturnType<
 >['workspace']
 
 export function DocumentWorkspaceProvider({
+  id,
+  children,
+}: {
+  id?: string
+  children: ReactNode
+}) {
+  const accountId = useSyncExternalStore(
+    subscribeGoogleDriveAuth,
+    getGoogleDriveAccountId,
+    () => undefined,
+  )
+  return (
+    <AccountDocumentWorkspace key={accountId ?? 'local'} id={id}>
+      {children}
+    </AccountDocumentWorkspace>
+  )
+}
+
+function AccountDocumentWorkspace({
   id,
   children,
 }: {

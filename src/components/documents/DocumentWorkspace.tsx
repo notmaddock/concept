@@ -214,6 +214,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                     </Button>
                   )}
                 <DocumentAccessStatus
+                  recoveryOnly={document.drive?.recoveryOnly}
                   access={saveStatus.access}
                   readOnly={Boolean(
                     saveStatus.readOnly ||
@@ -231,21 +232,32 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
           aria-label="Document workspace"
           className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-4 [scrollbar-gutter:stable] md:px-6"
         >
-          {document && saveStatus.access?.kind === 'unavailable' ? (
+          {document &&
+          (document.drive?.recoveryOnly ||
+            saveStatus.access?.kind === 'unavailable') ? (
             <Empty className="min-h-full rounded-xl bg-card p-8">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
                   <FileTextIcon />
                 </EmptyMedia>
-                <EmptyTitle>Shared document unavailable</EmptyTitle>
+                <EmptyTitle>
+                  {document.drive?.recoveryOnly
+                    ? 'Retained local work'
+                    : 'Shared document unavailable'}
+                </EmptyTitle>
               </EmptyHeader>
               <EmptyContent>
                 <Button onClick={() => void recoverLocalCopy()}>
                   Recover local copy
                 </Button>
-                <Button variant="outline" onClick={() => void recheckAccess()}>
-                  Check access
-                </Button>
+                {!document.drive?.recoveryOnly && (
+                  <Button
+                    variant="outline"
+                    onClick={() => void recheckAccess()}
+                  >
+                    Check access
+                  </Button>
+                )}
               </EmptyContent>
             </Empty>
           ) : document ? (
