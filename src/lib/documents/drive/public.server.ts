@@ -123,6 +123,14 @@ type PublicFile = {
   }
 }
 
+function requiresResourceKey(file: PublicFile) {
+  return (
+    Boolean(file.resourceKey) ||
+    (file.linkShareMetadata?.securityUpdateEnabled === true &&
+      file.linkShareMetadata.securityUpdateEligible !== false)
+  )
+}
+
 function policyObservation(
   file: PublicFile,
   publicRole: 'reader' | 'writer' | undefined = undefined,
@@ -217,15 +225,11 @@ async function publicPolicy(
       /\.concept$/i.test(file.name))
   ))
     deny(404, 'unsupportedPackageType')
-  if (
-    enforceResourceKey &&
-    file.linkShareMetadata?.securityUpdateEnabled &&
-    !file.resourceKey
-  )
+  if (enforceResourceKey && requiresResourceKey(file) && !file.resourceKey)
     deny(404, 'resourceKeyRequired')
   if (
     enforceResourceKey &&
-    file.linkShareMetadata?.securityUpdateEnabled &&
+    requiresResourceKey(file) &&
     resource.resourceKey !== file.resourceKey
   )
     deny(404, 'resourceKeyMismatch')
@@ -348,10 +352,10 @@ export async function registerPublicPublisher(
           : 'publicWritePermissionRequired',
         policyObservation(policy.file, policy.publicRole),
       )
-    const resourceKey = policy.file.linkShareMetadata?.securityUpdateEnabled
-      ? (policy.file.resourceKey ?? resource.resourceKey)
+    const resourceKey = requiresResourceKey(policy.file)
+      ? policy.file.resourceKey
       : null
-    if (policy.file.linkShareMetadata?.securityUpdateEnabled && !resourceKey)
+    if (requiresResourceKey(policy.file) && !resourceKey)
       throw new PublicPolicyFailure(
         403,
         'resourceKeyUnavailable',

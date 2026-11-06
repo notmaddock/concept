@@ -567,6 +567,7 @@ it('registers portable .concept packages uploaded with generic binary MIME while
 
 it('reports the precise registration policy denial with safe linked-account observations', async () => {
   const originalFetch = vi.mocked(fetch).getMockImplementation()!
+  let securityUpdateEligible = false
   let capability: 'canDownload' | 'canEdit' | 'canModifyContent' | undefined =
     'canDownload'
   vi.mocked(fetch).mockImplementation(async (input, init) => {
@@ -582,7 +583,7 @@ it('reports the precise registration policy denial with safe linked-account obse
           ...(capability ? { [capability]: false } : {}),
         },
         linkShareMetadata: {
-          securityUpdateEligible: false,
+          securityUpdateEligible,
           securityUpdateEnabled: true,
         },
       })
@@ -620,6 +621,7 @@ it('reports the precise registration policy denial with safe linked-account obse
     ).json(),
   ).toMatchObject({ error: { policyReason: 'publisherCannotModifyContent' } })
   capability = undefined
+  securityUpdateEligible = true
   const missingKey = await handlePublicDrive(
     request('register', { method: 'POST' }),
     bindings,
@@ -628,11 +630,52 @@ it('reports the precise registration policy denial with safe linked-account obse
     error: {
       policyReason: 'resourceKeyUnavailable',
       diagnostics: {
-        securityUpdateEligible: false,
+        securityUpdateEligible: true,
         securityUpdateEnabled: true,
         resourceKeyPresent: false,
         publicRole: 'writer',
       },
     },
   })
+})
+
+it('does not require a nonexistent resource key for an explicitly ineligible public file', async () => {
+  const originalFetch = vi.mocked(fetch).getMockImplementation()!
+  let eligibility: boolean | undefined = false
+  vi.mocked(fetch).mockImplementation(async (input, init) => {
+    const response = await originalFetch(input, init)
+    if (new URL(String(input)).pathname === '/drive/v3/files/file') {
+      return Response.json({
+        ...(await response.json()),
+        linkShareMetadata: {
+          securityUpdateEligible: eligibility,
+          securityUpdateEnabled: true,
+        },
+      })
+    }
+    return response
+  })
+  expect(
+    (await handlePublicDrive(request('register', { method: 'POST' }), bindings))
+      .status,
+  ).toBe(200)
+  expect((await handlePublicDrive(request('metadata'), bindings)).status).toBe(
+    200,
+  )
+  eligibility = true
+  expect(
+    (await handlePublicDrive(request('register', { method: 'POST' }), bindings))
+      .status,
+  ).toBe(403)
+  expect((await handlePublicDrive(request('metadata'), bindings)).status).toBe(
+    404,
+  )
+  eligibility = undefined
+  expect(
+    (await handlePublicDrive(request('register', { method: 'POST' }), bindings))
+      .status,
+  ).toBe(403)
+  expect((await handlePublicDrive(request('metadata'), bindings)).status).toBe(
+    404,
+  )
 })
