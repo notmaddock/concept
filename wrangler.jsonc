@@ -17,6 +17,9 @@
     },
   },
   "previews": {
+    "durable_objects": {
+      "bindings": [{ "name": "REALTIME_ROOMS", "class_name": "RealtimeRoom" }],
+    },
     "vars": {
       "GOOGLE_CLIENT_ID": "819574860574-3e68a16ekd85g25uj9jliejt4l2qaamp.apps.googleusercontent.com",
       "OAUTH_PROXY_URL": "https://concept.maddock.world",
