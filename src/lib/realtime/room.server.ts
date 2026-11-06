@@ -63,6 +63,11 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
   ): Promise<boolean> {
     const current = await this.ctx.storage.get<Epoch>(`auth:${userId}`)
     if (current?.value !== epoch) return false
+    if (
+      grant?.publicAccess &&
+      grant.publicEpoch !== (await this.getPublicEpoch())
+    )
+      return false
     for (const socket of this.ctx.getWebSockets()) {
       const attachment = socket.deserializeAttachment() as Attachment
       if (attachment.userId !== userId) continue
@@ -79,7 +84,21 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
     return true
   }
 
-  invalidateAnonymousGrants(writersOnly = false) {
+  async getPublicEpoch(): Promise<number> {
+    return (await this.ctx.storage.get<number>('public-epoch')) ?? 0
+  }
+
+  async invalidateAnonymousGrants(writersOnly = false) {
+    await this.ctx.storage.transaction(async (storage) => {
+      if (
+        writersOnly &&
+        (await storage.get<boolean>('public-readonly')) === true
+      )
+        return
+      const epoch = (await storage.get<number>('public-epoch')) ?? 0
+      await storage.put('public-epoch', epoch + 1)
+      await storage.put('public-readonly', writersOnly)
+    })
     for (const socket of this.ctx.getWebSockets()) {
       const attachment = socket.deserializeAttachment() as Attachment
       if (!attachment.publicAccess || (writersOnly && attachment.readOnly))
@@ -88,6 +107,10 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
       this.assemblers.delete(socket)
       socket.close(4003, 'Public access changed; revalidate')
     }
+  }
+
+  async observePublicWritable() {
+    await this.ctx.storage.put('public-readonly', false)
   }
 
   async permitPublicHttp(userId: string, write: boolean): Promise<boolean> {
@@ -105,9 +128,9 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
           : { startedAt: now, total: 0, writes: 0, users: {} }
       const user = window.users[userId] ?? { total: 0, writes: 0 }
       if (
-        window.total >= 240 ||
-        user.total >= 60 ||
-        (write && (window.writes >= 24 || user.writes >= 12))
+        window.total >= 512 ||
+        user.total >= 128 ||
+        (write && (window.writes >= 128 || user.writes >= 64))
       )
         return false
       window.total++
@@ -133,6 +156,11 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
       current?.value !== epoch ||
       grant.userId !== userId ||
       grant.expiresAt <= Date.now()
+    )
+      return false
+    if (
+      grant.publicAccess &&
+      grant.publicEpoch !== (await this.getPublicEpoch())
     )
       return false
     for (const socket of this.ctx.getWebSockets()) {
@@ -185,6 +213,11 @@ export class RealtimeRoom extends DurableObject<Cloudflare.Env> {
   ): Promise<WorkerResponse> {
     const current = await this.ctx.storage.get<Epoch>(`auth:${grant.userId}`)
     if (current?.value !== epoch || grant.expiresAt <= Date.now())
+      return new Response(null, { status: 409 })
+    if (
+      grant.publicAccess &&
+      grant.publicEpoch !== (await this.getPublicEpoch())
+    )
       return new Response(null, { status: 409 })
     if (this.ctx.getWebSockets().length >= maxParticipants)
       return new Response(null, { status: 429 })

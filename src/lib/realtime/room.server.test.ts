@@ -1,6 +1,10 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
-import type { DurableObjectState, WebSocket } from '@cloudflare/workers-types'
+import type {
+  Request as WorkerRequest,
+  DurableObjectState,
+  WebSocket,
+} from '@cloudflare/workers-types'
 import { RealtimeRoom } from './room.server'
 import { encodeFrames, FrameType, limits } from './protocol'
 
@@ -202,4 +206,48 @@ it('renews only the current authenticated connection without a new socket', asyn
   expect(await room.renewGrant('user', 'connection', epoch, grant)).toBe(false)
   await room.finishAuthorization('user', newer, null)
   expect(await room.renewGrant('user', 'connection', newer, grant)).toBe(false)
+})
+
+it('rejects pending anonymous admission and renewal after public epoch invalidation, including reconstruction', async () => {
+  const room = new RealtimeRoom(state, {} as Cloudflare.Env)
+  const epoch = await room.beginAuthorization('anonymous:visitor')
+  const publicEpoch = await room.getPublicEpoch()
+  const grant = {
+    userId: 'anonymous:visitor',
+    accountId: 'anonymous:visitor',
+    readOnly: false,
+    expiresAt: Date.now() + 60_000,
+    publicAccess: true,
+    publicEpoch,
+  }
+  await room.invalidateAnonymousGrants()
+  expect(
+    await room.finishAuthorization('anonymous:visitor', epoch, grant),
+  ).toBe(false)
+  const rebuilt = new RealtimeRoom(state, {} as Cloudflare.Env)
+  expect(await rebuilt.getPublicEpoch()).toBe(publicEpoch + 1)
+  const response = await rebuilt.fetch(
+    Object.assign({} as WorkerRequest, {
+      headers: new Headers({
+        Upgrade: 'websocket',
+        'X-Concept-Grant': JSON.stringify(grant),
+        'X-Concept-Epoch': String(epoch),
+      }),
+    }),
+  )
+  expect(response.status).toBe(409)
+  expect(
+    await rebuilt.renewGrant('anonymous:visitor', 'connection', epoch, grant),
+  ).toBe(false)
+})
+
+it('does not repeatedly invalidate public reader grants while permission stays read-only', async () => {
+  const room = new RealtimeRoom(state, {} as Cloudflare.Env)
+  await room.invalidateAnonymousGrants(true)
+  const epoch = await room.getPublicEpoch()
+  await room.invalidateAnonymousGrants(true)
+  expect(await room.getPublicEpoch()).toBe(epoch)
+  await room.observePublicWritable()
+  await room.invalidateAnonymousGrants(true)
+  expect(await room.getPublicEpoch()).toBe(epoch + 1)
 })

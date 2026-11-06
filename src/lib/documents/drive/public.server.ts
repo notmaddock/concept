@@ -24,6 +24,8 @@ type Publisher = {
   userId: string
   accountId: string
   resourceKey: string | null
+  updatedAt: number
+  consentVersion: number
 }
 type PublicFile = {
   id: string
@@ -281,11 +283,12 @@ export async function authorizePublic(
   resource: Resource,
 ) {
   const startedAt = Date.now()
-  const publisher = await bindings.DB.prepare(
-    'select fileId, userId, accountId, resourceKey from public_drive_publisher where fileId = ?',
-  )
+  const publisherQuery =
+    'select p.fileId, p.userId, p.accountId, p.resourceKey, p.updatedAt, coalesce(e.version, 0) as consentVersion from public_drive_publisher p left join public_drive_publisher_epoch e on e.userId = p.userId where p.fileId = ?'
+  const observed = await bindings.DB.prepare(publisherQuery)
     .bind(resource.fileId)
     .first<Publisher>()
+  const publisher = observed ? { ...observed } : null
   if (!publisher) throw new AccessFailure(404)
   const token = await publisherToken(
     bindings,
@@ -306,6 +309,21 @@ export async function authorizePublic(
     await bindings.REALTIME_ROOMS.getByName(
       `google-drive:${resource.fileId}`,
     ).invalidateAnonymousGrants(true)
+  else
+    await bindings.REALTIME_ROOMS.getByName(
+      `google-drive:${resource.fileId}`,
+    ).observePublicWritable()
+  const current = await bindings.DB.prepare(publisherQuery)
+    .bind(resource.fileId)
+    .first<Publisher>()
+  if (
+    !current ||
+    current.userId !== publisher.userId ||
+    current.accountId !== publisher.accountId ||
+    current.resourceKey !== publisher.resourceKey ||
+    current.consentVersion !== publisher.consentVersion
+  )
+    throw new AccessFailure(404)
   if (startedAt + grantLifetimeMs <= Date.now()) throw new AccessFailure(503)
   return { token, policy, expiresAt: startedAt + grantLifetimeMs }
 }
@@ -323,6 +341,9 @@ export async function publicRealtimeGrant(
     ).permitPublicHttp(id, false))
   )
     throw new AccessFailure(429)
+  const publicEpoch = await bindings.REALTIME_ROOMS.getByName(
+    `google-drive:${resource.fileId}`,
+  ).getPublicEpoch()
   const access = await authorizePublic(request, bindings, resource)
   return {
     userId: id,
@@ -330,6 +351,7 @@ export async function publicRealtimeGrant(
     readOnly: access.policy.readOnly,
     expiresAt: access.expiresAt,
     publicAccess: true,
+    publicEpoch,
   }
 }
 

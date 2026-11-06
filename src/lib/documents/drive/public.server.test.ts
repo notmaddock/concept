@@ -24,6 +24,8 @@ const first = vi.fn()
 const all = vi.fn()
 const invalidateAnonymousGrants = vi.fn()
 const permitPublicHttp = vi.fn()
+const getPublicEpoch = vi.fn()
+const observePublicWritable = vi.fn()
 const bind = vi.fn()
 const bindings = Object.assign({} as Cloudflare.Env, {
   BETTER_AUTH_SECRET: 'private-signing-key',
@@ -34,7 +36,12 @@ const bindings = Object.assign({} as Cloudflare.Env, {
     }),
   },
   REALTIME_ROOMS: {
-    getByName: () => ({ invalidateAnonymousGrants, permitPublicHttp }),
+    getByName: () => ({
+      invalidateAnonymousGrants,
+      permitPublicHttp,
+      getPublicEpoch,
+      observePublicWritable,
+    }),
   },
 })
 let publicRole: string | undefined
@@ -62,6 +69,7 @@ beforeEach(() => {
   bind.mockReturnValue({ first, run: execute, all })
   all.mockResolvedValue({ results: [{ fileId: 'file' }] })
   permitPublicHttp.mockResolvedValue(true)
+  getPublicEpoch.mockResolvedValue(0)
   auth.getSession.mockResolvedValue({ user: { id: 'signed-user' } })
   auth.listUserAccounts.mockResolvedValue([
     {
@@ -375,4 +383,80 @@ it('does not infer anonymous content access from ambiguous limited-access ACLs',
   inheritedPermissionsDisabled = true
   expect((await handlePublicDrive(request(), bindings)).status).toBe(403)
   expect(uploaded).toBeUndefined()
+})
+
+it('does not finish public authorization or publish after publisher withdrawal during a delayed permission check', async () => {
+  let release!: () => void
+  let began!: () => void
+  const delayed = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const entered = new Promise<void>((resolve) => {
+    began = resolve
+  })
+  const originalFetch = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation(async (input, init) => {
+    if (String(input).includes('/permissions')) {
+      began()
+      await delayed
+    }
+    return originalFetch(input, init)
+  })
+  const pending = handlePublicDrive(
+    request(
+      'content',
+      { method: 'PUT', body: 'PK pending', headers: { 'If-Match': '"old"' } },
+      '&filename=example.concept',
+    ),
+    bindings,
+  )
+  await entered
+  const disconnect = await handlePublicDrive(
+    new Request(`${origin}/api/public-drive/disconnect`, {
+      method: 'POST',
+      headers: { Origin: origin },
+    }),
+    bindings,
+  )
+  expect(disconnect.status).toBe(200)
+  first.mockResolvedValue(null)
+  release()
+  expect((await pending).status).toBe(404)
+  expect(uploaded).toBeUndefined()
+})
+
+it('does not mint a public room grant after publisher consent changes while Drive responds', async () => {
+  const originalFetch = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation(async (input, init) => {
+    const response = await originalFetch(input, init)
+    if (String(input).includes('/permissions'))
+      first.mockResolvedValue({ ...publisher, consentVersion: 2 })
+    return response
+  })
+  await expect(
+    publicRealtimeGrant(
+      request(),
+      bindings,
+      { fileId: 'file' },
+      'anonymous:visitor',
+    ),
+  ).rejects.toMatchObject({ status: 404 })
+})
+
+it('accepts an unchanged publisher relation refreshed while authorization is in flight', async () => {
+  const originalFetch = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation(async (input, init) => {
+    const response = await originalFetch(input, init)
+    if (String(input).includes('/permissions'))
+      first.mockResolvedValue({ ...publisher, updatedAt: Date.now() })
+    return response
+  })
+  await expect(
+    publicRealtimeGrant(
+      request(),
+      bindings,
+      { fileId: 'file' },
+      'anonymous:visitor',
+    ),
+  ).resolves.toMatchObject({ publicAccess: true, publicEpoch: 0 })
 })

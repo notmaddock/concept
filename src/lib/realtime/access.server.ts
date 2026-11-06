@@ -43,6 +43,7 @@ export type RealtimeGrant = {
   readOnly: boolean
   expiresAt: number
   publicAccess?: boolean
+  publicEpoch?: number
 }
 
 export async function checkDriveAccess(
