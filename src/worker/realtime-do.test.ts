@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as encoding from 'lib0/encoding'
+import { Doc, encodeStateAsUpdate, XmlText } from 'yjs'
+import { writeUpdate } from 'y-protocols/sync'
 import { DocumentRealtimeDO } from './realtime-do'
 import { signRealtimeTicket } from '#/lib/documents/realtime/ticket'
 import { encodeControlMessage } from '#/lib/documents/realtime/protocol'
@@ -125,6 +128,20 @@ function upgradeRequest(ticket: string) {
   return new Request(
     `https://concept.test/socket?fileId=${fileId}&ticket=${encodeURIComponent(ticket)}`,
     { headers: { Upgrade: 'websocket' } },
+  )
+}
+
+/** A real Yjs update frame, so the room's applyUpdate cannot swallow it. */
+function updateFrame(): ArrayBuffer {
+  const doc = new Doc()
+  doc.get('content', XmlText).insert(0, 'hello')
+  const encoder = encoding.createEncoder()
+  writeUpdate(encoder, encodeStateAsUpdate(doc))
+  doc.destroy()
+  const frame = encoding.toUint8Array(encoder)
+  return frame.buffer.slice(
+    frame.byteOffset,
+    frame.byteOffset + frame.byteLength,
   )
 }
 
@@ -327,5 +344,49 @@ describe('DocumentRealtimeDO revalidation cadence', () => {
       encodeControlMessage({ type: 'capabilities', capabilities: editorCaps }),
     )
     expect(harness.alarmAt()).toBe(armed)
+  })
+})
+
+describe('DocumentRealtimeDO relay after hibernation', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.stubGlobal('WebSocketPair', function WebSocketPair() {
+      return { 0: new FakeWebSocket(), 1: new FakeWebSocket() }
+    })
+    vi.stubGlobal(
+      'Response',
+      function Response(
+        _body: unknown,
+        init?: {
+          status?: number
+          webSocket?: unknown
+        },
+      ) {
+        return { status: init?.status, webSocket: init?.webSocket }
+      },
+    )
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('relays a frame to peers that were attached before the wake-up', async () => {
+    const harness = createState()
+    const doInstance = createDo(harness)
+    await doInstance.fetch(upgradeRequest(await ticketFor('u1', editorCaps)))
+    await doInstance.fetch(upgradeRequest(await ticketFor('u2', editorCaps)))
+    const [socketA, socketB] = [...harness.sockets]
+    socketA.sent = []
+    socketB.sent = []
+
+    // Hibernation discards the room's in-memory client map while the runtime
+    // keeps both sockets attached, so the woken object must rebuild every
+    // client from its attachment before it can relay to anyone but the sender.
+    const woken = createDo(harness)
+    await woken.webSocketMessage(socketB as never, updateFrame())
+
+    expect(socketA.sent).toHaveLength(1)
   })
 })
