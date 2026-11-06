@@ -4,7 +4,8 @@ import { $getRoot } from 'lexical'
 import type { LexicalEditor } from 'lexical'
 import type { Doc } from 'yjs'
 import type { DocumentInfo } from '#/lib/documents/storage'
-import { serializeConcept } from '#/lib/documents/serialization'
+import { encodeStateAsUpdate } from 'yjs'
+import { documentAssets } from '#/lib/documents/working'
 import {
   Dialog,
   DialogContent,
@@ -73,15 +74,15 @@ export function DocumentDetailsDialog({
         for (const part of segmenter.segment(text)) if (part.isWordLike) words++
         let characters = 0
         for (const _character of text) characters++
-        const bytes = new Blob([serializeConcept(document.name, doc)]).size
+        const bytes = encodeStateAsUpdate(doc).byteLength
         setStatistics([
           ['Words', words.toLocaleString()],
           ['Characters', characters.toLocaleString()],
           [
-            'File size (.concept)',
+            'Document state',
             `${bytes.toLocaleString()} bytes (${(bytes / 1024).toFixed(1)} KB)`,
           ],
-          ['Format', 'Concept · Version 1'],
+          ['Format', 'Concept · Version 2'],
         ])
       }
       refresh()
@@ -99,8 +100,10 @@ export function DocumentDetailsDialog({
         },
       )
       doc.on('update', schedule)
+      const unsubscribeAssets = documentAssets(doc)?.subscribe(schedule)
       detach = () => {
         disposed = true
+        unsubscribeAssets?.()
         doc.off('update', schedule)
       }
       return true

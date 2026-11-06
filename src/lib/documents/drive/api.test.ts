@@ -1,3 +1,4 @@
+import { packageLimits } from '../limits'
 import { Blob as NodeBlob } from 'node:buffer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
@@ -29,6 +30,7 @@ const file = {
   mimeType: 'application/vnd.concept+json',
 }
 const fetchMock = vi.fn<typeof fetch>()
+const bytes = (text: string) => new TextEncoder().encode(text)
 
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
@@ -54,7 +56,7 @@ function metadata(etag?: string) {
 it('uploads content and metadata atomically with the supplied If-Match', async () => {
   fetchMock.mockResolvedValueOnce(metadata('"next"'))
   await expect(
-    updateConceptFile('drive-id', 'Renamed', '{"data":1}', '"base"'),
+    updateConceptFile('drive-id', 'Renamed', bytes('{"data":1}'), '"base"'),
   ).resolves.toEqual({ file, etag: '"next"' })
   const [url, init] = fetchMock.mock.calls[0]
   expect(String(url)).toContain(
@@ -62,7 +64,7 @@ it('uploads content and metadata atomically with the supplied If-Match', async (
   )
   expect(init?.method).toBe('PUT')
   expect(new Headers(init?.headers).get('If-Match')).toBe('"base"')
-  expect(String(url)).toMatch(/^https:\/\/www.googleapis.com\//)
+  expect(new URL(String(url)).origin).toBe('https://www.googleapis.com')
   expect(init?.credentials).toBe('omit')
   expect(new Headers(init?.headers).get('Authorization')).toBe(
     'Bearer test-token',
@@ -77,7 +79,7 @@ it('preserves an explicit raw Drive filename without adding an extension', async
   await updateConceptFile(
     'drive-id',
     'Display name',
-    '{}',
+    bytes('{}'),
     '"base"',
     'Externally renamed',
   )
@@ -88,15 +90,15 @@ it('preserves an explicit raw Drive filename without adding an extension', async
 
 it('never uploads without a strong ETag and preserves conflict status', async () => {
   await expect(
-    updateConceptFile('drive-id', 'Test', '{}', ''),
+    updateConceptFile('drive-id', 'Test', bytes('{}'), ''),
   ).rejects.toBeInstanceOf(DriveError)
   await expect(
-    updateConceptFile('drive-id', 'Test', '{}', 'W/"weak"'),
+    updateConceptFile('drive-id', 'Test', bytes('{}'), 'W/"weak"'),
   ).rejects.toThrow('strong ETag')
   expect(fetchMock).not.toHaveBeenCalled()
   fetchMock.mockResolvedValueOnce(new Response(null, { status: 412 }))
   await expect(
-    updateConceptFile('drive-id', 'Test', '{}', '"stale"'),
+    updateConceptFile('drive-id', 'Test', bytes('{}'), '"stale"'),
   ).rejects.toMatchObject({ status: 412 })
 })
 
@@ -111,7 +113,7 @@ it('retries a download whose validator changed during reading', async () => {
   await expect(readConceptFile('drive-id')).resolves.toEqual({
     file,
     etag: '"new"',
-    content: 'new-content',
+    content: new TextEncoder().encode('new-content'),
   })
 })
 
@@ -122,7 +124,10 @@ it('reuses supplied metadata before download while verifying the final validator
     .mockResolvedValueOnce(metadata(initial.etag))
   await expect(
     readConceptFile('drive-id', undefined, initial),
-  ).resolves.toEqual({ ...initial, content: 'content' })
+  ).resolves.toEqual({
+    ...initial,
+    content: new TextEncoder().encode('content'),
+  })
   expect(fetchMock).toHaveBeenCalledTimes(2)
   expect(String(fetchMock.mock.calls[0][0])).toContain(
     '/drive/v3/files/drive-id?alt=media',
@@ -142,7 +147,11 @@ it('discards stale supplied metadata and reads fresh metadata on download retry'
     .mockResolvedValueOnce(metadata('"fresh"'))
   await expect(
     readConceptFile('drive-id', undefined, initial),
-  ).resolves.toEqual({ file, etag: '"fresh"', content: 'fresh-content' })
+  ).resolves.toEqual({
+    file,
+    etag: '"fresh"',
+    content: new TextEncoder().encode('fresh-content'),
+  })
   expect(fetchMock).toHaveBeenCalledTimes(5)
   expect(String(fetchMock.mock.calls[2][0])).toContain(
     '/drive/v2/files/drive-id?fields=',
@@ -162,7 +171,7 @@ it('fails closed when Drive omits the response ETag', async () => {
 
 it('creates in the selected folder and rejects credentials still invalid after refresh', async () => {
   fetchMock.mockResolvedValueOnce(metadata('"created"'))
-  await createConceptFile('Test', '{}', 'folder-id')
+  await createConceptFile('Test', bytes('{}'), 'folder-id')
   const body = await (fetchMock.mock.calls[0][1]?.body as NodeBlob).text()
   expect(body).toContain('"parents":[{"id":"folder-id"}]')
   fetchMock.mockResolvedValue(new Response(null, { status: 401 }))
@@ -211,7 +220,7 @@ it('trashes with a fresh validator and leaves conflicts for the caller', async (
 
 it('retains the created file identity when its validator is missing', async () => {
   fetchMock.mockResolvedValueOnce(metadata())
-  const created = createConceptFile('Test', '{}')
+  const created = createConceptFile('Test', bytes('{}'))
   await expect(created).rejects.toBeInstanceOf(DriveCreatedFileError)
   await expect(created).rejects.toMatchObject({ file })
   expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -226,7 +235,7 @@ it('refreshes a Google-rejected token once and replays the identical conditional
   fetchMock
     .mockResolvedValueOnce(new Response(null, { status: 401 }))
     .mockResolvedValueOnce(metadata('"saved"'))
-  await updateConceptFile('drive-id', 'Test', '{}', '"base"')
+  await updateConceptFile('drive-id', 'Test', bytes('{}'), '"base"')
   expect(getGoogleDriveToken).toHaveBeenCalledWith(
     expect.objectContaining({ forceRefresh: true }),
   )
@@ -308,4 +317,99 @@ it('includes shared-drive files in library listings', async () => {
   const url = new URL(String(fetchMock.mock.calls[0][0]))
   expect(url.searchParams.get('supportsAllDrives')).toBe('true')
   expect(url.searchParams.get('includeItemsFromAllDrives')).toBe('true')
+})
+
+it('uploads exact binary media and changes the legacy MIME type in the same conditional write', async () => {
+  fetchMock.mockResolvedValueOnce(metadata('"next"'))
+  const content = new Uint8Array([0x50, 0x4b, 0, 0xff, 0x80, 0x0d, 0x0a])
+  await updateConceptFile('drive-id', 'Binary', content, '"base"')
+  const init = fetchMock.mock.calls[0][1]
+  const body = new Uint8Array(await (init?.body as NodeBlob).arrayBuffer())
+  const text = new TextDecoder().decode(body)
+  expect(text).toContain('"mimeType":"application/vnd.concept+zip"')
+  expect(text).toContain('Content-Type: application/vnd.concept+zip\r\n\r\n')
+  expect(text).not.toContain('application/vnd.concept+zip; charset')
+  const mediaStart = new TextEncoder().encode(
+    text.slice(0, text.indexOf('PK')),
+  ).length
+  expect(body.slice(mediaStart, mediaStart + content.length)).toEqual(content)
+  expect(new Headers(init?.headers).get('If-Match')).toBe('"base"')
+})
+
+it('reads exact binary bytes without text decoding', async () => {
+  const content = new Uint8Array([0, 255, 128, 80, 75])
+  fetchMock
+    .mockResolvedValueOnce(metadata('"base"'))
+    .mockResolvedValueOnce(new Response(content))
+    .mockResolvedValueOnce(metadata('"base"'))
+  await expect(readConceptFile('drive-id')).resolves.toMatchObject({ content })
+})
+
+it('discovers both legacy and package MIME types without requiring a filename extension', async () => {
+  const zip = {
+    ...file,
+    id: 'zip',
+    name: 'Binary',
+    mimeType: 'application/vnd.concept+zip',
+  }
+  const legacy = { ...file, name: 'Legacy' }
+  fetchMock.mockResolvedValueOnce(
+    new Response(JSON.stringify({ files: [zip, legacy] })),
+  )
+  await expect(listConceptFiles()).resolves.toEqual([zip, legacy])
+  const query = new URL(String(fetchMock.mock.calls[0][0])).searchParams.get(
+    'q',
+  )
+  expect(query).toContain("mimeType = 'application/vnd.concept+zip'")
+  expect(query).toContain("mimeType = 'application/vnd.concept+json'")
+})
+
+it('bounds streamed media even when content length is absent and cancels oversized reads', async () => {
+  const previous = packageLimits.packageBytes
+  packageLimits.packageBytes = 4
+  const cancelled = vi.fn()
+  try {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]))
+        controller.enqueue(new Uint8Array([4, 5]))
+      },
+      cancel: cancelled,
+    })
+    fetchMock
+      .mockResolvedValueOnce(metadata('"base"'))
+      .mockResolvedValueOnce(new Response(body))
+    await expect(readConceptFile('drive-id')).rejects.toMatchObject({
+      status: 413,
+    })
+    expect(cancelled).toHaveBeenCalledOnce()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  } finally {
+    packageLimits.packageBytes = previous
+  }
+})
+
+it('rejects oversized declared media before consuming the body or making an upload', async () => {
+  const previous = packageLimits.packageBytes
+  packageLimits.packageBytes = 4
+  const cancelled = vi.fn()
+  try {
+    const body = new ReadableStream<Uint8Array>({ cancel: cancelled })
+    fetchMock
+      .mockResolvedValueOnce(metadata('"base"'))
+      .mockResolvedValueOnce(
+        new Response(body, { headers: { 'Content-Length': '5' } }),
+      )
+    await expect(readConceptFile('drive-id')).rejects.toMatchObject({
+      status: 413,
+    })
+    expect(cancelled).toHaveBeenCalledOnce()
+    fetchMock.mockClear()
+    await expect(
+      updateConceptFile('drive-id', 'Large', new Uint8Array(5), '"base"'),
+    ).rejects.toMatchObject({ status: 413 })
+    expect(fetchMock).not.toHaveBeenCalled()
+  } finally {
+    packageLimits.packageBytes = previous
+  }
 })

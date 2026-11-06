@@ -1,3 +1,11 @@
+import { ImageNode } from '#/components/nova/nodes/ImageNode'
+import {
+  prepareHtmlImages,
+  sanitizedHtml,
+} from '#/components/nova/clipboard/html'
+import { describeAsset } from '../assets'
+import type { AssetRecord } from '../assets'
+import { captureDocument } from '../references'
 import {
   $createParagraphNode,
   $createTextNode,
@@ -11,7 +19,9 @@ import { createYjsBinding, syncLexicalUpdateToYjs } from '@lexical/yjs'
 import { Doc } from 'yjs'
 import type { ImportFormat } from './formats'
 import { importFormats } from './formats'
-import { parseConcept, serializeConcept } from '../concept-file'
+import { captureSnapshot } from '../working'
+import { imageTransferLimits } from '../image-transfer'
+import { packageLimits } from '../limits'
 import { LocalProvider } from '../local-provider'
 
 export async function convertImport(file: File, format: ImportFormat) {
@@ -22,11 +32,42 @@ export async function convertImport(file: File, format: ImportFormat) {
     )
   )
     throw new Error(`Choose a ${definition?.label ?? 'supported'} file.`)
-  const content = await file.text()
+  const byteLimit =
+    format === 'html'
+      ? imageTransferLimits.bytes * 3
+      : packageLimits.documentBytes
+  if (file.size > byteLimit) throw new Error('Import file is too large.')
+  let content = await file.text()
+  if (content.length > byteLimit) throw new Error('Import file is too large.')
+  const assets: AssetRecord[] = []
+  if (format === 'html') {
+    const html = sanitizedHtml(content)
+    const { images } = await prepareHtmlImages(html)
+    for (const image of images) {
+      const descriptor = await describeAsset(image.blob)
+      assets.push({ descriptor, blob: image.blob })
+      image.element.setAttribute(
+        'data-concept-image-source',
+        JSON.stringify({
+          assetId: descriptor.id,
+          intrinsicWidth: image.intrinsicWidth,
+          intrinsicHeight: image.intrinsicHeight,
+        }),
+      )
+    }
+    content = html.body.innerHTML
+  }
   const name = file.name.replace(/\.[^.]+$/, '').trim() || 'Untitled document'
   const editor = createEditor({
     namespace: 'document-import',
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, HorizontalRuleNode],
+    nodes: [
+      HeadingNode,
+      QuoteNode,
+      ListNode,
+      ListItemNode,
+      HorizontalRuleNode,
+      ImageNode,
+    ],
     onError: (error) => {
       throw error
     },
@@ -83,7 +124,16 @@ export async function convertImport(file: File, format: ImportFormat) {
       },
       { discrete: true },
     )
-    return parseConcept(serializeConcept(name, doc))
+    if (assets.length) {
+      const captured = captureDocument(doc, name)
+      return {
+        name: captured.name,
+        update: captured.update,
+        assets,
+        requiredFeatures: [],
+      }
+    }
+    return await captureSnapshot(name, doc)
   } finally {
     unregister()
     provider.destroy()

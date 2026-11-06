@@ -1,3 +1,4 @@
+import { openPublicationTransport } from './publication'
 import { Doc } from 'yjs'
 import { localDocumentStorage } from './storage'
 import type { DocumentStorage, DocumentPersistence } from './storage'
@@ -119,6 +120,7 @@ export const documentStorage: DocumentStorage = {
         }
       }
     }
+    await documentSessions.get(id)?.stop()
     await localDocumentStorage.delete(id)
     clearSaveStatus(id)
   },
@@ -134,7 +136,12 @@ export const documentStorage: DocumentStorage = {
       local = localDocumentStorage.open(id, doc)
       await local.whenSynced
       if (isClosed()) return
-      sync = new DocumentSync(info, doc, local)
+      sync = new DocumentSync(
+        info,
+        doc,
+        local,
+        info.drive ? openPublicationTransport(info.drive.fileId) : undefined,
+      )
       await sync.start()
     })()
     return {

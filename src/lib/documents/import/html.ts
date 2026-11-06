@@ -7,6 +7,14 @@ export function convertHtml(content: string, editor: LexicalEditor) {
   html
     .querySelectorAll('script,style,iframe,object,embed,template')
     .forEach((node) => node.remove())
+  html
+    .querySelectorAll('img:not([data-concept-image-source])')
+    .forEach((image) => {
+      const alt = image.getAttribute('alt')
+      image.replaceWith(
+        html.createTextNode(alt ? `[Image: ${alt}]` : '[Image]'),
+      )
+    })
   $getRoot().select()
   $insertNodes($generateNodesFromDOM(editor, html))
 }

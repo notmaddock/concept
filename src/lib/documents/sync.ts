@@ -1,8 +1,20 @@
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs'
 import { toast } from 'sonner'
-import { documentRevision } from './revision'
-import { decodeUpdate, parseConcept } from './concept-file'
-import { serializeConcept } from './serialization'
+import {
+  snapshotRevision,
+  writePackage,
+  PackageValidationError,
+} from './package'
+import {
+  captureSnapshot,
+  captureRevisionSnapshot,
+  documentAssets,
+  IncompleteAssetsError,
+} from './working'
+import { assetRetryPolicy } from './limits'
+import { collectReferences } from './references'
+import { readConcept, decodeUpdate, parseConcept } from './concept-file'
+
 import { localDocumentStorage } from './storage'
 import type { DocumentInfo, DocumentPersistence } from './storage'
 import {
@@ -18,7 +30,12 @@ import {
   readConceptFile,
   updateConceptFile,
 } from './drive/api'
+import { createDocumentAssetResolver } from './asset-session'
+import type { DocumentAssetResolver } from './asset-session'
+import type { PublicationTransport } from './publication'
 import type { DriveFileVersion } from './drive/api'
+
+export const assetReconciliation = assetRetryPolicy
 
 export const saveTiming = { idleMs: 3000, maxWaitMs: 60_000 }
 
@@ -33,6 +50,7 @@ export interface SaveStatus {
     | 'offline'
     | 'auth-required'
     | 'error'
+    | 'missing-assets'
   lastSyncedAt?: number
   etag?: string
   remoteRevision?: string
@@ -74,6 +92,7 @@ export function mergeConcept(doc: Doc, content: string) {
 }
 
 export class DocumentSync {
+  assets?: DocumentAssetResolver
   private stopped = false
   private running?: Promise<void>
   private idle?: ReturnType<typeof setTimeout>
@@ -85,6 +104,14 @@ export class DocumentSync {
   private remoteFilename?: string
   private retryCount = 0
   private metadataVersion = 0
+  private unsubscribePublication?: () => void
+  private unsubscribeAssets?: () => void
+  private missingTimer?: ReturnType<typeof setTimeout>
+  private missingAttempts = 0
+  private waitingForAssets = false
+  private actionRecovery = 0
+  private urgent = false
+  private reconcileAgain = false
   private unsubscribeAuth?: () => void
   private readonly abort = new AbortController()
   private isStopped = () => this.stopped
@@ -97,6 +124,7 @@ export class DocumentSync {
     readonly info: DocumentInfo,
     readonly doc: Doc,
     private persistence: DocumentPersistence,
+    private publication?: PublicationTransport,
   ) {
     this.dirty = info.drive?.dirty ?? false
     this.etag = info.drive?.etag
@@ -110,11 +138,20 @@ export class DocumentSync {
   }
 
   private content() {
-    return serializeConcept(documentName(this.doc, this.info.name), this.doc)
+    return captureRevisionSnapshot(
+      documentName(this.doc, this.info.name),
+      this.doc,
+    )
+  }
+
+  private async differsFrom(revision: string) {
+    const generation = this.version
+    const current = await snapshotRevision(await this.content())
+    return generation !== this.version || current !== revision
   }
 
   private publish(phase: SaveStatus['phase'], error?: string) {
-    if (this.stopped) return
+    if (this.isStopped()) return
     const status = {
       ...getSaveStatus(this.info.id),
       phase,
@@ -132,13 +169,21 @@ export class DocumentSync {
       return
     const version = ++this.metadataVersion
     const content = this.content()
-    const bytes = new TextEncoder().encode(content)
-    void documentRevision(content)
-      .then((revision) => {
+    void content
+      .then(async (snapshot) => ({
+        revision: await snapshotRevision(snapshot),
+        size:
+          snapshot.update.byteLength +
+          snapshot.assets.reduce(
+            (size, asset) => size + asset.descriptor.byteLength,
+            0,
+          ),
+      }))
+      .then(({ revision, size }) => {
         if (this.stopped || version !== this.metadataVersion) return
         setSaveStatus(this.info.id, {
           ...getSaveStatus(this.info.id),
-          size: bytes.byteLength,
+          size,
           revision,
         })
       })
@@ -153,7 +198,7 @@ export class DocumentSync {
       if (
         hasCachedContent &&
         (!this.info.drive.savedRevision ||
-          (await documentRevision(this.content())) !==
+          (await snapshotRevision(await this.content())) !==
             this.info.drive.savedRevision)
       ) {
         this.dirty = true
@@ -174,8 +219,49 @@ export class DocumentSync {
     ) {
       this.doc.getMap<string>('metadata').set('name', this.info.name)
     }
-    if (this.stopped) return
+    if (this.isStopped()) return
+    const repository = documentAssets(this.doc)
+    if (repository)
+      this.assets = createDocumentAssetResolver({
+        repository,
+        recover: this.info.drive
+          ? async () => {
+              await this.sync(true)
+              const status = getSaveStatus(this.info.id)
+              if (status.phase === 'auth-required')
+                throw new GoogleDriveAuthError()
+              if (status.phase === 'error' || status.phase === 'offline')
+                throw new Error(
+                  status.error ?? 'Could not retrieve document assets.',
+                )
+            }
+          : undefined,
+        classifyFailure: (error) => ({
+          kind: isGoogleDriveAuthError(error)
+            ? 'authentication'
+            : error instanceof DriveError && error.status === 403
+              ? 'permission'
+              : error instanceof PackageValidationError
+                ? 'corruption'
+                : error instanceof Error && error.name === 'AbortError'
+                  ? 'cancelled'
+                  : !navigator.onLine
+                    ? 'offline'
+                    : 'unknown',
+          error,
+        }),
+      })
     this.doc.on('update', this.changed)
+    this.unsubscribeAssets = documentAssets(this.doc)?.subscribe(() => {
+      if (this.isStopped()) return
+      this.changed()
+      this.requestUrgentSave()
+    })
+    this.unsubscribePublication = this.publication?.subscribe(() => {
+      if (this.info.drive && isGoogleDriveConnected()) this.check()
+    })
+    document.addEventListener('visibilitychange', this.visibilityChanged)
+    this.scheduleMissingCheck()
     if (this.info.drive)
       this.unsubscribeAuth = subscribeGoogleDriveAuth(() => {
         if (isGoogleDriveConnected()) this.check()
@@ -191,8 +277,11 @@ export class DocumentSync {
   }
 
   private changed = () => {
-    if (this.isReadOnly) return
     ++this.version
+    if (this.isReadOnly) {
+      this.scheduleMissingCheck()
+      return
+    }
     const wasDirty = this.dirty
     this.dirty = true
     if (!this.info.drive) {
@@ -216,6 +305,7 @@ export class DocumentSync {
     }
     if (!this.running) this.publish('pending')
     this.schedule()
+    this.scheduleMissingCheck()
   }
 
   private async persistMetadata(
@@ -275,12 +365,26 @@ export class DocumentSync {
       this.abort.signal,
       initial,
     )
-    if (this.stopped) return
+    if (this.isStopped()) return
+    const parsed = await readConcept(
+      typeof remote.content === 'string'
+        ? new TextEncoder().encode(remote.content)
+        : remote.content,
+    )
+    if (parsed.kind !== 'complete')
+      throw new IncompleteAssetsError(parsed.missingAssets)
+    const incoming = parsed.snapshot
+    await documentAssets(this.doc)?.importAssets(
+      incoming.assets,
+      this.abort.signal,
+    )
+    if (this.isStopped()) return
     // Canonicalize the remote snapshot separately: local edits must never become
     // acknowledged merely because they were present when a download completed.
     const snapshot = new Doc()
     try {
-      const embeddedName = mergeConcept(snapshot, remote.content)
+      applyUpdate(snapshot, incoming.update)
+      const embeddedName = incoming.name
       const remoteName = remote.file.name.replace(/\.concept$/i, '')
       const previousName = this.remoteFilename?.replace(/\.concept$/i, '')
       const localName = documentName(this.doc, this.info.name)
@@ -290,15 +394,16 @@ export class DocumentSync {
         remoteName === previousName
           ? localName
           : remoteName
-      mergeConcept(this.doc, remote.content)
+      applyUpdate(this.doc, incoming.update)
       if (this.doc.getMap<string>('metadata').get('name') !== name) {
         this.doc.getMap<string>('metadata').set('name', name)
         snapshot.getMap<string>('metadata').set('name', name)
       }
-      this.acknowledged = serializeConcept(
-        documentName(snapshot, embeddedName),
-        snapshot,
-      )
+      this.acknowledged = await snapshotRevision({
+        ...incoming,
+        name: documentName(snapshot, embeddedName),
+        update: encodeStateAsUpdate(snapshot),
+      })
       this.remoteFilename = remote.file.name
       this.etag = remote.etag
       const isReadOnly = isDriveFileReadOnly(remote.file)
@@ -309,11 +414,11 @@ export class DocumentSync {
         this.info.readOnly = false
         if (this.info.drive) this.info.drive.readOnly = false
       }
-      this.dirty = this.content() !== this.acknowledged
+      const generation = this.version
+      this.dirty = await this.differsFrom(this.acknowledged)
+      this.dirty ||= generation !== this.version
       const lastSyncedAt = this.dirty ? undefined : Date.now()
-      const savedRevision = this.dirty
-        ? undefined
-        : await documentRevision(this.acknowledged)
+      const savedRevision = this.dirty ? undefined : this.acknowledged
       const info = await this.persistMetadata(
         this.dirty
           ? undefined
@@ -337,7 +442,10 @@ export class DocumentSync {
   }
 
   sync(checkRemote = false): Promise<void> {
-    if (this.running) return this.running
+    if (this.running) {
+      if (checkRemote) this.reconcileAgain = true
+      return this.running
+    }
     if (this.stopped || !this.info.drive || (!this.dirty && !checkRemote))
       return Promise.resolve()
     clearTimeout(this.idle)
@@ -347,6 +455,14 @@ export class DocumentSync {
       .catch((error: unknown) => this.fail(error))
       .finally(() => {
         this.running = undefined
+        if (!this.stopped && (this.urgent || this.reconcileAgain)) {
+          const check = this.reconcileAgain
+          this.urgent = false
+          this.reconcileAgain = false
+          void this.sync(check)
+          return
+        }
+        this.scheduleMissingCheck()
         if (
           this.dirty &&
           !this.stopped &&
@@ -380,13 +496,38 @@ export class DocumentSync {
         throw new Error('Drive keeps changing. Try syncing again.')
       this.publish('saving')
       await this.persistence.flush?.()
-      const content = this.content()
-      if (content === this.acknowledged) {
-        this.dirty = false
+      let snapshot
+      try {
+        snapshot = await captureSnapshot(
+          documentName(this.doc, this.info.name),
+          this.doc,
+        )
+      } catch (error) {
+        if (!(error instanceof IncompleteAssetsError)) throw error
+        this.waitingForAssets = true
+        this.publish('reconciling')
+        await this.download()
+        snapshot = await captureSnapshot(
+          documentName(this.doc, this.info.name),
+          this.doc,
+        )
+      }
+      if (this.isStopped()) return
+      const revision = await snapshotRevision(snapshot)
+      if (this.isStopped()) return
+      if (revision === this.acknowledged) {
+        const generation = this.version
+        this.dirty = await this.differsFrom(revision)
+        this.dirty ||= generation !== this.version
+        if (this.dirty) continue
         break
       }
       try {
-        const name = documentName(this.doc, this.info.name)
+        const content = await writePackage(snapshot, {
+          signal: this.abort.signal,
+        })
+        if (this.isStopped()) return
+        const name = snapshot.name
         const filename =
           name === this.remoteFilename?.replace(/\.concept$/i, '')
             ? this.remoteFilename
@@ -402,11 +543,20 @@ export class DocumentSync {
         if (this.isStopped()) return
         this.etag = remote.etag
         this.remoteFilename = remote.file.name
-        this.acknowledged = content
-        this.dirty = this.content() !== content
+        this.acknowledged = revision
+        this.publication?.publish({
+          protocol: 1,
+          storage: 'google-drive',
+          fileId: this.info.drive!.fileId,
+          validator: remote.etag,
+          revision,
+        })
+        const generation = this.version
+        this.dirty = await this.differsFrom(revision)
+        this.dirty ||= generation !== this.version
         this.retryCount = 0
         const lastSyncedAt = Date.now()
-        const savedRevision = await documentRevision(content)
+        const savedRevision = revision
         const remoteRevision = remote.file.headRevisionId ?? remote.file.version
         await this.persistMetadata({
           lastSyncedAt,
@@ -433,6 +583,14 @@ export class DocumentSync {
   }
 
   private fail(error: unknown, notify = true) {
+    notify &&= this.actionRecovery === 0
+    if (error instanceof IncompleteAssetsError) {
+      this.waitingForAssets = true
+      this.publish('missing-assets')
+      void this.persistMetadata().catch(() => {})
+      this.scheduleMissingCheck()
+      return
+    }
     const message =
       error instanceof Error ? error.message : 'Could not save changes.'
     const auth =
@@ -470,7 +628,12 @@ export class DocumentSync {
       (!(error instanceof DriveError) ||
         error.status === 429 ||
         error.status >= 500)
-    if (retryable && !this.stopped && this.info.drive) {
+    if (
+      retryable &&
+      !this.stopped &&
+      this.info.drive &&
+      !this.waitingForAssets
+    ) {
       clearTimeout(this.idle)
       this.idle = setTimeout(
         () => {
@@ -481,7 +644,97 @@ export class DocumentSync {
     }
   }
 
+  requestUrgentSave() {
+    if (this.stopped || this.isReadOnly) return
+    this.dirty = true
+    if (this.running) this.urgent = true
+    else void this.sync()
+  }
+
+  async recoverAssets() {
+    try {
+      await captureSnapshot(documentName(this.doc, this.info.name), this.doc)
+    } catch (error) {
+      if (!(error instanceof IncompleteAssetsError) || !this.info.drive)
+        throw error
+      this.actionRecovery++
+      try {
+        await this.sync(true)
+        await captureSnapshot(documentName(this.doc, this.info.name), this.doc)
+      } finally {
+        this.actionRecovery--
+      }
+    }
+  }
+
+  private visibilityChanged = () => {
+    if (document.visibilityState === 'hidden') {
+      clearTimeout(this.missingTimer)
+      this.missingTimer = undefined
+    } else {
+      this.missingAttempts = 0
+      this.check()
+      this.scheduleMissingCheck()
+    }
+  }
+
+  private scheduleMissingCheck() {
+    if (
+      this.stopped ||
+      !this.info.drive ||
+      this.missingTimer ||
+      !navigator.onLine ||
+      document.visibilityState === 'hidden'
+    )
+      return
+    let required
+    try {
+      required = collectReferences(encodeStateAsUpdate(this.doc))
+    } catch {
+      return
+    }
+    void documentAssets(this.doc)
+      ?.list()
+      .then((assets) => {
+        if (
+          this.stopped ||
+          this.missingTimer ||
+          !navigator.onLine ||
+          document.visibilityState === 'hidden'
+        )
+          return
+        const available = new Set(assets.map((asset) => asset.id))
+        const missing = [
+          ...required,
+          ...(this.info.recoveryMissingAssets ?? []),
+        ].some((id) => !available.has(id))
+        this.waitingForAssets = missing
+        if (!missing) {
+          this.missingAttempts = 0
+          return
+        }
+        if (getSaveStatus(this.info.id).offlineAvailable)
+          void this.setOfflineAvailable(false).catch(() => {})
+        const delay = Math.min(
+          assetReconciliation.maximumMs,
+          assetReconciliation.initialMs *
+            2 ** Math.min(this.missingAttempts++, 8),
+        )
+        this.missingTimer = setTimeout(
+          () => {
+            this.missingTimer = undefined
+            if (navigator.onLine && document.visibilityState !== 'hidden')
+              void this.sync(true)
+          },
+          delay * (1 + Math.random() * assetReconciliation.jitter),
+        )
+      })
+      .catch((error: unknown) => this.fail(error))
+  }
+
   async setOfflineAvailable(value: boolean) {
+    if (value)
+      await captureSnapshot(documentName(this.doc, this.info.name), this.doc)
     await this.persistence.flush?.()
     await localDocumentStorage.patch(this.info.id, (current) => ({
       ...current,
@@ -496,13 +749,19 @@ export class DocumentSync {
   }
 
   async stop() {
-    if (this.stopped) return
+    if (this.isStopped()) return
     this.stopped = true
     this.abort.abort()
     clearTimeout(this.idle)
     clearTimeout(this.deadline)
     this.doc.off('update', this.changed)
     this.unsubscribeAuth?.()
+    this.unsubscribeAssets?.()
+    this.assets?.close()
+    this.unsubscribePublication?.()
+    this.publication?.close()
+    clearTimeout(this.missingTimer)
+    document.removeEventListener('visibilitychange', this.visibilityChanged)
     window.removeEventListener('focus', this.check)
     window.removeEventListener('online', this.check)
     if (documentSessions.get(this.info.id) === this)

@@ -27,6 +27,7 @@ const labels: Record<SaveStatus['phase'], string> = {
   offline: 'Offline',
   'auth-required': 'Reconnect Google Drive',
   error: 'Could not save to Drive',
+  'missing-assets': 'Waiting for document assets',
 }
 
 function relativeTime(timestamp: number, now: number) {
@@ -175,11 +176,14 @@ export function DocumentSaveStatus({
             Reconnect Google Drive
           </Button>
         )}
-        {['error', 'offline', 'pending'].includes(status.phase) && onRetry && (
-          <Button variant="outline" size="sm" onClick={onRetry}>
-            Sync now
-          </Button>
-        )}
+        {['error', 'offline', 'pending', 'missing-assets'].includes(
+          status.phase,
+        ) &&
+          onRetry && (
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              Sync now
+            </Button>
+          )}
       </PopoverContent>
     </Popover>
   )

@@ -8,7 +8,8 @@ import type { DocumentInfo, DocumentPersistence } from './storage'
 import { documentSessions, getSaveStatus } from './sync'
 import { initializeDocument } from './initial-document'
 import { serializeConcept } from './serialization'
-import { documentRevision } from './revision'
+import { snapshotRevision } from './package'
+import { captureSnapshot } from './working'
 import {
   getFileMetadata,
   listConceptFiles,
@@ -53,6 +54,10 @@ vi.mock('./drive/api', () => ({
   updateConceptFile: vi.fn(),
 }))
 
+function legacyBytes(name: string, doc: Doc) {
+  return new Uint8Array(new TextEncoder().encode(serializeConcept(name, doc)))
+}
+
 let info: DocumentInfo
 let remote: Doc
 let docs: Array<Doc>
@@ -87,7 +92,7 @@ beforeEach(() => {
   vi.mocked(getFileMetadata).mockResolvedValue(version)
   vi.mocked(readConceptFile).mockImplementation(async () => ({
     ...version,
-    content: serializeConcept(info.name, remote),
+    content: legacyBytes(info.name, remote),
   }))
   vi.mocked(listConceptFiles).mockResolvedValue([version.file])
   vi.mocked(updateConceptFile).mockResolvedValue({
@@ -118,7 +123,7 @@ async function cache(drive = info.drive!) {
       ...drive,
       savedRevision:
         drive.savedRevision ??
-        (await documentRevision(serializeConcept(info.name, remote))),
+        (await snapshotRevision(await captureSnapshot(info.name, remote))),
     },
   })
   const cached = new Doc()
@@ -247,8 +252,8 @@ it('retains unsynced cached edits even when offline availability is off', async 
 })
 
 it('recovers cached changes that persisted before the dirty metadata flag', async () => {
-  const savedRevision = await documentRevision(
-    serializeConcept(info.name, remote),
+  const savedRevision = await snapshotRevision(
+    await captureSnapshot(info.name, remote),
   )
   remote.getMap('settings').set('unmarked-local-edit', 'recover me')
   await cache({ ...info.drive!, dirty: false, savedRevision })
@@ -292,8 +297,8 @@ it('evicts clean non-offline content only when it matches the acknowledged check
 })
 
 it('preserves and marks recoverable content when eviction finds an unacknowledged checkpoint', async () => {
-  const savedRevision = await documentRevision(
-    serializeConcept(info.name, remote),
+  const savedRevision = await snapshotRevision(
+    await captureSnapshot(info.name, remote),
   )
   remote.getMap('settings').set('unmarked-local-edit', true)
   await cache({ ...info.drive!, dirty: false, savedRevision })
@@ -414,8 +419,8 @@ it('does not mark read-only documents dirty when clearing content for offline ev
 })
 
 it('preserves divergent read-only content instead of evicting unsynced edits', async () => {
-  const savedRevision = await documentRevision(
-    serializeConcept(info.name, remote),
+  const savedRevision = await snapshotRevision(
+    await captureSnapshot(info.name, remote),
   )
   remote.getMap('settings').set('unsynced-edit', 'recover me')
   await cache({ ...info.drive!, readOnly: true, dirty: false, savedRevision })
@@ -441,7 +446,7 @@ it('rejects a rename when opening the cached document reveals read-only access',
       mimeType: 'application/vnd.concept+json',
       capabilities: { canEdit: false },
     },
-    content: serializeConcept(info.name, remote),
+    content: legacyBytes(info.name, remote),
   })
 
   await expect(

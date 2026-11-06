@@ -6,7 +6,7 @@ import {
   $getRoot,
   createEditor,
 } from 'lexical'
-import { Doc } from 'yjs'
+import { Doc, encodeStateAsUpdate } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { Root } from 'react-dom/client'
 import {
@@ -14,8 +14,13 @@ import {
   DocumentDetailsPopover,
 } from './DocumentDetails'
 import { localDocumentStorage } from '#/lib/documents/storage'
-import { serializeConcept } from '#/lib/documents/concept-file'
-import * as serialization from '#/lib/documents/serialization'
+import * as yjs from 'yjs'
+import type * as YjsModule from 'yjs'
+
+vi.mock('yjs', async (original) => {
+  const actual = await original<typeof YjsModule>()
+  return { ...actual, encodeStateAsUpdate: vi.fn(actual.encodeStateAsUpdate) }
+})
 
 let root: Root
 let container: HTMLDivElement
@@ -52,7 +57,7 @@ function value(label: string) {
   )?.nextElementSibling?.textContent
 }
 
-it('shows metadata, live word counts, and the serialized download size', async () => {
+it('shows metadata, live word counts, and the document state size', async () => {
   const editor = createEditor()
   editor.update(
     () => {
@@ -79,8 +84,8 @@ it('shows metadata, live word counts, and the serialized download size', async (
   expect(value('Location')).toBe('This browser')
   expect(value('Words')).toBe('2')
   expect(value('Characters')).toBe('13')
-  expect(value('File size (.concept)')).toContain(
-    `${new Blob([serializeConcept(info.name, doc)]).size} bytes`,
+  expect(value('Document state')).toContain(
+    `${encodeStateAsUpdate(doc).byteLength} bytes`,
   )
   await act(async () => {
     editor.update(
@@ -155,7 +160,7 @@ it('opens sidebar metadata only after a second without loading document content'
 })
 
 it('coalesces document updates and skips serialization for selection-only changes', async () => {
-  const serialize = vi.spyOn(serialization, 'serializeConcept')
+  const serialize = vi.spyOn(yjs, 'encodeStateAsUpdate')
   const editor = createEditor()
   editor.update(
     () => {

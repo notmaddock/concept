@@ -18,7 +18,8 @@ import {
   documentSources,
 } from '#/lib/documents/transfer'
 import { storageLocations } from '#/lib/documents/storage-locations'
-import { parseConcept, serializeConcept } from '#/lib/documents/concept-file'
+import { readConcept } from '#/lib/documents/concept-file'
+import { captureSnapshot } from '#/lib/documents/working'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import {
@@ -56,6 +57,7 @@ export function DocumentStorageDialog({
   const [reading, setReading] = useState(false)
   const [listFailed, setListFailed] = useState(false)
   const [selected, setSelected] = useState<SelectedDocument | null>(null)
+  const [recover, setRecover] = useState(false)
   const [name, setName] = useState(source ? `Copy of ${source.name}` : '')
   const revision = useRef(0)
   const [documents, setDocuments] = useState<Array<DocumentInfo>>([])
@@ -109,6 +111,7 @@ export function DocumentStorageDialog({
   async function readDocument(read: () => Promise<SelectedDocument>) {
     const request = ++revision.current
     setSelected(null)
+    setRecover(false)
     setReading(true)
     try {
       const next = await read()
@@ -145,11 +148,12 @@ export function DocumentStorageDialog({
           mode !== 'copy'
             ? selected?.file
             : source
-              ? parseConcept(serializeConcept(source.name, source.doc))
+              ? await captureSnapshot(source.name, source.doc)
               : undefined
         if (!file || !provider)
           throw new Error('Choose a document and save location first.')
-        id = (await provider.save(file, name.trim())).id
+        id = (await provider.save(file, name.trim(), selected?.missingAssets))
+          .id
       }
       await navigate({ to: '/', hash: documentHash(id) })
       onClose()
@@ -263,8 +267,13 @@ export function DocumentStorageDialog({
                       void readDocument(async () => {
                         if (!file.name.toLowerCase().endsWith('.concept'))
                           throw new Error('Choose a .concept file.')
+                        const result = await readConcept(file)
                         return {
-                          file: parseConcept(await file.text()),
+                          file: result.snapshot,
+                          missingAssets:
+                            result.kind === 'incomplete'
+                              ? result.missingAssets
+                              : undefined,
                           size: file.size,
                           filename: file.name,
                           origin: storageLocations.device.label,
@@ -347,6 +356,22 @@ export function DocumentStorageDialog({
             )}
           </div>
         )}
+        {selected?.missingAssets?.length ? (
+          <div className="grid gap-3 rounded-xl border p-4">
+            <p className="text-sm">
+              This package is missing {selected.missingAssets.length} assets.
+              Recover a local copy with the available content. Complete saving
+              and export stay blocked until the missing assets are restored.
+            </p>
+            <Button
+              variant={recover ? 'secondary' : 'outline'}
+              aria-pressed={recover}
+              onClick={() => setRecover(!recover)}
+            >
+              {recover ? 'Recovery selected' : 'Recover available content'}
+            </Button>
+          </div>
+        ) : null}
         {review && savesDocument && (
           <div className="grid gap-4">
             <label className="grid gap-2 text-sm">
@@ -396,6 +421,7 @@ export function DocumentStorageDialog({
               disabled={
                 pending ||
                 reading ||
+                (Boolean(selected?.missingAssets?.length) && !recover) ||
                 (savesDocument && (!provider || !name.trim())) ||
                 (mode === 'copy' && !source)
               }

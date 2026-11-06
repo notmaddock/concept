@@ -144,7 +144,7 @@ it.each([
   )
 })
 
-it('downloads a .concept file with a sanitized filename', () => {
+it('downloads a .concept file with a sanitized filename', async () => {
   vi.useFakeTimers()
   const create = vi.fn(() => 'blob:concept')
   const revoke = vi.fn()
@@ -158,7 +158,7 @@ it('downloads a .concept file with a sanitized filename', () => {
   const doc = new Doc()
   try {
     doc.get('root', XmlText).insert(0, 'Hello')
-    downloadConcept('Draft:v1. ', doc)
+    await downloadConcept('Draft:v1. ', doc)
     expect(create).toHaveBeenCalledWith(expect.any(Blob))
     expect(click).toHaveBeenCalledOnce()
     vi.runAllTimers()

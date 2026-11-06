@@ -1,13 +1,24 @@
-import { applyUpdate, Doc, encodeStateAsUpdate, encodeStateVector } from 'yjs'
+import { assetRetryPolicy } from './limits'
+import {
+  assetReferenceField,
+  registerAssetReferenceCollector,
+} from './references'
+import { Blob as NodeBlob } from 'node:buffer'
+import { readPackage, writePackage } from './package'
+import { attachDocumentAssets } from './working'
+import { describeAsset } from './assets'
+import type { AssetRecord, AssetRepository } from './assets'
+import {
+  applyUpdate,
+  Doc,
+  encodeStateAsUpdate,
+  encodeStateVector,
+  XmlElement,
+} from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
 import { serializeConcept } from './serialization'
-import {
-  DocumentSync,
-  documentSessions,
-  getSaveStatus,
-  mergeConcept,
-} from './sync'
+import { DocumentSync, documentSessions, getSaveStatus } from './sync'
 import {
   DriveError,
   getFileMetadata,
@@ -54,6 +65,11 @@ let info: DocumentInfo
 let local: Doc
 let remote: Doc
 let session: DocumentSync
+let repository: AssetRepository
+let records: Map<string, AssetRecord>
+let unsubscribeAssets: () => void
+let unregisterCollector: () => void
+let previousRetryJitter: number
 const read = vi.mocked(readConceptFile)
 const metadata = vi.mocked(getFileMetadata)
 const write = vi.mocked(updateConceptFile)
@@ -71,6 +87,17 @@ function version(etag: string) {
         { canEdit?: boolean; canModifyContent?: boolean } | undefined,
     },
   }
+}
+
+function legacyBytes(name: string, doc: Doc) {
+  return new Uint8Array(new TextEncoder().encode(serializeConcept(name, doc)))
+}
+
+async function mergePackage(doc: Doc, content: Uint8Array) {
+  const result = await readPackage(content)
+  if (result.kind !== 'complete')
+    throw new Error('Expected complete saved package')
+  applyUpdate(doc, result.snapshot.update)
 }
 
 async function start() {
@@ -91,6 +118,46 @@ function deferred<T>() {
 }
 
 beforeEach(() => {
+  vi.stubGlobal('Blob', NodeBlob)
+  previousRetryJitter = assetRetryPolicy.jitter
+  assetRetryPolicy.jitter = 0
+  unregisterCollector = registerAssetReferenceCollector('test-asset', (node) =>
+    assetReferenceField(node, '__assetId'),
+  )
+  records = new Map()
+  const listeners = new Set<(id: AssetRecord['descriptor']['id']) => void>()
+  repository = {
+    closed: false,
+    documentId: 'test',
+    async put(blob) {
+      const descriptor = await describeAsset(blob)
+      records.set(descriptor.id, { descriptor, blob })
+      listeners.forEach((listener) => listener(descriptor.id))
+      return descriptor
+    },
+    async get(id) {
+      return records.get(id)?.blob
+    },
+    async list() {
+      return [...records.values()].map((record) => record.descriptor)
+    },
+    async importAssets(assets) {
+      for (const asset of assets) {
+        records.set(asset.descriptor.id, asset)
+        listeners.forEach((listener) => listener(asset.descriptor.id))
+      }
+      return assets.map((asset) => asset.descriptor)
+    },
+    pin: () => ({ release() {} }),
+    async flush() {},
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    close() {},
+  }
   vi.useFakeTimers()
   vi.clearAllMocks()
   info = {
@@ -104,9 +171,10 @@ beforeEach(() => {
   remote.getText('root').insert(0, 'base')
   local = new Doc()
   applyUpdate(local, encodeStateAsUpdate(remote))
+  unsubscribeAssets = attachDocumentAssets(local, repository)
   read.mockImplementation(async () => ({
     ...version('"base"'),
-    content: serializeConcept('Test', remote),
+    content: legacyBytes('Test', remote),
   }))
   metadata.mockResolvedValue(version('"base"'))
   write.mockResolvedValue(version('"saved"'))
@@ -114,6 +182,10 @@ beforeEach(() => {
 
 afterEach(async () => {
   await session.stop()
+  unsubscribeAssets()
+  unregisterCollector()
+  assetRetryPolicy.jitter = previousRetryJitter
+  vi.unstubAllGlobals()
   local.destroy()
   remote.destroy()
   vi.useRealTimers()
@@ -128,6 +200,8 @@ it('waits for three idle seconds and does not write a clean document', async () 
   expect(write).not.toHaveBeenCalled()
   expect(getSaveStatus(info.id).phase).toBe('pending')
   await vi.advanceTimersByTimeAsync(1)
+  expect(getSaveStatus(info.id).phase).toBe('saving')
+  await session.sync()
   expect(write).toHaveBeenCalledOnce()
   expect(write.mock.calls[0][3]).toBe('"base"')
   await session.sync()
@@ -145,6 +219,8 @@ it('forces a save at sixty seconds while edits keep resetting the idle timer', a
   }
   expect(write).not.toHaveBeenCalled()
   await vi.advanceTimersByTimeAsync(1000)
+  expect(getSaveStatus(info.id).phase).toBe('saving')
+  await session.sync()
   expect(write).toHaveBeenCalledOnce()
 })
 
@@ -152,7 +228,7 @@ it('checks only metadata when focus returns to an unchanged clean document', asy
   await start()
   read.mockClear()
   window.dispatchEvent(new Event('focus'))
-  await session.sync(true)
+  await session.sync()
   expect(metadata).toHaveBeenCalledExactlyOnceWith(
     'drive-file',
     expect.any(AbortSignal),
@@ -172,7 +248,7 @@ it('uploads local edits after an unchanged focus check without downloading conte
   expect(write).toHaveBeenCalledOnce()
   expect(write.mock.calls[0][3]).toBe('"base"')
   const saved = new Doc()
-  mergeConcept(saved, write.mock.calls[0][2])
+  await mergePackage(saved, write.mock.calls[0][2])
   expect(saved.getMap('settings').get('local-edit')).toBe(true)
   expect(getSaveStatus(info.id).phase).toBe('synced')
   saved.destroy()
@@ -187,7 +263,7 @@ it('reuses changed focus metadata while reconciling remote and local edits', asy
   metadata.mockResolvedValueOnce(changed)
   read.mockResolvedValueOnce({
     ...changed,
-    content: serializeConcept('Test', remote),
+    content: legacyBytes('Test', remote),
   })
   await session.sync(true)
   expect(metadata).toHaveBeenCalledOnce()
@@ -198,7 +274,7 @@ it('reuses changed focus metadata while reconciling remote and local edits', asy
   )
   expect(write.mock.calls[0][3]).toBe(changed.etag)
   const saved = new Doc()
-  mergeConcept(saved, write.mock.calls[0][2])
+  await mergePackage(saved, write.mock.calls[0][2])
   expect(saved.getMap('settings').toJSON()).toEqual({
     'local-edit': true,
     'remote-edit': true,
@@ -212,12 +288,12 @@ it('merges remote changes and retries each stale ETag without losing local edits
   remote.getMap('settings').set('remote', 'first')
   read.mockResolvedValueOnce({
     ...version('"remote-1"'),
-    content: serializeConcept('Test', remote),
+    content: legacyBytes('Test', remote),
   })
   remote.getMap('settings').set('another', 'second')
   read.mockResolvedValueOnce({
     ...version('"remote-2"'),
-    content: serializeConcept('Test', remote),
+    content: legacyBytes('Test', remote),
   })
   write
     .mockRejectedValueOnce(new DriveError(412, 'conflict'))
@@ -229,7 +305,7 @@ it('merges remote changes and retries each stale ETag without losing local edits
     '"remote-2"',
   ])
   const saved = new Doc()
-  mergeConcept(saved, write.mock.calls[2][2])
+  await mergePackage(saved, write.mock.calls[2][2])
   expect(saved.getMap('settings').toJSON()).toEqual({
     local: true,
     remote: 'first',
@@ -259,10 +335,12 @@ it('keeps edits made during upload pending until a later conditional upload', as
   expect(getSaveStatus(info.id).phase).toBe('pending')
   expect(write).toHaveBeenCalledOnce()
   await vi.advanceTimersByTimeAsync(3000)
+  expect(getSaveStatus(info.id).phase).toBe('saving')
+  await session.sync()
   expect(write).toHaveBeenCalledTimes(2)
   expect(write.mock.calls[1][3]).toBe('"first-save"')
   const saved = new Doc()
-  mergeConcept(saved, write.mock.calls[1][2])
+  await mergePackage(saved, write.mock.calls[1][2])
   expect(saved.getMap('settings').get('during-upload')).toBe(true)
   saved.destroy()
 })
@@ -273,9 +351,11 @@ it('uploads deletion-only changes even when the Yjs state vector is unchanged', 
   local.getText('root').delete(0, 4)
   expect(encodeStateVector(local)).toEqual(before)
   await vi.advanceTimersByTimeAsync(3000)
+  expect(getSaveStatus(info.id).phase).toBe('saving')
+  await session.sync()
   expect(write).toHaveBeenCalledOnce()
   const saved = new Doc()
-  mergeConcept(saved, write.mock.calls[0][2])
+  await mergePackage(saved, write.mock.calls[0][2])
   expect(saved.getText('root').toString()).toBe('')
   saved.destroy()
 })
@@ -310,6 +390,8 @@ it('keeps an edit pending when it arrives during the final clean-sync flush', as
   expect(getSaveStatus(info.id).phase).toBe('pending')
   expect(write).not.toHaveBeenCalled()
   await vi.advanceTimersByTimeAsync(3000)
+  expect(getSaveStatus(info.id).phase).toBe('saving')
+  await session.sync()
   expect(write).toHaveBeenCalledOnce()
 })
 
@@ -320,7 +402,7 @@ it('adopts an external Drive filename even when the embedded name is older', asy
   metadata.mockResolvedValueOnce(renamed)
   read.mockResolvedValueOnce({
     ...renamed,
-    content: serializeConcept('Test', remote),
+    content: legacyBytes('Test', remote),
   })
   write.mockResolvedValueOnce(renamed)
   await session.sync(true)
@@ -365,7 +447,7 @@ it('detects read-only capabilities on download and propagates readOnly to Docume
   roVersion.file.capabilities = { canEdit: false, canModifyContent: false }
   read.mockResolvedValueOnce({
     ...roVersion,
-    content: serializeConcept(info.name, remote),
+    content: legacyBytes(info.name, remote),
   })
 
   await start()
@@ -402,7 +484,7 @@ it('preserves unsynced edits after Drive access becomes view-only', async () => 
   metadata.mockResolvedValue(readonly)
   read.mockResolvedValue({
     ...readonly,
-    content: serializeConcept(info.name, remote),
+    content: legacyBytes(info.name, remote),
   })
 
   await session.sync(true)
@@ -427,7 +509,7 @@ it('retains recoverable cached edits when reopening a view-only document', async
   readonly.file.capabilities = { canEdit: false }
   read.mockResolvedValue({
     ...readonly,
-    content: serializeConcept(info.name, remote),
+    content: legacyBytes(info.name, remote),
   })
 
   await start()
@@ -445,7 +527,7 @@ it('detects permissions changing without a content ETag change', async () => {
   metadata.mockResolvedValue(readonly)
   read.mockResolvedValue({
     ...readonly,
-    content: serializeConcept(info.name, remote),
+    content: legacyBytes(info.name, remote),
   })
 
   await session.sync(true)
@@ -458,10 +540,357 @@ it('detects permissions changing without a content ETag change', async () => {
   metadata.mockResolvedValue(editable)
   read.mockResolvedValue({
     ...editable,
-    content: serializeConcept(info.name, remote),
+    content: legacyBytes(info.name, remote),
   })
   await session.sync(true)
 
   expect(info.readOnly).toBe(false)
   expect(getSaveStatus(info.id).readOnly).toBe(false)
+})
+
+async function assetRecord(text: string): Promise<AssetRecord> {
+  const blob = new Blob([text])
+  return { blob, descriptor: await describeAsset(blob) }
+}
+
+function referenceAsset(record: AssetRecord) {
+  const node = new XmlElement('test-asset')
+  node.setAttribute('__type', 'test-asset')
+  node.setAttribute('__assetId', record.descriptor.id)
+  local.getText('root').insertEmbed(0, node)
+  return node
+}
+
+function packageBytes(doc: Doc, assets: ReadonlyArray<AssetRecord>) {
+  return writePackage({
+    name: 'Test',
+    update: encodeStateAsUpdate(doc),
+    assets: [...assets],
+    requiredFeatures: [],
+  })
+}
+
+it('unions retained inventories through conflict retries, including unreferenced imported assets', async () => {
+  const localAsset = await assetRecord('local attachment')
+  const firstRemoteAsset = await assetRecord('remote attachment')
+  const conflictAsset = await assetRecord('concurrent attachment')
+  records.set(localAsset.descriptor.id, localAsset)
+  read.mockResolvedValueOnce({
+    ...version('"base"'),
+    content: await packageBytes(remote, [firstRemoteAsset]),
+  })
+  await start()
+  local.getMap('settings').set('local-edit', true)
+  remote.getMap('settings').set('remote-edit', true)
+  read.mockResolvedValueOnce({
+    ...version('"conflict"'),
+    content: await packageBytes(remote, [firstRemoteAsset, conflictAsset]),
+  })
+  write.mockRejectedValueOnce(new DriveError(412, 'conflict'))
+  await session.sync()
+  expect(write).toHaveBeenCalledTimes(2)
+  const result = await readPackage(write.mock.calls[1][2])
+  expect(result.kind).toBe('complete')
+  if (result.kind !== 'complete') throw new Error('Expected complete package')
+  expect(
+    result.snapshot.assets.map((asset) => asset.descriptor.id).sort(),
+  ).toEqual(
+    [localAsset, firstRemoteAsset, conflictAsset]
+      .map((asset) => asset.descriptor.id)
+      .sort(),
+  )
+  const saved = new Doc()
+  applyUpdate(saved, result.snapshot.update)
+  expect(saved.getMap('settings').toJSON()).toEqual({
+    'local-edit': true,
+    'remote-edit': true,
+  })
+  saved.destroy()
+})
+
+it('does not acknowledge an asset replacement that occurs during an older upload', async () => {
+  const original = await assetRecord('original bytes')
+  const replacement = await assetRecord('replacement bytes')
+  await start()
+  records.set(original.descriptor.id, original)
+  const node = referenceAsset(original)
+  const uploading = deferred<ReturnType<typeof version>>()
+  const entered = deferred<void>()
+  write.mockImplementationOnce(() => {
+    entered.resolve()
+    return uploading.promise
+  })
+  const saving = session.sync()
+  await entered.promise
+  records.set(replacement.descriptor.id, replacement)
+  node.setAttribute('__assetId', replacement.descriptor.id)
+  uploading.resolve(version('"first-save"'))
+  await saving
+  expect(getSaveStatus(info.id).phase).toBe('pending')
+  const first = await readPackage(write.mock.calls[0][2])
+  if (first.kind !== 'complete') throw new Error('Expected complete package')
+  expect(first.snapshot.assets.map((asset) => asset.descriptor.id)).toEqual([
+    original.descriptor.id,
+  ])
+  await session.sync()
+  const second = await readPackage(write.mock.calls[1][2])
+  if (second.kind !== 'complete') throw new Error('Expected complete package')
+  expect(
+    second.snapshot.assets.map((asset) => asset.descriptor.id).sort(),
+  ).toEqual([original.descriptor.id, replacement.descriptor.id].sort())
+  expect(getSaveStatus(info.id).phase).toBe('synced')
+})
+
+it('preserves missing references and unrelated text locally without overwriting complete remote bytes', async () => {
+  await start()
+  const unavailable = await assetRecord('not published yet')
+  referenceAsset(unavailable)
+  local.getMap('settings').set('unrelated-text-edit', 'keep locally')
+  await session.sync()
+  expect(write).not.toHaveBeenCalled()
+  expect(getSaveStatus(info.id).phase).toBe('missing-assets')
+  expect(info.drive?.dirty).toBe(true)
+  expect(toast.error).not.toHaveBeenCalled()
+  expect(local.getMap('settings').get('unrelated-text-edit')).toBe(
+    'keep locally',
+  )
+  expect(local.getText('root').toDelta()[0].insert).toBeInstanceOf(XmlElement)
+  await expect(session.setOfflineAvailable(true)).rejects.toMatchObject({
+    code: 'incomplete-assets',
+  })
+})
+
+it('recovers missing assets from a newer package before publishing pending text', async () => {
+  await start()
+  const arriving = await assetRecord('remote publication completed')
+  referenceAsset(arriving)
+  local.getMap('settings').set('local-edit', true)
+  const published = version('"published"')
+  metadata.mockResolvedValue(published)
+  read.mockResolvedValue({
+    ...published,
+    content: await packageBytes(remote, [arriving]),
+  })
+  await session.sync()
+  expect(read).toHaveBeenCalledTimes(2)
+  expect(records.has(arriving.descriptor.id)).toBe(true)
+  expect(write).toHaveBeenCalled()
+  expect(getSaveStatus(info.id).phase).toBe('synced')
+})
+
+it('recovers multiple missing references in one foreground package check when publication hints are absent', async () => {
+  const visibility = vi
+    .spyOn(document, 'visibilityState', 'get')
+    .mockReturnValue('visible')
+  try {
+    await start()
+    const first = await assetRecord('first late publication')
+    const second = await assetRecord('second late publication')
+    referenceAsset(first)
+    referenceAsset(second)
+    await session.sync()
+    expect(write).not.toHaveBeenCalled()
+    expect(read).toHaveBeenCalledTimes(2)
+    const published = version('"late-publication"')
+    metadata.mockResolvedValue(published)
+    read.mockResolvedValue({
+      ...published,
+      content: await packageBytes(remote, [first, second]),
+    })
+    await vi.advanceTimersByTimeAsync(assetRetryPolicy.initialMs - 1)
+    expect(read).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1)
+    await session.sync()
+    expect(read).toHaveBeenCalledTimes(3)
+    expect(records.has(first.descriptor.id)).toBe(true)
+    expect(records.has(second.descriptor.id)).toBe(true)
+    expect(getSaveStatus(info.id).phase).toBe('synced')
+  } finally {
+    visibility.mockRestore()
+  }
+})
+
+it('pauses automatic missing-asset checks while hidden and wakes on visibility recovery', async () => {
+  const visibility = vi
+    .spyOn(document, 'visibilityState', 'get')
+    .mockReturnValue('visible')
+  try {
+    await start()
+    const arriving = await assetRecord('available after returning to tab')
+    referenceAsset(arriving)
+    await session.sync()
+    visibility.mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    metadata.mockClear()
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(metadata).not.toHaveBeenCalled()
+    const published = version('"while-hidden"')
+    metadata.mockResolvedValue(published)
+    read.mockResolvedValue({
+      ...published,
+      content: await packageBytes(remote, [arriving]),
+    })
+    visibility.mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    await session.sync()
+    expect(records.has(arriving.descriptor.id)).toBe(true)
+    expect(getSaveStatus(info.id).phase).toBe('synced')
+  } finally {
+    visibility.mockRestore()
+  }
+})
+
+it('polls for a reference received while view-only without attempting a publication', async () => {
+  const visibility = vi
+    .spyOn(document, 'visibilityState', 'get')
+    .mockReturnValue('visible')
+  try {
+    const readonly = version('"view-only"')
+    readonly.file.capabilities = { canEdit: false }
+    read.mockResolvedValueOnce({
+      ...readonly,
+      content: legacyBytes('Test', remote),
+    })
+    await start()
+    const arriving = await assetRecord('readonly late asset')
+    referenceAsset(arriving)
+    const published = version('"readonly-publication"')
+    published.file.capabilities = { canEdit: false }
+    metadata.mockResolvedValue(published)
+    read.mockResolvedValue({
+      ...published,
+      content: await packageBytes(remote, [arriving]),
+    })
+    await vi.advanceTimersByTimeAsync(assetRetryPolicy.initialMs)
+    await session.sync()
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(records.has(arriving.descriptor.id)).toBe(true)
+    expect(write).not.toHaveBeenCalled()
+    expect(info.readOnly).toBe(true)
+  } finally {
+    visibility.mockRestore()
+  }
+})
+
+it('reconciles a committed upload whose response was lost before deciding whether to upload again', async () => {
+  await start()
+  local.getMap('settings').set('committed-before-response-loss', true)
+  write.mockImplementationOnce(async (_id, _name, content) => {
+    await mergePackage(remote, content)
+    const committed = version('"committed"')
+    metadata.mockResolvedValue(committed)
+    read.mockResolvedValue({
+      ...committed,
+      content: await packageBytes(remote, []),
+    })
+    throw new TypeError('Connection lost after commit')
+  })
+  await session.sync()
+  expect(getSaveStatus(info.id).phase).toBe('error')
+  expect(info.drive?.dirty).toBe(true)
+  await vi.advanceTimersByTimeAsync(1000)
+  await session.sync()
+  expect(read).toHaveBeenCalledTimes(2)
+  expect(write).toHaveBeenCalledOnce()
+  expect(getSaveStatus(info.id).phase).toBe('synced')
+  expect(info.drive?.etag).toBe('"committed"')
+  expect(info.drive?.dirty).toBe(false)
+})
+
+it('ignores a late downloaded package after the owning session has stopped', async () => {
+  await start()
+  remote.getMap('settings').set('late-remote-edit', true)
+  const arriving = await assetRecord('late remote bytes')
+  const changed = version('"late-download"')
+  metadata.mockResolvedValue(changed)
+  const download = deferred<Awaited<ReturnType<typeof readConceptFile>>>()
+  const entered = deferred<void>()
+  read.mockImplementationOnce(() => {
+    entered.resolve()
+    return download.promise
+  })
+  const syncing = session.sync(true)
+  await entered.promise
+  const stopping = session.stop()
+  download.resolve({
+    ...changed,
+    content: await packageBytes(remote, [arriving]),
+  })
+  await syncing
+  await stopping
+  expect(local.getMap('settings').has('late-remote-edit')).toBe(false)
+  expect(records.has(arriving.descriptor.id)).toBe(false)
+  expect(write).not.toHaveBeenCalled()
+  expect(getSaveStatus(info.id)).toEqual({ phase: 'loading' })
+})
+
+it('does not publish a package when the session closes while resolving its captured assets', async () => {
+  await start()
+  const retained = await assetRecord('pin until capture completes')
+  records.set(retained.descriptor.id, retained)
+  local.getMap('settings').set('pending-local-edit', true)
+  const lookup = deferred<Blob | undefined>()
+  const entered = deferred<void>()
+  const get = repository.get
+  repository.get = async (id) => {
+    entered.resolve()
+    return id === retained.descriptor.id ? lookup.promise : get(id)
+  }
+  const saving = session.sync()
+  await entered.promise
+  const stopping = session.stop()
+  lookup.resolve(retained.blob)
+  await saving
+  await stopping
+  expect(write).not.toHaveBeenCalled()
+  expect(info.drive?.dirty).toBe(true)
+  expect(getSaveStatus(info.id)).toEqual({ phase: 'loading' })
+})
+
+it('uses foreground asset polling instead of rapid network retries after missing-asset recovery fails', async () => {
+  const visibility = vi
+    .spyOn(document, 'visibilityState', 'get')
+    .mockReturnValue('visible')
+  try {
+    await start()
+    const arriving = await assetRecord('published after temporary failure')
+    referenceAsset(arriving)
+    read.mockRejectedValueOnce(
+      new DriveError(503, 'Drive temporarily unavailable'),
+    )
+    await session.sync()
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(write).not.toHaveBeenCalled()
+    expect(info.drive?.dirty).toBe(true)
+    const published = version('"after-failure"')
+    metadata.mockResolvedValue(published)
+    read.mockResolvedValue({
+      ...published,
+      content: await packageBytes(remote, [arriving]),
+    })
+    await vi.advanceTimersByTimeAsync(assetRetryPolicy.initialMs - 1)
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(metadata).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    await session.sync()
+    expect(read).toHaveBeenCalledTimes(3)
+    expect(records.has(arriving.descriptor.id)).toBe(true)
+    expect(getSaveStatus(info.id).phase).toBe('synced')
+  } finally {
+    visibility.mockRestore()
+  }
+})
+
+it('leaves explicit recovery failures to the calling action to report once', async () => {
+  await start()
+  referenceAsset(await assetRecord('unavailable during export'))
+  read.mockRejectedValueOnce(
+    new DriveError(503, 'Drive temporarily unavailable'),
+  )
+  await expect(session.recoverAssets()).rejects.toMatchObject({
+    code: 'incomplete-assets',
+  })
+  expect(toast.error).not.toHaveBeenCalled()
+  expect(write).not.toHaveBeenCalled()
+  expect(info.drive?.dirty).toBe(true)
 })

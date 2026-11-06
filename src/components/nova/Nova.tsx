@@ -11,6 +11,8 @@ import { useEffect, useState } from 'react'
 import { DragPlugin } from './plugins/DragPlugin/DragPlugin'
 import { SlashMenuPlugin } from './plugins/SlashMenuPlugin/SlashMenuPlugin'
 import { FloatingTextFormatToolbarPlugin } from './plugins/FormatToolbarPlugin/FloatingTextFormatToolbarPlugin'
+import { ImagePlugin } from './images/ImagePlugin'
+import { ImageClipboardPlugin } from './clipboard/ImageClipboardPlugin'
 import type { EditorMode } from './mode'
 
 export type { EditorMode } from './mode'
@@ -45,6 +47,8 @@ export function Nova({
       contentEditable={null}
     >
       <EditorModePlugin mode={mode} />
+      <ImagePlugin />
+      <ImageClipboardPlugin />
       {editorRef && <EditorRefPlugin editorRef={editorRef} />}
       <div className="relative min-h-full w-full grow" ref={setAnchorElement}>
         <NovaContentEditable />

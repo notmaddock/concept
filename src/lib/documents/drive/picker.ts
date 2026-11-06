@@ -246,7 +246,7 @@ export async function openGooglePicker(
     }
     try {
       const mimeTypes =
-        'application/vnd.concept+json,application/json,application/octet-stream,text/plain'
+        'application/vnd.concept+zip,application/vnd.concept+json,application/zip,application/json,application/octet-stream,text/plain'
       const docsView = new pickerNamespace.DocsView(pickerNamespace.ViewId.DOCS)
         .setIncludeFolders(true)
         .setMimeTypes(mimeTypes)
@@ -307,7 +307,8 @@ export async function openGooglePicker(
             ''
           if (
             !docId.trim() ||
-            (docMime !== 'application/vnd.concept+json' &&
+            (docMime !== 'application/vnd.concept+zip' &&
+              docMime !== 'application/vnd.concept+json' &&
               !docName.toLowerCase().endsWith('.concept'))
           ) {
             settled = true

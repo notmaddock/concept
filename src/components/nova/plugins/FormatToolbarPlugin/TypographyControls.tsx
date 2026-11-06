@@ -232,7 +232,7 @@ export function TypographyControls({
           />
         </div>
       </div>
-      <div className="flex items-center gap-0.5">
+      <div className="flex flex-wrap items-center gap-0.5">
         {actions.map(({ id, label, action }, index) => (
           <FormatIcon
             key={id}

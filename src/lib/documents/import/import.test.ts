@@ -44,10 +44,7 @@ async function converted(
       transaction.origin === binding,
     ),
   )
-  applyUpdate(
-    doc,
-    Uint8Array.from(atob(file.update), (character) => character.charCodeAt(0)),
-  )
+  applyUpdate(doc, file.update)
   await Promise.resolve()
   const state = editor.getEditorState().toJSON()
   const text = editor.getEditorState().read(() => $getRoot().getTextContent())
@@ -107,4 +104,23 @@ it('creates an editable paragraph for empty files and rejects the wrong extensio
   await expect(
     convertImport({ name: 'document.concept' } as File, 'markdown'),
   ).rejects.toThrow('Choose a Markdown file.')
+})
+
+it('rejects oversized imports before reading their payload', async () => {
+  const { packageLimits } = await import('../limits')
+  let read = false
+  await expect(
+    convertImport(
+      {
+        name: 'huge.txt',
+        size: packageLimits.documentBytes + 1,
+        text: async () => {
+          read = true
+          return 'ignored'
+        },
+      } as File,
+      'text',
+    ),
+  ).rejects.toThrow('Import file is too large')
+  expect(read).toBe(false)
 })

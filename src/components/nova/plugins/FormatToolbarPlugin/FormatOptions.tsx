@@ -49,13 +49,20 @@ export const toolbarActions = formatSections.flatMap((section) =>
 )
 
 type Props = {
+  compact?: boolean
   displayValue?: string
   sectionId: string
   run: (action: FormatAction) => void | Promise<void>
   checked: (action: FormatAction) => boolean | undefined
 }
 
-export function FormatSelect({ sectionId, run, checked, displayValue }: Props) {
+export function FormatSelect({
+  sectionId,
+  run,
+  checked,
+  displayValue,
+  compact = false,
+}: Props) {
   const section = formatSections.find((item) => item.id === sectionId)!
   const choices =
     sectionId === 'paragraph-style'
@@ -79,15 +86,29 @@ export function FormatSelect({ sectionId, run, checked, displayValue }: Props) {
       }}
     >
       <SelectTrigger
-        aria-label={section.label}
+        aria-label={
+          compact && selected
+            ? `${section.label}: ${selected.label}`
+            : section.label
+        }
         size="sm"
         className={
-          sectionId === 'paragraph-style' ? 'w-auto px-2' : 'w-full min-w-0'
+          compact
+            ? 'size-11 justify-center px-2 [&>svg:last-child]:hidden'
+            : sectionId === 'paragraph-style'
+              ? 'w-auto px-2'
+              : 'w-full min-w-0'
         }
       >
         <ChoiceIcon action={selected?.action} />
         <SelectValue
-          className={sectionId === 'paragraph-style' ? 'min-w-max' : undefined}
+          className={
+            compact
+              ? 'sr-only'
+              : sectionId === 'paragraph-style'
+                ? 'min-w-max'
+                : undefined
+          }
           placeholder={section.label}
         >
           {displayValue || selected?.label}

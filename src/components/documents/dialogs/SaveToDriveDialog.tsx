@@ -17,8 +17,10 @@ import {
   getFileMetadata,
   listFolders,
 } from '#/lib/documents/drive/api'
-import { documentRevision } from '#/lib/documents/revision'
-import { serializeConcept } from '#/lib/documents/serialization'
+import { snapshotRevision, writePackage } from '#/lib/documents/package'
+import type { NormalizedSnapshot } from '#/lib/documents/package'
+import { captureSnapshot, documentAssets } from '#/lib/documents/working'
+
 import { localDocumentStorage } from '#/lib/documents/storage'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -54,7 +56,7 @@ export function SaveToDriveDialog({
     remote: DriveFileVersion
     doc: Doc
     name: string
-    content: string
+    snapshot: NormalizedSnapshot
   } | null>(null)
   const folder = path[path.length - 1]
 
@@ -123,15 +125,22 @@ export function SaveToDriveDialog({
     pendingRef.current = true
     setPending(true)
     let clone: Doc | undefined
-    let serialized: string | undefined
+    let captured: NormalizedSnapshot | undefined
     let session: DocumentPersistence | undefined
+    let localCopy: Doc | undefined
     try {
       if (!saved.current) {
         clone = new Doc()
         applyUpdate(clone, encodeStateAsUpdate(source.doc))
         const documentName = name.trim()
         clone.getMap<string>('metadata').set('name', documentName)
-        serialized = serializeConcept(documentName, clone)
+        captured = await captureSnapshot(documentName, source.doc)
+        captured = {
+          ...captured,
+          name: documentName,
+          update: encodeStateAsUpdate(clone),
+        }
+        const serialized = await writePackage(captured)
         const remote = await createConceptFile(
           documentName,
           serialized,
@@ -141,18 +150,18 @@ export function SaveToDriveDialog({
           remote,
           doc: clone,
           name: documentName,
-          content: serialized,
+          snapshot: captured,
         }
         setCreated(true)
         setCreatedFileId(remote.file.id)
         clone = undefined
       }
-      const { remote, doc, name: documentName, content } = saved.current
+      const { remote, doc, name: documentName, snapshot } = saved.current
       if (!remote.etag) {
         const metadata = await getFileMetadata(remote.file.id)
         remote.etag = metadata.etag
       }
-      const savedRevision = await documentRevision(content)
+      const savedRevision = await snapshotRevision(snapshot)
       const now = Date.now()
       const info: DocumentInfo = {
         id: `G${remote.file.id}`,
@@ -169,24 +178,28 @@ export function SaveToDriveDialog({
           dirty: false,
         },
       }
-      await localDocumentStorage.put(info)
-      session = localDocumentStorage.open(info.id, doc)
+      await localDocumentStorage.put({ ...info, importing: true })
+      localCopy = new Doc()
+      session = localDocumentStorage.open(info.id, localCopy)
       await session.whenSynced
+      await documentAssets(localCopy)!.importAssets(snapshot.assets)
+      applyUpdate(localCopy, encodeStateAsUpdate(doc))
       await session.flush?.()
       await session.destroy()
       session = undefined
+      await localDocumentStorage.put(info)
       onSaved(info)
     } catch (cause) {
       if (
         cause instanceof DriveCreatedFileError &&
         clone &&
-        serialized !== undefined
+        captured !== undefined
       ) {
         saved.current = {
           remote: { file: cause.file, etag: '' },
           doc: clone,
           name: name.trim(),
-          content: serialized,
+          snapshot: captured,
         }
         clone = undefined
         setCreated(true)
@@ -197,6 +210,7 @@ export function SaveToDriveDialog({
     } finally {
       await session?.destroy()
       clone?.destroy()
+      localCopy?.destroy()
       pendingRef.current = false
       setPending(false)
     }

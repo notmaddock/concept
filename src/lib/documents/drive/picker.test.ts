@@ -312,7 +312,7 @@ describe('openGooglePicker workflow', () => {
     expect(mockDocsView.setEnableDrives).not.toHaveBeenCalled()
     expect(mockSharedDrivesView.setEnableDrives).toHaveBeenCalledWith(true)
     const mimeTypes =
-      'application/vnd.concept+json,application/json,application/octet-stream,text/plain'
+      'application/vnd.concept+zip,application/vnd.concept+json,application/zip,application/json,application/octet-stream,text/plain'
     expect(mockDocsView.setMimeTypes).toHaveBeenCalledWith(mimeTypes)
     expect(mockSharedDrivesView.setMimeTypes).toHaveBeenCalledWith(mimeTypes)
     expect(mockBuilder.addView).toHaveBeenNthCalledWith(1, mockDocsView)
@@ -399,6 +399,18 @@ describe('openGooglePicker workflow', () => {
     callbackRegistered?.({ action: 'picked', docs: [doc] })
     await expect(result).rejects.toThrow('Select a Concept document')
     expect(mockPicker.setVisible).toHaveBeenLastCalledWith(false)
+  })
+
+  it('accepts package MIME types without a filename extension', async () => {
+    const result = openGooglePicker()
+    await flushPromises()
+    callbackRegistered?.({
+      action: 'picked',
+      docs: [
+        { id: 'zip', name: 'Package', mimeType: 'application/vnd.concept+zip' },
+      ],
+    })
+    await expect(result).resolves.toMatchObject({ id: 'zip' })
   })
 
   it('accepts externally uploaded concept files with generic MIME types', async () => {

@@ -26,6 +26,10 @@ import {
 } from '#/lib/documents/drive/auth'
 import { initializeDocument } from '#/lib/documents/initial-document'
 import { LocalProvider } from '#/lib/documents/local-provider'
+import { DocumentMediaContext } from '#/components/nova/media/document-media-context'
+import type { DocumentMediaSession } from '#/components/nova/media/document-media-context'
+import { insertDocumentAssets } from '#/lib/documents/asset-session'
+import { documentSessions } from '#/lib/documents/sync'
 import { documentStorage } from '#/lib/documents/document-storage'
 
 export function DocumentEditor({
@@ -50,6 +54,7 @@ export function DocumentEditor({
   const [session, setSession] = useState<{
     doc: Doc
     provider: LocalProvider
+    media: DocumentMediaSession
   } | null>(null)
 
   useEffect(() => {
@@ -58,6 +63,7 @@ export function DocumentEditor({
     setReady(false)
     const startedAt = performance.now()
     let active = true
+    const lifetime = new AbortController()
     const doc = new Doc()
     let persistence: DocumentPersistence | undefined
     // Lexical must observe the Yjs root before IndexedDB applies existing content.
@@ -95,9 +101,40 @@ export function DocumentEditor({
       setReady(true)
     }
     provider.on('sync', onSync)
-    setSession({ doc, provider })
+    const currentSync = () => {
+      const sync = documentSessions.get(id)
+      return sync?.doc === doc ? sync : undefined
+    }
+    const media: DocumentMediaSession = {
+      documentId: id,
+      doc,
+      signal: lifetime.signal,
+      isAlive: () => active && !doc.isDestroyed,
+      canEdit: () =>
+        active && Boolean(currentSync()) && !currentSync()?.isReadOnly,
+      get resolver() {
+        return currentSync()?.assets
+      },
+      flush: async () => {
+        await persistence?.flush?.()
+      },
+      requestSave: () => currentSync()?.requestUrgentSave(),
+      insert: (blobs, insert) =>
+        insertDocumentAssets({
+          doc,
+          blobs,
+          insert,
+          canEdit: () => media.canEdit(),
+          isAlive: () => media.isAlive(),
+          signal: lifetime.signal,
+          flush: () => media.flush(),
+          requestSave: () => media.requestSave(),
+        }),
+    }
+    setSession({ doc, provider, media })
     return () => {
       active = false
+      lifetime.abort()
       documentRef.current = null
       provider.off('sync', onSync)
       provider.destroy()
@@ -174,25 +211,27 @@ export function DocumentEditor({
     <>
       {!ready && <DocumentLoading />}
       <div className={ready ? 'contents' : 'hidden'}>
-        <LexicalCollaboration>
-          <Nova
-            key={session.doc.guid}
-            editorRef={editorRef}
-            mode={mode}
-            pageSetupOpen={pageSetupOpen}
-            onPageSetupOpenChange={onPageSetupOpenChange}
-            collaboration={
-              <CollaborationPlugin
-                id={id}
-                providerFactory={(_, documents) => {
-                  documents.set(id, session.doc)
-                  return session.provider
-                }}
-                shouldBootstrap={false}
-              />
-            }
-          />
-        </LexicalCollaboration>
+        <DocumentMediaContext value={ready ? session.media : null}>
+          <LexicalCollaboration>
+            <Nova
+              key={session.doc.guid}
+              editorRef={editorRef}
+              mode={mode}
+              pageSetupOpen={pageSetupOpen}
+              onPageSetupOpenChange={onPageSetupOpenChange}
+              collaboration={
+                <CollaborationPlugin
+                  id={id}
+                  providerFactory={(_, documents) => {
+                    documents.set(id, session.doc)
+                    return session.provider
+                  }}
+                  shouldBootstrap={false}
+                />
+              }
+            />
+          </LexicalCollaboration>
+        </DocumentMediaContext>
       </div>
     </>
   )
