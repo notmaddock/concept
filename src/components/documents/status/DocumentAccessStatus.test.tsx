@@ -39,6 +39,7 @@ it('shows only the highest permission icon in the trigger', async () => {
       <DocumentAccessStatus
         readOnly={false}
         realtime={connected}
+        storageName="Google Drive"
         liveCollaboration={true}
         onLiveCollaborationChange={() => {}}
       />,
@@ -55,6 +56,7 @@ it('shows an eye when the document is view only', async () => {
       <DocumentAccessStatus
         readOnly={true}
         realtime={viewOnly}
+        storageName="Google Drive"
         liveCollaboration={true}
         onLiveCollaborationChange={() => {}}
       />,
@@ -71,6 +73,7 @@ it('lists granted and denied permissions with colored indicators', async () => {
       <DocumentAccessStatus
         readOnly={true}
         realtime={viewOnly}
+        storageName="Google Drive"
         liveCollaboration={true}
         onLiveCollaborationChange={() => {}}
       />,
@@ -94,6 +97,7 @@ it('keeps the trigger compact when live collaboration is off', async () => {
       <DocumentAccessStatus
         readOnly={false}
         realtime={connected}
+        storageName="Google Drive"
         liveCollaboration={false}
         onLiveCollaborationChange={() => {}}
       />,
@@ -115,12 +119,52 @@ it('keeps the trigger compact when live collaboration is off', async () => {
   )
 })
 
+it('names the backing storage in the collaboration notice', async () => {
+  await act(async () => {
+    root.render(
+      <DocumentAccessStatus
+        readOnly={false}
+        realtime={connected}
+        storageName="Acme Cloud"
+        liveCollaboration={false}
+        onLiveCollaborationChange={() => {}}
+      />,
+    )
+  })
+  await act(async () => container.querySelector('button')!.click())
+  expect(document.body.textContent).toContain(
+    'Changes still sync through Acme Cloud',
+  )
+  expect(document.body.textContent).not.toContain('Google Drive')
+})
+
+it('hides live collaboration controls when the storage cannot collaborate', async () => {
+  await act(async () => {
+    root.render(
+      <DocumentAccessStatus
+        readOnly={false}
+        realtime={connected}
+        liveCollaboration={false}
+        onLiveCollaborationChange={() => {}}
+      />,
+    )
+  })
+  const trigger = container.querySelector('button')!
+  expect(trigger.querySelector('.bg-amber-500')).toBeNull()
+  expect(trigger.getAttribute('title')).toBe('Can edit')
+
+  await act(async () => trigger.click())
+  expect(document.body.textContent).not.toContain('Live collaboration')
+  expect(document.body.querySelector('[data-slot="switch"]')).toBeNull()
+})
+
 it('expands into a view-only pill', async () => {
   await act(async () => {
     root.render(
       <DocumentAccessStatus
         readOnly={true}
         realtime={viewOnly}
+        storageName="Google Drive"
         liveCollaboration={true}
         onLiveCollaborationChange={() => {}}
       />,
@@ -158,6 +202,7 @@ it.each([
       <DocumentAccessStatus
         readOnly={false}
         realtime={{ ...connected, collaborators }}
+        storageName="Google Drive"
         liveCollaboration={true}
         onLiveCollaborationChange={() => {}}
       />,
@@ -186,6 +231,7 @@ it('stays compact when the user is alone', async () => {
             },
           ],
         }}
+        storageName="Google Drive"
         liveCollaboration={true}
         onLiveCollaborationChange={() => {}}
       />,
@@ -219,6 +265,7 @@ it('lists connected collaborators with names and activity stats', async () => {
       <DocumentAccessStatus
         readOnly={false}
         realtime={withCollaborators}
+        storageName="Google Drive"
         liveCollaboration={true}
         onLiveCollaborationChange={() => {}}
       />,
@@ -234,6 +281,9 @@ it('lists connected collaborators with names and activity stats', async () => {
   expect(text).toContain('Editing')
   expect(text).toContain('Viewing')
   expect(document.body.querySelectorAll('[data-cursor-color]')).toHaveLength(2)
+  const rows = document.body.querySelectorAll('li > button, li > div')
+  expect(rows).toHaveLength(2)
+  for (const row of rows) expect(row.className).toContain('w-full')
 })
 
 it('jumps to an editing collaborator but not to viewing or self rows', async () => {
@@ -266,6 +316,7 @@ it('jumps to an editing collaborator but not to viewing or self rows', async () 
       <DocumentAccessStatus
         readOnly={false}
         realtime={{ ...connected, collaborators }}
+        storageName="Google Drive"
         liveCollaboration={true}
         onLiveCollaborationChange={() => {}}
         onJumpToCollaborator={onJumpToCollaborator}
@@ -291,6 +342,7 @@ it('toggles the live collaboration kill switch from the menu', async () => {
       <DocumentAccessStatus
         readOnly={false}
         realtime={connected}
+        storageName="Google Drive"
         liveCollaboration={true}
         onLiveCollaborationChange={onLiveCollaborationChange}
       />,

@@ -222,6 +222,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                   realtime={
                     (saveStatus as { realtime?: RealtimeState }).realtime
                   }
+                  storageName={document.drive ? 'Google Drive' : undefined}
                   liveCollaboration={liveCollaboration}
                   onLiveCollaborationChange={setLiveCollaborationEnabled}
                   onJumpToCollaborator={(collaborator) => {

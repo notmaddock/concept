@@ -99,19 +99,21 @@ function CollaboratorRow({
       </span>
     </>
   )
+  const rowClassName =
+    'flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left'
   return (
-    <li>
+    <li className="flex">
       {canJump ? (
         <button
           type="button"
           onClick={() => onJump?.(collaborator)}
           aria-label={`Jump to ${name}'s cursor`}
-          className="-mx-1.5 flex w-[calc(100%+0.75rem)] items-center gap-2 rounded-md px-1.5 py-1 transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40"
+          className={`${rowClassName} transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40`}
         >
           {content}
         </button>
       ) : (
-        <div className="flex items-center gap-2 px-1.5 py-1">{content}</div>
+        <div className={rowClassName}>{content}</div>
       )}
     </li>
   )
@@ -155,12 +157,15 @@ export function DocumentAccessStatus({
   liveCollaboration,
   onLiveCollaborationChange,
   onJumpToCollaborator,
+  storageName,
 }: {
   readOnly: boolean
   realtime?: RealtimeState
   liveCollaboration?: boolean
   onLiveCollaborationChange?: (enabled: boolean) => void
   onJumpToCollaborator?: (collaborator: RealtimeCollaborator) => void
+  /** Storage backing the document; live collaboration only applies when set. */
+  storageName?: string
 }) {
   const [open, setOpen] = useState(false)
   const viewGranted = realtime?.capabilities?.view ?? true
@@ -175,7 +180,8 @@ export function DocumentAccessStatus({
     : viewGranted
       ? EyeIcon
       : EyeOffIcon
-  const collaborationOff = liveCollaboration === false
+  const collabSupported = storageName !== undefined
+  const collaborationOff = collabSupported && liveCollaboration === false
   const commentGranted = realtime?.capabilities?.comment
   const collaborators = realtime?.collaborators ?? []
   const others = collaborators.filter((collaborator) => !collaborator.self)
@@ -271,13 +277,13 @@ export function DocumentAccessStatus({
                 Live collaboration off
               </span>
               <span className="text-[11px] leading-snug text-amber-900/80 dark:text-amber-200/80">
-                Changes still sync through Google Drive and reconcile
+                Changes still sync through {storageName} and reconcile
                 automatically when someone else edits this document.
               </span>
             </div>
           </div>
         )}
-        {liveCollaboration !== undefined && (
+        {collabSupported && liveCollaboration !== undefined && (
           <div className="flex flex-col gap-1.5 border-t pt-3">
             <label className="flex items-center justify-between gap-3 text-xs font-medium">
               Live collaboration
