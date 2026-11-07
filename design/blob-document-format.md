@@ -1,6 +1,8 @@
 # Blob support in the Concept document format
 
-Status: implemented blob foundation. Image nodes and image rendering remain separate consumer work.
+Status: implemented. The blob foundation lives in `src/lib/documents/` and the
+first consumer, image embedding, is implemented too (see
+[image embedding](image-embedding.md)).
 
 ## Implementation decisions and validation
 
