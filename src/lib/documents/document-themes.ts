@@ -183,35 +183,14 @@ function scenePalette(colors: SceneColors): ThemePalette {
   }
 }
 
-const spaceBackground = [
-  'radial-gradient(circle at 18% 22%, rgba(255,255,255,0.9) 0 1px, transparent 1.6px)',
-  'radial-gradient(circle at 72% 14%, rgba(255,255,255,0.8) 0 1px, transparent 1.6px)',
-  'radial-gradient(circle at 42% 38%, rgba(255,255,255,0.7) 0 1px, transparent 1.6px)',
-  'radial-gradient(circle at 86% 52%, rgba(255,255,255,0.9) 0 1px, transparent 1.6px)',
-  'radial-gradient(circle at 28% 68%, rgba(255,255,255,0.8) 0 1px, transparent 1.6px)',
-  'radial-gradient(circle at 64% 82%, rgba(255,255,255,0.7) 0 1px, transparent 1.6px)',
-  'radial-gradient(circle at 12% 88%, rgba(255,255,255,0.8) 0 1px, transparent 1.6px)',
-  'radial-gradient(circle at 78% 72%, rgba(255,255,255,0.9) 0 1px, transparent 1.6px)',
-  'radial-gradient(circle at 50% 8%, rgba(255,255,255,0.8) 0 1px, transparent 1.6px)',
-  'radial-gradient(circle at 92% 32%, rgba(255,255,255,0.7) 0 1px, transparent 1.6px)',
-  'radial-gradient(circle at 8% 48%, rgba(255,255,255,0.8) 0 1px, transparent 1.6px)',
-  'radial-gradient(ellipse at 70% 30%, rgba(255,255,255,0.12), transparent 35%)',
-  'linear-gradient(180deg, oklch(0.20 0.07 265), oklch(0.38 0.10 250))',
-].join(', ')
+const spaceBackground =
+  'linear-gradient(180deg, oklch(0.17 0.05 265), oklch(0.27 0.08 258), oklch(0.38 0.10 250))'
 
-const skyBackground = [
-  'radial-gradient(ellipse at 20% 25%, rgba(255,255,255,0.9), transparent 30%)',
-  'radial-gradient(ellipse at 70% 20%, rgba(255,255,255,0.7), transparent 28%)',
-  'radial-gradient(ellipse at 45% 60%, rgba(255,255,255,0.6), transparent 35%)',
-  'radial-gradient(ellipse at 85% 75%, rgba(255,255,255,0.8), transparent 30%)',
-  'linear-gradient(180deg, oklch(0.75 0.09 230), oklch(0.93 0.03 230))',
-].join(', ')
+const skyBackground =
+  'linear-gradient(180deg, oklch(0.78 0.05 220), oklch(0.88 0.035 220), oklch(0.95 0.02 220))'
 
-const duskBackground = [
-  'radial-gradient(ellipse at 30% 20%, rgba(255,200,120,0.25), transparent 40%)',
-  'radial-gradient(ellipse at 75% 70%, rgba(255,120,180,0.2), transparent 45%)',
-  'linear-gradient(180deg, oklch(0.45 0.16 25), oklch(0.30 0.10 330))',
-].join(', ')
+const duskBackground =
+  'linear-gradient(180deg, oklch(0.44 0.11 30), oklch(0.36 0.09 355), oklch(0.30 0.07 330))'
 
 const space = scenePalette({
   page: 'oklch(0.17 0.05 265)',
@@ -229,33 +208,33 @@ const space = scenePalette({
 })
 
 const sky = scenePalette({
-  page: 'oklch(0.92 0.03 230)',
-  card: 'oklch(0.88 0.05 230)',
-  popover: 'oklch(0.90 0.04 230)',
-  sidebar: 'oklch(0.90 0.035 230)',
-  foreground: 'oklch(0.27 0.03 240)',
-  mutedForeground: 'oklch(0.36 0.04 240)',
-  primary: 'oklch(0.50 0.12 230)',
+  page: 'oklch(0.94 0.02 220)',
+  card: 'oklch(0.90 0.035 220)',
+  popover: 'oklch(0.92 0.03 220)',
+  sidebar: 'oklch(0.92 0.025 220)',
+  foreground: 'oklch(0.27 0.03 230)',
+  mutedForeground: 'oklch(0.38 0.035 230)',
+  primary: 'oklch(0.55 0.10 220)',
   primaryForeground: white,
-  secondary: 'oklch(0.84 0.05 230)',
-  muted: 'oklch(0.86 0.04 230)',
-  accent: 'oklch(0.80 0.07 230)',
-  border: 'oklch(0.78 0.05 230)',
+  secondary: 'oklch(0.86 0.04 220)',
+  muted: 'oklch(0.88 0.03 220)',
+  accent: 'oklch(0.82 0.05 220)',
+  border: 'oklch(0.80 0.04 220)',
 })
 
 const dusk = scenePalette({
-  page: 'oklch(0.19 0.06 330)',
-  card: 'oklch(0.27 0.08 340)',
-  popover: 'oklch(0.24 0.07 335)',
-  sidebar: 'oklch(0.20 0.06 330)',
+  page: 'oklch(0.20 0.05 330)',
+  card: 'oklch(0.28 0.06 340)',
+  popover: 'oklch(0.25 0.055 335)',
+  sidebar: 'oklch(0.21 0.05 330)',
   foreground: 'oklch(0.96 0.01 40)',
-  mutedForeground: 'oklch(0.86 0.04 30)',
-  primary: 'oklch(0.72 0.15 40)',
-  primaryForeground: 'oklch(0.19 0.06 330)',
-  secondary: 'oklch(0.32 0.08 340)',
-  muted: 'oklch(0.26 0.06 335)',
-  accent: 'oklch(0.36 0.10 350)',
-  border: 'oklch(0.38 0.07 340)',
+  mutedForeground: 'oklch(0.86 0.035 30)',
+  primary: 'oklch(0.72 0.12 40)',
+  primaryForeground: 'oklch(0.20 0.05 330)',
+  secondary: 'oklch(0.33 0.06 340)',
+  muted: 'oklch(0.27 0.05 335)',
+  accent: 'oklch(0.37 0.08 350)',
+  border: 'oklch(0.38 0.06 340)',
 })
 
 export const documentThemes: DocumentTheme[] = [

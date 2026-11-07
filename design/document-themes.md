@@ -21,11 +21,11 @@ portaled dialogs/popovers/toasts — plus the document sheet itself
   (`format-options.ts`, `color-palette.ts`). Each hue ships a **light and a dark
   palette** and follows the app's light/dark mode. Simple: solid page background
   and a contrasting sheet color.
-- **Scene themes**: complex backgrounds (vertical gradients, star fields, soft
-  glows) applied **only to the document sheet, never to the whole viewport**. The
-  attached mobile screenshot (deep blue night gradient with scattered stars) is
-  the inspiration for the `space` scene. Scenes are absolute: they pin their own
-  mode regardless of the app light/dark setting.
+- **Scene themes**: continuous vertical gradients applied **only to the
+  document sheet, never to the whole viewport**. The attached mobile screenshot
+  (deep blue night gradient) is the inspiration for the `space` scene. Scenes
+  are absolute: they pin their own mode regardless of the app light/dark
+  setting.
 
 Explicitly out of scope:
 
@@ -75,16 +75,16 @@ Explicitly out of scope:
   palette from the app's resolved light/dark mode and re-apply when that mode
   changes. Scene themes pin `mode` (space/dusk = dark, sky = light), use the
   same palette for both, and set `color-scheme` to their mode.
-- **Complex scene backgrounds are applied only to `[data-document-sheet]`**, as
-  an inline `background` (multi-layer gradients/radial dots). The page backdrop
-  stays a flat tint from the same theme. This is the deliberate divergence from
-  the screenshot, per the requirement that the complex background stays on the
-  page (sheet), not the viewport. Scene art is static — no animation in v1.
+- **Scene backgrounds are applied only to `[data-document-sheet]`**, as an
+  inline continuous `linear-gradient`. The page backdrop stays a flat tint from
+  the same theme. This is the deliberate divergence from the screenshot, per
+  the requirement that the complex background stays on the page (sheet), not
+  the viewport. Scene art is static — no animation in v1.
 - **Choosers (decided)**: a palette icon button in the document header's
   right-side cluster (next to save/access status — always visible, matches the
   top-right icon placement in the inspiration screenshot) opening a popover
-  with a grid of live preview cards; a View ▸ "Document theme" radio submenu
-  (same pattern as the existing appearance submenu); and command-palette
+  with a wrapping row of circular swatches; a View ▸ "Document theme" radio
+  submenu (same pattern as the existing appearance submenu); and command-palette
   actions for every theme, which come for free once the menu items exist.
   Selection from any surface writes the Yjs root state with a normal editor
   update (with `SKIP_DOM_SELECTION_TAG` so focus isn't stolen), which makes
@@ -112,8 +112,8 @@ type DocumentTheme = {
   mode?: 'light' | 'dark'
   /** Palette per resolved app mode. Scenes repeat the same palette in both. */
   palettes: { light: ThemePalette; dark: ThemePalette }
-  /** Optional complex background painted only on [data-document-sheet]. */
-  sheetBackground?: { light?: string; dark?: string } // CSS `background`, multi-layer ok
+  /** Optional continuous gradient painted only on [data-document-sheet]. */
+  sheetBackground?: { light?: string; dark?: string } // CSS `background`
 }
 ```
 
@@ -139,8 +139,8 @@ swatchHex, textHex)`:
      the same hue at fixed steps.
      Because the ladder is fixed, every hue palette is visually sound by
      construction; the contrast tests are the safety net.
-- **Scene themes are hand-written** entries with a `sheetBackground` multi-layer
-  string (see Scene themes).
+- **Scene themes are hand-written** entries with a `sheetBackground`
+  continuous-gradient string (see Scene themes).
 
 Resolution helper: `resolveTheme(theme, appMode)` returns
 `{ palette, sheetBackground, colorScheme }` where `appMode` is the resolved
@@ -182,23 +182,19 @@ color — so theme hues match the text/highlight swatches one-to-one:
 
 ## Scene themes
 
-Scenes set a flat page tint in their palette and put the artwork in
+Scenes set a flat page tint in their palette and put a continuous gradient in
 `sheetBackground`, painted only on `[data-document-sheet]`:
 
 - **space** (inspired by the attached screenshot): page = deep navy
   `oklch(0.17 0.05 265)`; sheet =
-  `linear-gradient(180deg, oklch(0.20 0.07 265), oklch(0.38 0.10 250))`
-  plus several
-  `radial-gradient(circle at X% Y%, rgba(255,255,255,.9) 0 1px, transparent 1.6px)`
-  star layers at scattered positions (and optionally one large soft
-  `radial-gradient` "moon glow"). Text near-white. Stars are static, matching
-  the screenshot.
-- **sky**: page = pale blue-gray; sheet = day gradient
-  `linear-gradient(180deg, oklch(0.75 0.09 230), oklch(0.93 0.03 230))` plus
-  soft white `radial-gradient` cloud blobs; dark slate text.
-- **dusk**: page = deep plum; sheet = warm
-  `linear-gradient(180deg, oklch(0.45 0.16 25), oklch(0.30 0.10 330))`
-  orange-to-magenta; light text.
+  `linear-gradient(180deg, oklch(0.17 0.05 265), oklch(0.27 0.08 258), oklch(0.38 0.10 250))`.
+  A single continuous night-sky gradient, no stars or glows. Text near-white.
+- **sky**: page = pale blue-gray `oklch(0.94 0.02 220)`; sheet =
+  `linear-gradient(180deg, oklch(0.78 0.05 220), oklch(0.88 0.035 220), oklch(0.95 0.02 220))`.
+  Lighter, low-saturation blues and cyans, no cloud blobs. Dark slate text.
+- **dusk**: page = deep plum `oklch(0.20 0.05 330)`; sheet =
+  `linear-gradient(180deg, oklch(0.44 0.11 30), oklch(0.36 0.09 355), oklch(0.30 0.07 330))`.
+  A softer orange-to-magenta gradient, no blobs. Light text.
 
 Because the sheet is a rounded card on a flat tinted page, scenes read as
 "the document page is a window onto the scene", while the chrome around it
@@ -250,12 +246,12 @@ stays calm — the complex background never touches the viewport.
   page color) in the header's right cluster next to `DocumentSaveStatus` /
   `DocumentAccessStatus`, tooltip "Document theme", disabled on read-only
   documents. Opens a non-modal `Popover` (`finalFocus={false}`, like
-  `ColorSwatch`) containing a grid of preview cards grouped Default / Hues /
-  Scenes. Each card is a miniature page+sheet: outer div painted with the
-  palette's `--background` for the **current app mode**, inner rounded rect
-  painted with `--card` or the full `sheetBackground` (scenes show their
-  gradient and stars in miniature), plus the label and a check icon when
-  active. Buttons are `aria-pressed`, labelled by theme name.
+  `ColorSwatch`) containing a wrapping row of reasonably large circular
+  swatches. Hue/default circles show the page color with a smaller sheet-color
+  circle inside; scene circles show their full gradient. Each circle has a
+  shadcn tooltip with the theme name and an active ring; there is no visible
+  label under the swatch. A horizontal `Separator` puts the scene themes below
+  the hue themes. Buttons are `aria-pressed`, labelled by theme name.
 - **View menu** (`document-navigation-options.tsx`): the existing `Theme`
   submenu is renamed to **Appearance** (light/dark/system, unchanged behavior,
   same item ids), and a new **Document theme** submenu follows it with radio
@@ -305,7 +301,7 @@ stays calm — the complex background never touches the viewport.
 | `src/lib/documents/document-theme.ts`                                       | New. `documentThemeState`, `$getDocumentTheme` / `$setDocumentTheme`, `getDocumentTheme` / `subscribeDocumentTheme` store.              |
 | `src/lib/color.ts`                                                          | New. Pure OKLCH→sRGB for tests/tooling.                                                                                                 |
 | `src/components/documents/theme/DocumentThemePlugin.tsx`                    | New. Applies palette to `documentElement` + sheet background; publishes to store; re-applies on app-mode change. Mounted in `Nova.tsx`. |
-| `src/components/documents/theme/DocumentThemeButton.tsx`                    | New. Header button + popover with preview-card grid.                                                                                    |
+| `src/components/documents/theme/DocumentThemeButton.tsx`                    | New. Header button + popover with wrapping circular theme swatches.                                                                     |
 | `src/components/nova/Nova.tsx`                                              | Mount `DocumentThemePlugin`.                                                                                                            |
 | `src/components/documents/DocumentWorkspace.tsx`                            | `text-card-foreground` on the sheet, header button in the document cluster.                                                             |
 | `src/components/documents/navigation-menus/document-navigation-options.tsx` | Rename View ▸ "Theme" to "Appearance"; add View ▸ "Document theme" radio submenu (also feeds ⌘K).                                       |
