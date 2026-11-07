@@ -47,8 +47,10 @@ export async function fetchDriveCapabilities(
 
 /**
  * Drive-backed verifier for the Durable Object: checks the user's current
- * capabilities with their own token. Any failure (including a stale cached
- * token after a 401, which triggers one refresh-and-retry) means no access.
+ * capabilities with their own token. A 403/404 means the user genuinely has no
+ * access and resolves to `undefined`. Any other failure (network, 5xx, expired
+ * refresh token) throws: the caller must treat it as "could not check" rather
+ * than "no access", otherwise a Drive outage would revoke every connected user.
  */
 export function createDriveVerifier(
   env: Cloudflare.Env,
@@ -65,13 +67,9 @@ export function createDriveVerifier(
       } catch (error) {
         if (error instanceof DriveRequestError && error.status === 401) {
           clearCachedDriveTokenForUser(userId)
-          try {
-            return await verifyOnce(fileId, userId)
-          } catch {
-            return undefined
-          }
+          return verifyOnce(fileId, userId)
         }
-        return undefined
+        throw error
       }
     },
   }
