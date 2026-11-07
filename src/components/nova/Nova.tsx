@@ -4,6 +4,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import type { RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'
 import { PageSetupPlugin } from '#/components/documents/page-setup/PageSetupPlugin'
+import { DocumentThemePlugin } from '#/components/documents/theme/DocumentThemePlugin'
 import { LexicalExtensionComposer } from '@lexical/react/LexicalExtensionComposer'
 import { collaborativeEditorExtension, editorExtension } from './editor'
 import { NovaContentEditable } from './NovaContentEditable'
@@ -29,6 +30,8 @@ export function Nova({
   collaboration,
   cursorsContainerRef,
   editorRef,
+  documentId,
+  ready = true,
   mode = 'edit',
   pageSetupOpen = false,
   onPageSetupOpenChange = () => {},
@@ -36,6 +39,8 @@ export function Nova({
   editorRef?: RefObject<LexicalEditor | null>
   cursorsContainerRef?: RefObject<HTMLDivElement | null>
   collaboration?: React.ReactNode
+  documentId?: string
+  ready?: boolean
   mode?: EditorMode
   pageSetupOpen?: boolean
   onPageSetupOpenChange?: (open: boolean) => void
@@ -66,6 +71,9 @@ export function Nova({
           open={isEditable && pageSetupOpen}
           onOpenChange={onPageSetupOpenChange}
         />
+        {documentId && (
+          <DocumentThemePlugin documentId={documentId} ready={ready} />
+        )}
 
         {isEditable && <SlashMenuPlugin />}
         {isEditable && anchorElement && (

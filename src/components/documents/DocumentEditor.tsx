@@ -274,6 +274,8 @@ export function DocumentEditor({
               key={session.doc.guid}
               editorRef={editorRef}
               cursorsContainerRef={cursorsContainerRef}
+              documentId={id}
+              ready={ready}
               mode={mode}
               pageSetupOpen={pageSetupOpen}
               onPageSetupOpenChange={onPageSetupOpenChange}

@@ -5,9 +5,16 @@ import type { Root } from 'react-dom/client'
 import type { NavigationMenuItem } from './document-navigation-options'
 import { useDocumentNavigationOptions } from './document-navigation-options'
 import { formatSections } from './format-options'
+import { documentThemes } from '#/lib/documents/document-themes'
+import { publishDocumentTheme } from '#/lib/documents/document-theme'
 
 const theme = vi.hoisted(() => ({ theme: 'light', setTheme: vi.fn() }))
 vi.mock('#/components/theme-provider', () => ({ useTheme: () => theme }))
+
+const selectTheme = vi.hoisted(() => vi.fn())
+vi.mock('../theme/select-document-theme', () => ({
+  selectDocumentTheme: selectTheme,
+}))
 
 const workspace = vi.hoisted(() => ({
   enabled: true,
@@ -17,7 +24,9 @@ const workspace = vi.hoisted(() => ({
   pickerLoading: false,
   openGoogleDrivePicker: vi.fn<() => Promise<void>>(),
   document: undefined as
-    { readOnly?: boolean; drive?: { readOnly?: boolean } } | undefined,
+    | { id?: string; readOnly?: boolean; drive?: { readOnly?: boolean } }
+    | undefined,
+  editorRef: { current: {} },
   createDocument: vi.fn<() => Promise<void>>(),
   openPageSetup: vi.fn(),
   openDocument: vi.fn(),
@@ -49,6 +58,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   onCreate.mockResolvedValue(undefined)
   theme.theme = 'light'
+  workspace.document = undefined
+  publishDocumentTheme('doc', 'paper')
   container = document.createElement('div')
   root = createRoot(container)
 })
@@ -126,6 +137,41 @@ it('updates creation availability and selected theme in both consumers', async (
   expect(
     navigation.options.find((option) => option.id === 'theme-dark')?.checked,
   ).toBe(true)
+})
+
+it('lists document themes, marks the active one, and applies a choice', async () => {
+  workspace.document = { id: 'doc' }
+  publishDocumentTheme('doc', 'ocean')
+  await render()
+
+  const view = navigation.menus.find((menu) => menu.label === 'View')!
+  const appearance = view.items.find((item) => item.id === 'theme')
+  expect(appearance && 'label' in appearance ? appearance.label : '').toBe(
+    'Appearance',
+  )
+  const documentTheme = view.items.find((item) => item.id === 'document-theme')
+  expect(
+    documentTheme && 'children' in documentTheme
+      ? documentTheme.children.length
+      : 0,
+  ).toBe(documentThemes.length)
+  expect(
+    navigation.options.find((option) => option.id === 'document-theme-paper')
+      ?.checked,
+  ).toBe(false)
+  expect(
+    navigation.options.find((option) => option.id === 'document-theme-ocean')
+      ?.checked,
+  ).toBe(true)
+
+  await navigation.options
+    .find((option) => option.id === 'document-theme-space')
+    ?.onSelect()
+  expect(selectTheme).toHaveBeenCalledWith(
+    workspace.editorRef.current,
+    'space',
+    false,
+  )
 })
 
 it('connects file actions to their handlers and keeps Open available without a document', async () => {
@@ -246,6 +292,10 @@ it('gates mutation actions in read-only mode while preserving copy and export', 
 
   expect(
     navigation.options.find((opt) => opt.id === 'page-setup')?.disabled,
+  ).toBe(true)
+  expect(
+    navigation.options.find((opt) => opt.id === 'document-theme-space')
+      ?.disabled,
   ).toBe(true)
   expect(
     navigation.options.find((opt) => opt.id === 'save-to-drive')?.disabled,

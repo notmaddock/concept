@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { DocumentSaveStatus } from './status/DocumentSaveStatus'
 import { DocumentAccessStatus } from './status/DocumentAccessStatus'
+import { DocumentThemeButton } from './theme/DocumentThemeButton'
 import {
   findCollaboratorCaret,
   revealCollaboratorCaret,
@@ -240,6 +241,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                     revealCollaboratorCaret(caret)
                   }}
                 />
+                <DocumentThemeButton />
               </div>
             )}
           </div>
@@ -252,7 +254,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
           {document ? (
             <div
               data-document-sheet
-              className="mx-auto flex min-h-full w-full shrink-0 grow flex-col max-w-[960px] rounded-lg bg-card shadow-sm"
+              className="mx-auto flex min-h-full w-full shrink-0 grow flex-col max-w-[960px] rounded-lg bg-card text-card-foreground shadow-sm"
             >
               <DocumentEditor
                 key={`${document.id}:${connectionRevision}`}

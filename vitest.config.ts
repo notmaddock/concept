@@ -4,6 +4,7 @@ import path from 'node:path'
 const nodeTestPatterns = [
   'src/**/*.server.test.ts',
   'src/lib/documents/drive/api.test.ts',
+  'src/lib/documents/document-theme.test.ts',
   'src/lib/documents/document-url.test.ts',
   'src/lib/documents/library-channel.test.ts',
   'src/lib/documents/local-provider.test.ts',
