@@ -118,8 +118,8 @@ function hueTheme(
 ): DocumentTheme {
   const swatch = hexToOklch(swatchHex)
   const text = hexToOklch(textHex)
-  const primaryLight = oklch(text.l, text.c, swatch.h)
-  const primaryDark = oklch(swatch.l, swatch.c, swatch.h)
+  const primaryLight = oklch(text.l / 100, text.c, swatch.h)
+  const primaryDark = oklch(swatch.l / 100, swatch.c, swatch.h)
   return {
     id,
     label,

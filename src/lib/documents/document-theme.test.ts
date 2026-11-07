@@ -133,6 +133,26 @@ describe('document theme registry', () => {
     }
   })
 
+  it('authors palette colors in CSS oklch lightness units', () => {
+    for (const theme of documentThemes) {
+      for (const mode of ['light', 'dark'] as const) {
+        for (const value of Object.values(theme.palettes[mode])) {
+          for (const match of value.matchAll(/oklch\(([^)]*)\)/g)) {
+            const lightness = Number(match[1].trim().split(/\s+/)[0])
+            expect(
+              lightness,
+              `${theme.id} ${mode} ${value}`,
+            ).toBeGreaterThanOrEqual(0)
+            expect(
+              lightness,
+              `${theme.id} ${mode} ${value}`,
+            ).toBeLessThanOrEqual(1)
+          }
+        }
+      }
+    }
+  })
+
   it('pins a mode and a sheet background for every scene', () => {
     for (const theme of documentThemes) {
       if (theme.group !== 'scene') {
