@@ -50,3 +50,18 @@ it('does not schedule analytics when no key is configured', async () => {
   expect(schedule).not.toHaveBeenCalled()
   expect(init).not.toHaveBeenCalled()
 })
+
+it.each([
+  ['https://us.i.posthog.com', 'https://us.posthog.com'],
+  ['https://eu.i.posthog.com', 'https://eu.posthog.com'],
+  ['https://analytics.example.com', 'https://analytics.example.com'],
+])('points the PostHog app host at %s region', async (apiHost, uiHost) => {
+  vi.stubEnv('VITE_POSTHOG_HOST', apiHost)
+  const { default: Provider } = await import('./provider')
+  await act(() => root.render(<Provider>Editor</Provider>))
+  await schedule.mock.calls[0][0]()
+  expect(init).toHaveBeenCalledWith(
+    'test-key',
+    expect.objectContaining({ api_host: apiHost, ui_host: uiHost }),
+  )
+})
