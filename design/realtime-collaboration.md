@@ -1,6 +1,10 @@
 # Realtime collaboration layer
 
-Status: design. Not implemented.
+Status: implemented. The Durable Object lives in `src/worker/realtime-do.ts`, the
+room and client transport in `src/lib/documents/realtime/`, and the HTTP
+endpoints in `src/routes/api/realtime/$.ts`. The sections below are kept as the
+design record; see [As built](#as-built) for where the implementation diverges
+from the original plan.
 
 ## Core axiom
 
@@ -40,15 +44,22 @@ revisions.
 
 ## Tunables
 
-| Constant                     | Default | Purpose                                                               |
-| ---------------------------- | ------- | --------------------------------------------------------------------- |
-| `revalidationIntervalMs`     | 60_000  | How often the DO re-checks capabilities while the room is active      |
-| `idleRevalidationIntervalMs` | 900_000 | Revalidation cadence once the room has been quiet for `idleAfterMs`   |
-| `idleAfterMs`                | 300_000 | Quiet period after the last join/save before revalidation backs off   |
-| `verdictCacheTtlMs`          | 30_000  | Cache TTL for per-`(userId, fileId)` capability verdicts              |
-| `ticketTtlMs`                | 300_000 | Lifetime of a join ticket                                             |
-| `updateIntervalMs`           | 150     | How often pending Yjs updates are batched and sent over the WebSocket |
-| `awarenessIntervalMs`        | 500     | How often awareness (presence/cursor) state is sent                   |
+| Constant                     | Default                | Purpose                                                               |
+| ---------------------------- | ---------------------- | --------------------------------------------------------------------- |
+| `revalidationIntervalMs`     | 60_000                 | How often the DO re-checks capabilities while the room is active      |
+| `idleRevalidationIntervalMs` | 900_000                | Revalidation cadence once the room has been quiet for `idleAfterMs`   |
+| `idleAfterMs`                | 300_000                | Quiet period after the last join/save before revalidation backs off   |
+| `verdictCacheTtlMs`          | 30_000                 | Cache TTL for per-`(userId, fileId)` capability verdicts              |
+| `ticketTtlMs`                | 300_000                | Lifetime of a join ticket                                             |
+| `updateIntervalMs`           | 150                    | How often pending Yjs updates are batched and sent over the WebSocket |
+| `awarenessIntervalMs`        | 500                    | How often awareness (presence/cursor) state is sent                   |
+| `bufferedUpdates`            | 128                    | Relayed updates the DO buffers for late joiners (cache only)          |
+| `reconnectBaseMs`            | 1_000                  | First client reconnect backoff delay                                  |
+| `reconnectMaxMs`             | 30_000                 | Ceiling for the client's exponential reconnect backoff                |
+| `ticketEndpoint`             | `/api/realtime/ticket` | Ticket issuance path                                                  |
+| `socketEndpoint`             | `/api/realtime/socket` | WebSocket handoff path to the Durable Object                          |
+
+All values live in `src/lib/documents/realtime/policy.ts`.
 
 ## Minimizing roundtrips
 
@@ -140,8 +151,7 @@ interface DocumentCapabilities {
 
 ## Admission (checking access before letting a user in)
 
-1. Client calls an HTTP endpoint (e.g. `POST /api/realtime/ticket`) with the
-   document handle.
+1. Client calls `POST /api/realtime/ticket` with the document handle.
 2. The Worker verifies the better-auth session cookie (`createAuth(...).api.getSession`,
    same pattern as `src/lib/documents/drive/token.server.ts`), loads the user's
    Google account, mints an access token, and calls Drive `files.get` on the
@@ -150,9 +160,11 @@ interface DocumentCapabilities {
    - File found → read `capabilities` into `DocumentCapabilities`.
 3. The Worker issues a short-lived (`ticketTtlMs`) HMAC-signed ticket bound to
    `(userId, fileId, capabilities, exp)` and returns it.
-4. The client opens the WebSocket to the DO for that `fileId`, presenting the
-   ticket. The DO verifies the signature and expiry, admits the socket, and
-   records the capabilities. The DO does not call Drive per connection.
+4. The client opens the WebSocket to `GET /api/realtime/socket`, which hands the
+   request to the Durable Object for that `fileId`. The ticket travels both as a
+   query parameter and in a `hello` control message; the DO verifies the
+   signature and expiry, admits the socket, and records the capabilities. The DO
+   does not call Drive per connection.
 
 Drive's ACL stays the single authoritative source of truth; no Concept-owned
 members table is introduced.
@@ -259,14 +271,75 @@ gap and triggers the normal Drive `sync(true)` download, with the existing
 
 ## Integration notes
 
-- Export the DO class through the worker entry (`main` is currently
-  `@tanstack/react-start/server-entry`) and add the `durable_objects` binding +
-  migration to `wrangler.jsonc` (preview and production).
-- New client modules under `src/lib/documents/` (e.g. `realtime.ts` for the
-  provider interface, `realtime-ticket.ts` client) and a server route under
-  `src/routes/api/realtime/`; keep them lazily loaded so disabling realtime adds
+- Export the DO class through the worker entry. `wrangler.jsonc` now sets
+  `main` to `./worker.ts`, which re-exports the TanStack Start server entry and
+  `DocumentRealtimeDO`, and declares the `durable_objects` binding plus the `v1`
+  migration tag (preview and production).
+- New client modules live under `src/lib/documents/realtime/` (`realtime.ts` for
+  the provider interface, `websocket-provider.ts` for the client transport,
+  `ticket.ts`, `protocol.ts`, `policy.ts`, `room.ts`) and a server route under
+  `src/routes/api/realtime/`; they are lazily loaded so disabling realtime adds
   no cost to the Drive-only path.
 - Tests: ticket issuance/refusal, capability mapping, DO admission and
   view-only update dropping, revocation on capability loss, and the
   realtime-disabled fallback (existing `sync.test.ts` coverage must pass
   unchanged with realtime off).
+
+## As built
+
+Where the implementation diverges from or extends the plan above:
+
+### Wire protocol
+
+`src/lib/documents/realtime/protocol.ts` defines protocol version 1. Binary
+frames carry raw y-protocols messages (first byte 0–3: sync step 1, sync step 2,
+update, awareness). Text frames carry JSON control messages:
+
+| Direction       | Message        | Meaning                                                |
+| --------------- | -------------- | ------------------------------------------------------ |
+| client → server | `hello`        | Protocol version and ticket                            |
+| client → server | `capabilities` | Fresh Drive capability snapshot from the client        |
+| client → server | `publication`  | A save landed; revalidate and treat the room as active |
+| server → client | `admitted`     | Ticket accepted, with the granted capabilities         |
+| server → client | `revoked`      | Capabilities changed; the socket may stay open         |
+| server → client | `error`        | Admission or permission failure                        |
+
+Close codes: `4401` means an invalid or expired ticket, `4403` means access was
+revoked. The client retries once on `4401` with a fresh ticket and never
+reconnects on `4403`.
+
+### Differences from the plan
+
+- **The room is rebuilt on every event.** `DocumentRealtimeDO.roomFromSockets`
+  constructs a fresh `DocumentRoom` from the socket attachments for each frame
+  and each alarm. The Yjs buffer, awareness buffer, and verdict cache therefore
+  never survive a wake-up — stricter than the design's "nothing that must
+  outlive a wake-up" rule.
+- **Frames that arrive before the attachment are buffered.** A client can send
+  its opening sync step between `acceptWebSocket` and the attachment write; the
+  DO holds those frames and replays them once the attachment lands.
+- **The DO makes one Drive call per cold join.** `admit()` revalidates the
+  joining user, so the first join into an empty room is not free of Drive
+  calls, though later joins hit the verdict cache.
+- **Activity means joins and saves.** `markActive()` runs on admission and on a
+  `publication` message, not on ordinary Yjs edits.
+- **Losing `comment` revokes like losing `edit`.** The socket stays open and the
+  client is told its new capabilities.
+- **The BroadcastChannel publication transport is not forwarded to the DO.**
+  The socket `publication` message is the only hint the DO receives.
+- **`disabled` is a client-side status.** `DocumentSync` synthesizes it from a
+  disconnected provider plus the user preference; the server sends no disabled
+  message.
+- **`REALTIME_ENABLED` is not in `wrangler.jsonc`.** It is typed in
+  `src/cloudflare-workers.d.ts` and read as a string; only the exact value
+  `'false'` disables ticket issuance.
+
+### Test coverage
+
+`src/worker/realtime-do.test.ts` guards the hibernation invariants (no timers,
+alarm only while sockets are attached, cadence backoff, relay after wake-up,
+capability persistence). The `src/lib/documents/realtime/*.test.ts` files cover
+tickets, capabilities, the Drive verifier, the room, the WebSocket provider, and
+the awareness bridge. `DocumentAccessStatus.test.tsx` covers the permissions
+indicator. The HTTP adapter in `ticket.server.ts` and the `/api/realtime/socket`
+route are not covered directly.

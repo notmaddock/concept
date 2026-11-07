@@ -1,5 +1,7 @@
 # Drive package transport
 
+Status: implemented in `src/lib/documents/drive/api.ts`.
+
 Version 2 packages use `application/vnd.concept+zip`. Legacy
 `application/vnd.concept+json` files remain discoverable, including files whose
 Drive names no longer have a `.concept` extension. The picker also accepts generic

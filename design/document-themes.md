@@ -1,6 +1,8 @@
 # Document themes
 
-Status: design. Not implemented.
+Status: implemented. The document theme lives in `src/lib/documents/document-theme.ts`,
+the palette and scene registry in `src/lib/documents/document-themes.ts`, and the
+editor UI in `src/components/documents/theme/`.
 
 Answers from review (all resolved, see "Resolved questions"):
 theme stored in the document (Yjs); chooser disabled on read-only docs; hue
