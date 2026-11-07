@@ -11,7 +11,13 @@ import {
 } from '#/lib/documents/document-themes'
 import { useResolvedAppMode } from './use-app-mode'
 
-export function DocumentThemePlugin({ documentId }: { documentId: string }) {
+export function DocumentThemePlugin({
+  documentId,
+  ready = true,
+}: {
+  documentId: string
+  ready?: boolean
+}) {
   const [editor] = useLexicalComposerContext()
   const appMode = useResolvedAppMode()
   const appModeRef = useRef(appMode)
@@ -88,7 +94,19 @@ export function DocumentThemePlugin({ documentId }: { documentId: string }) {
   }, [editor, documentId])
 
   useEffect(() => {
+    if (ready === false) return
     applyRef.current()
+  }, [ready])
+
+  useEffect(() => {
+    // ThemeProvider applies the app mode in its own passive effect. Re-assert
+    // the document theme after it, so a pinned scene keeps its color scheme.
+    if (typeof requestAnimationFrame !== 'function') {
+      applyRef.current()
+      return
+    }
+    const frame = requestAnimationFrame(() => applyRef.current())
+    return () => cancelAnimationFrame(frame)
   }, [appMode])
 
   return null

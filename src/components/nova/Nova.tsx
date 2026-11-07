@@ -31,6 +31,7 @@ export function Nova({
   cursorsContainerRef,
   editorRef,
   documentId,
+  ready = true,
   mode = 'edit',
   pageSetupOpen = false,
   onPageSetupOpenChange = () => {},
@@ -39,6 +40,7 @@ export function Nova({
   cursorsContainerRef?: RefObject<HTMLDivElement | null>
   collaboration?: React.ReactNode
   documentId?: string
+  ready?: boolean
   mode?: EditorMode
   pageSetupOpen?: boolean
   onPageSetupOpenChange?: (open: boolean) => void
@@ -69,7 +71,9 @@ export function Nova({
           open={isEditable && pageSetupOpen}
           onOpenChange={onPageSetupOpenChange}
         />
-        {documentId && <DocumentThemePlugin documentId={documentId} />}
+        {documentId && (
+          <DocumentThemePlugin documentId={documentId} ready={ready} />
+        )}
 
         {isEditable && <SlashMenuPlugin />}
         {isEditable && anchorElement && (
