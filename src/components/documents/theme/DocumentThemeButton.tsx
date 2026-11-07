@@ -107,9 +107,6 @@ export function DocumentThemeButton() {
   )
   const appMode = useResolvedAppMode()
   const readOnly = Boolean(document?.readOnly || document?.drive?.readOnly)
-  const activeTheme =
-    documentThemes.find((theme) => theme.id === themeId) ?? documentThemes[0]
-  const activeColors = previewColors(activeTheme, appMode)
   const colorThemes = documentThemes.filter((theme) => theme.group !== 'scene')
   const sceneThemes = documentThemes.filter((theme) => theme.group === 'scene')
   const select = (id: string) =>
@@ -132,14 +129,7 @@ export function DocumentThemeButton() {
             />
           }
         >
-          <span className="relative">
-            <PaletteIcon />
-            <span
-              aria-hidden="true"
-              className="absolute -right-0.5 -bottom-0.5 size-1.5 rounded-full ring-1 ring-background"
-              style={{ backgroundColor: activeColors.page }}
-            />
-          </span>
+          <PaletteIcon />
         </TooltipTrigger>
         <TooltipContent>Document theme</TooltipContent>
       </Tooltip>

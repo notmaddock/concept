@@ -183,8 +183,20 @@ function scenePalette(colors: SceneColors): ThemePalette {
   }
 }
 
-const spaceBackground =
-  'linear-gradient(135deg, oklch(0.17 0.05 265), oklch(0.27 0.08 258), oklch(0.38 0.10 250))'
+// A few small stars on top of the night gradient. Kept to a handful of layers
+// so the sheet still paints cheaply.
+const spaceStars = [
+  'radial-gradient(circle at 18% 22%, rgba(255,255,255,0.9) 0 1px, transparent 1.6px)',
+  'radial-gradient(circle at 72% 14%, rgba(255,255,255,0.8) 0 1px, transparent 1.6px)',
+  'radial-gradient(circle at 42% 38%, rgba(255,255,255,0.7) 0 1px, transparent 1.6px)',
+  'radial-gradient(circle at 86% 52%, rgba(255,255,255,0.9) 0 1px, transparent 1.6px)',
+  'radial-gradient(circle at 28% 68%, rgba(255,255,255,0.8) 0 1px, transparent 1.6px)',
+  'radial-gradient(circle at 64% 82%, rgba(255,255,255,0.7) 0 1px, transparent 1.6px)',
+  'radial-gradient(circle at 12% 88%, rgba(255,255,255,0.8) 0 1px, transparent 1.6px)',
+  'radial-gradient(circle at 78% 72%, rgba(255,255,255,0.9) 0 1px, transparent 1.6px)',
+].join(', ')
+
+const spaceBackground = `${spaceStars}, linear-gradient(135deg, oklch(0.17 0.05 265), oklch(0.27 0.08 258), oklch(0.38 0.10 250))`
 
 const skyBackground =
   'linear-gradient(135deg, oklch(0.78 0.05 220), oklch(0.88 0.035 220), oklch(0.95 0.02 220))'

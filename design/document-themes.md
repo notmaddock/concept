@@ -23,9 +23,9 @@ portaled dialogs/popovers/toasts — plus the document sheet itself
   and a contrasting sheet color.
 - **Scene themes**: continuous vertical gradients applied **only to the
   document sheet, never to the whole viewport**. The attached mobile screenshot
-  (deep blue night gradient) is the inspiration for the `space` scene. Scenes
-  are absolute: they pin their own mode regardless of the app light/dark
-  setting.
+  (deep blue night gradient with scattered stars) is the inspiration for the
+  `space` scene. Scenes are absolute: they pin their own mode regardless of the
+  app light/dark setting.
 
 Explicitly out of scope:
 
@@ -76,10 +76,11 @@ Explicitly out of scope:
   changes. Scene themes pin `mode` (space/dusk = dark, sky = light), use the
   same palette for both, and set `color-scheme` to their mode.
 - **Scene backgrounds are applied only to `[data-document-sheet]`**, as an
-  inline continuous `linear-gradient`. The page backdrop stays a flat tint from
-  the same theme. This is the deliberate divergence from the screenshot, per
-  the requirement that the complex background stays on the page (sheet), not
-  the viewport. Scene art is static — no animation in v1.
+  inline `linear-gradient` (the space scene adds a few star dots on top). The
+  page backdrop stays a flat tint from the same theme. This is the deliberate
+  divergence from the screenshot, per the requirement that the complex
+  background stays on the page (sheet), not the viewport. Scene art is static —
+  no animation in v1.
 - **Choosers (decided)**: a palette icon button in the document header's
   right-side cluster (next to save/access status — always visible, matches the
   top-right icon placement in the inspiration screenshot) opening a popover
@@ -186,9 +187,11 @@ Scenes set a flat page tint in their palette and put a continuous gradient in
 `sheetBackground`, painted only on `[data-document-sheet]`:
 
 - **space** (inspired by the attached screenshot): page = deep navy
-  `oklch(0.17 0.05 265)`; sheet =
-  `linear-gradient(135deg, oklch(0.17 0.05 265), oklch(0.27 0.08 258), oklch(0.38 0.10 250))`.
-  A single continuous night-sky gradient, no stars or glows. Text near-white.
+  `oklch(0.17 0.05 265)`; sheet = a continuous
+  `linear-gradient(135deg, oklch(0.17 0.05 265), oklch(0.27 0.08 258), oklch(0.38 0.10 250))`
+  with a handful of small static star dots layered on top
+  (`radial-gradient(circle at X% Y%, rgba(255,255,255,.9) 0 1px, transparent 1.6px)`).
+  No glows or other blobs. Text near-white.
 - **sky**: page = pale blue-gray `oklch(0.94 0.02 220)`; sheet =
   `linear-gradient(135deg, oklch(0.78 0.05 220), oklch(0.88 0.035 220), oklch(0.95 0.02 220))`.
   Lighter, low-saturation blues and cyans, no cloud blobs. Dark slate text.
@@ -242,12 +245,12 @@ stays calm — the complex background never touches the viewport.
 ## Chooser UI
 
 - **Header button** (`src/components/documents/theme/DocumentThemeButton.tsx`):
-  ghost icon button (`PaletteIcon`, with a small dot showing the active theme's
-  page color) in the header's right cluster next to `DocumentSaveStatus` /
-  `DocumentAccessStatus`, tooltip "Document theme", disabled on read-only
-  documents. Opens a non-modal `Popover` (`finalFocus={false}`, like
-  `ColorSwatch`) containing a wrapping row of reasonably large circular
-  swatches. Hue/default circles show the page color with a smaller sheet-color
+  ghost icon button (`PaletteIcon`) in the header's right cluster next to
+  `DocumentSaveStatus` / `DocumentAccessStatus`, tooltip "Document theme",
+  disabled on read-only documents. Opens a non-modal `Popover`
+  (`finalFocus={false}`, like `ColorSwatch`) containing a wrapping row of
+  reasonably large circular swatches. Hue/default circles show the page color
+  with a smaller sheet-color
   circle inside; scene circles show their full gradient. Each circle has a
   shadcn tooltip with the theme name and an active ring; there is no visible
   label under the swatch. A horizontal `Separator` puts the scene themes below

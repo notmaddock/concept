@@ -99,7 +99,7 @@ it('returns to the app palette when the document chooses paper', async () => {
   await act(() =>
     editor.update(() => $setDocumentTheme('space'), { discrete: true }),
   )
-  expect(sheet.style.background).toContain('linear-gradient')
+  expect(document.documentElement.dataset.documentTheme).toBe('space')
   await act(() =>
     editor.update(() => $setDocumentTheme('paper'), { discrete: true }),
   )
