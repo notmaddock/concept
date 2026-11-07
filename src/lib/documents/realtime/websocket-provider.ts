@@ -122,8 +122,15 @@ export class TicketRequestError extends Error {
   }
 }
 
-/** Close codes the server uses for refusals that a retry cannot resolve. */
-const permanentCloseCodes = new Set([4401, 4403])
+/**
+ * Close codes the server uses for refusals that a retry cannot resolve. A 4401
+ * is absent on purpose: it also fires for an expired or clock-skewed ticket, so
+ * it earns one retry with a fresh ticket before the loop gives up.
+ */
+const permanentCloseCodes = new Set([4403])
+
+/** Close code for an invalid or expired join ticket. */
+const invalidTicketCloseCode = 4401
 
 const defaultCreateSocket = (url: string): WebSocketLike => {
   if (typeof WebSocket === 'undefined')
@@ -170,6 +177,8 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
   private connectionAttempt = 0
   private closed = false
   private selfInitiatedClose = false
+  /** Guards the single fresh-ticket retry after an invalid-ticket close. */
+  private ticketRetryUsed = false
 
   constructor(
     readonly handle: RealtimeHandle,
@@ -184,6 +193,8 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
 
   connect(): void {
     if (this.closed || this.connecting || this.socket) return
+    // An explicit connect is a new session, so it gets a fresh retry budget.
+    this.ticketRetryUsed = false
     void this.open()
   }
 
@@ -395,8 +406,19 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
         this.state.status === 'revoked'
       )
         return
-      // A refused ticket or a revoked grant will not succeed on retry, and an
-      // expired cached ticket must not be reused for the next attempt.
+      // A revoked grant will not succeed on retry. An invalid ticket might:
+      // it also covers an expired or clock-skewed ticket, so drop the cached
+      // one and retry once before giving up.
+      if (event.code === invalidTicketCloseCode) {
+        this.ticket = undefined
+        if (this.ticketRetryUsed) {
+          this.stopRetrying()
+          return
+        }
+        this.ticketRetryUsed = true
+        this.handleConnectionFailure()
+        return
+      }
       if (event.code !== undefined && permanentCloseCodes.has(event.code)) {
         this.ticket = undefined
         this.stopRetrying()

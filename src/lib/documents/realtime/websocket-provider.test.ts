@@ -300,7 +300,7 @@ describe('WebSocketRealtimeProvider', () => {
     expect(sockets).toHaveLength(0)
   })
 
-  it('refetches the ticket after a 4401 close instead of reusing the expired one', async () => {
+  it('retries once with a fresh ticket after a 4401 close', async () => {
     vi.useFakeTimers()
     const { provider, sockets, fetchTicket } = setup()
     tracked(provider)
@@ -313,18 +313,46 @@ describe('WebSocketRealtimeProvider', () => {
     expect(provider.getState().status).toBe('connected')
     expect(fetchTicket).toHaveBeenCalledTimes(1)
 
+    // An invalid ticket also covers clock skew and a rotated secret, so the
+    // client drops the cached ticket and tries again rather than giving up.
     socket.serverClose(4401)
     expect(provider.getState().status).toBe('disconnected')
-    await vi.advanceTimersByTimeAsync(realtimePolicy.reconnectMaxMs * 3)
-    expect(sockets).toHaveLength(1)
-
-    provider.connect()
-    await flush()
+    await vi.advanceTimersByTimeAsync(realtimePolicy.reconnectBaseMs)
     expect(fetchTicket).toHaveBeenCalledTimes(2)
     expect(sockets).toHaveLength(2)
     sockets[1].open()
     admit(sockets[1])
     expect(provider.getState().status).toBe('connected')
+  })
+
+  it('gives up after a second 4401 close within the same session', async () => {
+    vi.useFakeTimers()
+    const { provider, sockets, fetchTicket } = setup()
+    tracked(provider)
+    provider.connect()
+    await flush()
+    sockets[0].open()
+    admit(sockets[0])
+
+    sockets[0].serverClose(4401)
+    await vi.advanceTimersByTimeAsync(realtimePolicy.reconnectBaseMs)
+    expect(sockets).toHaveLength(2)
+    sockets[1].open()
+    admit(sockets[1])
+
+    // The one-shot retry is spent, so a second rejection ends the loop instead
+    // of hammering the server every backoff tick.
+    sockets[1].serverClose(4401)
+    await vi.advanceTimersByTimeAsync(realtimePolicy.reconnectMaxMs * 3)
+    expect(sockets).toHaveLength(2)
+    expect(fetchTicket).toHaveBeenCalledTimes(2)
+    expect(provider.getState().status).toBe('disconnected')
+
+    // An explicit connect starts a new session and may try again.
+    provider.connect()
+    await flush()
+    expect(fetchTicket).toHaveBeenCalledTimes(3)
+    expect(sockets).toHaveLength(3)
   })
 
   it('does not retry after a 4403 close', async () => {
