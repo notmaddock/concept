@@ -138,6 +138,7 @@ export class DocumentRealtimeDO extends DurableObject {
 
     const admittedClient = room.client(adapterId)
     if (!admittedClient) {
+      console.warn('[realtime] admission lost; closing socket 1011')
       server.close(1011, 'admission lost')
       return new Response(null, {
         status: 101,
@@ -176,6 +177,10 @@ export class DocumentRealtimeDO extends DurableObject {
     }
     const room = this.roomFromSockets()
     const data = typeof message === 'string' ? message : new Uint8Array(message)
+    if (!room.hasClient(attachment.adapterId))
+      // The socket is attached but the room could not rebuild it; without this
+      // the frame is dropped and the client sees an unexplained stall.
+      console.warn('[realtime] frame for an unknown adapter; dropping')
     room.receive(attachment.adapterId, data)
     // A save may have changed the ACL; it also means the room is active, so
     // keep revalidation on the fast cadence and re-arm for the next pass.
@@ -217,6 +222,10 @@ export class DocumentRealtimeDO extends DurableObject {
     for (const ws of this.ctx.getWebSockets(socketTag)) {
       const attachment = ws.deserializeAttachment()
       if (isAttachment(attachment)) room.restore(ws, attachment)
+      else
+        // A socket without an attachment is invisible to relay and revalidate,
+        // so its owner silently sees no peers. Surface it instead.
+        console.warn('[realtime] socket without a valid attachment; skipping')
     }
     return room
   }

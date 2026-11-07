@@ -496,3 +496,64 @@ describe('DocumentRealtimeDO capability persistence', () => {
     })
   })
 })
+
+describe('DocumentRealtimeDO diagnostics', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.stubGlobal('WebSocketPair', function WebSocketPair() {
+      return { 0: new FakeWebSocket(), 1: new FakeWebSocket() }
+    })
+    vi.stubGlobal(
+      'Response',
+      function Response(
+        _body: unknown,
+        init?: {
+          status?: number
+          webSocket?: unknown
+        },
+      ) {
+        return { status: init?.status, webSocket: init?.webSocket }
+      },
+    )
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('warns instead of silently dropping a frame for an unknown adapter', async () => {
+    const harness = createState()
+    const doInstance = createDo(harness)
+    await doInstance.fetch(upgradeRequest(await ticketFor('u1', editorCaps)))
+    const [socket] = harness.sockets
+
+    // A valid attachment whose adapter the room never restored: the frame has
+    // nowhere to go, and the drop must be observable rather than presenting as
+    // a stalled editor. Detaching removes it from getWebSockets, so the room
+    // rebuilds without it while the sender still looks admitted.
+    harness.detach(socket)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await doInstance.webSocketMessage(socket as never, updateFrame())
+
+    expect(warn).toHaveBeenCalledWith(
+      '[realtime] frame for an unknown adapter; dropping',
+    )
+  })
+
+  it('warns instead of silently skipping a socket with no attachment', async () => {
+    const harness = createState()
+    const doInstance = createDo(harness)
+    await doInstance.fetch(upgradeRequest(await ticketFor('u1', editorCaps)))
+    const [socket] = harness.sockets
+    socket.serializeAttachment(null)
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await harness.runAlarm(doInstance)
+
+    expect(warn).toHaveBeenCalledWith(
+      '[realtime] socket without a valid attachment; skipping',
+    )
+  })
+})

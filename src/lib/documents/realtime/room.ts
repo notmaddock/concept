@@ -172,6 +172,11 @@ export class DocumentRoom {
     return true
   }
 
+  /** Whether the room currently holds this adapter id. */
+  hasClient(socketId: string): boolean {
+    return this.clients.has(socketId)
+  }
+
   receive(socketId: string, data: string | Uint8Array): void {
     const client = this.clients.get(socketId)
     if (!client) return
