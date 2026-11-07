@@ -44,6 +44,20 @@ function makeVerifier(
   }
 }
 
+/** Verifier whose check always fails, as on a Drive outage. */
+function makeThrowingVerifier(): DriveVerifier & {
+  calls: Array<{ fileId: string; userId: string }>
+} {
+  const calls: Array<{ fileId: string; userId: string }> = []
+  return {
+    calls,
+    async verify(checkedFileId, userId) {
+      calls.push({ fileId: checkedFileId, userId })
+      throw new Error('Drive files.get failed with status 500.')
+    },
+  }
+}
+
 const editorCaps: DocumentCapabilities = {
   view: true,
   edit: true,
@@ -425,5 +439,132 @@ describe('DocumentRoom revocation', () => {
     room.receive('ghost', updateMessage(encodeStateAsUpdate(new Doc())))
     room.receive('ghost', encodeControlMessage({ type: 'publication' }))
     expect(verifier.calls).toHaveLength(0)
+  })
+})
+
+describe('DocumentRoom revalidation resilience', () => {
+  it('keeps an editor when the revalidation check throws', async () => {
+    let now = 500_000
+    const verifier = makeVerifier({ a: editorCaps, b: editorCaps })
+    const sockets: FakeSocket[] = []
+    const room = await admittedRoom(
+      verifier,
+      sockets,
+      [
+        { id: 'a', userId: 'a', capabilities: editorCaps },
+        { id: 'b', userId: 'b', capabilities: editorCaps },
+      ],
+      () => now,
+    )
+    verifier.verify = vi.fn(async () => {
+      throw new Error('Drive files.get failed with status 500.')
+    })
+    now += 31_000 // move past the verdict cache TTL
+    await expect(room.revalidate()).resolves.toBeUndefined()
+    const [a, b] = sockets
+    expect(a.closed).toBeUndefined()
+    expect(b.closed).toBeUndefined()
+    expect(
+      a.sent.filter(
+        (data) => typeof data === 'string' && data.includes('"revoked"'),
+      ),
+    ).toHaveLength(0)
+    expect(room.clientCount()).toBe(2)
+    expect(room.client('a')?.capabilities).toEqual(editorCaps)
+
+    // Still in the room: a subsequent relay reaches the other editor.
+    const source = new Doc()
+    source.getMap('root').set('key', 'value')
+    const before = b.sent.filter((data) => typeof data !== 'string').length
+    room.receive('a', updateMessage(encodeStateAsUpdate(source)))
+    expect(b.sent.filter((data) => typeof data !== 'string')).toHaveLength(
+      before + 1,
+    )
+    room.remove('a')
+    room.remove('b')
+  })
+
+  it('downgrades an editor when revalidation reports lost edit', async () => {
+    let now = 500_000
+    const verifier = makeVerifier({ 'user-1': editorCaps })
+    const room = new DocumentRoom({ fileId, secret, verifier, now: () => now })
+    const socket = new FakeSocket('s1')
+    await room.admit(socket, await ticketFor('user-1', editorCaps))
+    verifier.verify = vi.fn(async () => viewerCaps)
+    now += 31_000 // move past the verdict cache TTL
+    await room.revalidate()
+    expect(socket.lastControl()).toEqual({
+      type: 'revoked',
+      capabilities: viewerCaps,
+    })
+    expect(socket.closed).toBeUndefined()
+    expect(room.clientCount()).toBe(1)
+    expect(room.client('s1')?.capabilities).toEqual(viewerCaps)
+    room.remove('s1')
+  })
+
+  it('does not revoke a user whose first revalidation throws', async () => {
+    const verifier = makeThrowingVerifier()
+    const room = new DocumentRoom({
+      fileId,
+      secret,
+      verifier,
+      now: () => 500_000,
+    })
+    const socket = new FakeSocket('s1')
+    await expect(
+      room.admit(socket, await ticketFor('user-1', editorCaps)),
+    ).resolves.toBe(true)
+    expect(verifier.calls).toHaveLength(1)
+    expect(socket.closed).toBeUndefined()
+    expect(socket.lastControl()).toEqual({
+      type: 'admitted',
+      capabilities: editorCaps,
+    })
+    expect(room.clientCount()).toBe(1)
+    expect(room.client('s1')?.capabilities).toEqual(editorCaps)
+    room.remove('s1')
+  })
+
+  it('still revokes and closes with 4403 on a genuine undefined verdict', async () => {
+    let now = 500_000
+    const verifier = makeVerifier({ 'user-1': editorCaps })
+    const room = new DocumentRoom({ fileId, secret, verifier, now: () => now })
+    const socket = new FakeSocket('s1')
+    await room.admit(socket, await ticketFor('user-1', editorCaps))
+    verifier.verify = vi.fn(async () => undefined)
+    now += 31_000 // move past the verdict cache TTL
+    await room.revalidate()
+    expect(socket.lastControl()).toEqual({
+      type: 'revoked',
+      capabilities: { view: false, edit: false, comment: false },
+    })
+    expect(socket.closed?.code).toBe(4403)
+    expect(room.clientCount()).toBe(0)
+  })
+
+  it('reports the downgraded capabilities through onCapabilitiesChanged', async () => {
+    let now = 500_000
+    const verifier = makeVerifier({ 'user-1': editorCaps })
+    const onCapabilitiesChanged = vi.fn()
+    const room = new DocumentRoom({
+      fileId,
+      secret,
+      verifier,
+      now: () => now,
+      onCapabilitiesChanged,
+    })
+    const socket = new FakeSocket('s1')
+    await room.admit(socket, await ticketFor('user-1', editorCaps))
+    verifier.verify = vi.fn(async () => viewerCaps)
+    now += 31_000 // move past the verdict cache TTL
+    await room.revalidate()
+    // Fires on admission too, so assert the latest report is the downgrade.
+    expect(onCapabilitiesChanged).toHaveBeenLastCalledWith('s1', viewerCaps)
+    expect(onCapabilitiesChanged.mock.calls).toEqual([
+      ['s1', editorCaps],
+      ['s1', viewerCaps],
+    ])
+    room.remove('s1')
   })
 })

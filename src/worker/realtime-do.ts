@@ -71,7 +71,34 @@ export class DocumentRealtimeDO extends DurableObject {
         fileId: this.fileId,
         secret: env.BETTER_AUTH_SECRET,
         verifier,
+        onCapabilitiesChanged: (adapterId, capabilities) =>
+          this.persistCapabilities(adapterId, capabilities),
       })
+  }
+
+  /**
+   * Writes revalidated capabilities back onto the socket attachment. Without
+   * this a wake-up rebuilds the client from the ticket-time snapshot, silently
+   * restoring a downgraded or revoked user's original rights.
+   */
+  private persistCapabilities(
+    adapterId: string,
+    capabilities: DocumentCapabilities,
+  ): void {
+    for (const ws of this.ctx.getWebSockets(socketTag)) {
+      const attachment = ws.deserializeAttachment()
+      if (!isAttachment(attachment) || attachment.adapterId !== adapterId)
+        continue
+      // Revalidation runs every minute; skip the write when nothing changed.
+      const current = attachment.capabilities
+      if (
+        current.view === capabilities.view &&
+        current.edit === capabilities.edit &&
+        current.comment === capabilities.comment
+      )
+        continue
+      ws.serializeAttachment({ ...attachment, capabilities })
+    }
   }
 
   async fetch(request: Request): Promise<Response> {

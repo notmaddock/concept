@@ -32,6 +32,11 @@ export interface RoomClientSnapshot {
 
 /** Drive-backed capability check for one user; undefined means no access. */
 export interface DriveVerifier {
+  /**
+   * Resolves to undefined when the user genuinely has no access. Throws when
+   * the check could not be completed (network, 5xx, expired refresh token), so
+   * callers can avoid revoking a user over a transient Drive failure.
+   */
   verify: (
     fileId: string,
     userId: string,
@@ -44,6 +49,15 @@ export interface DocumentRoomDeps {
   verifier: DriveVerifier
   now?: () => number
   policy?: Partial<RealtimePolicy>
+  /**
+   * Called when revalidation changes a client's capabilities. The Durable
+   * Object persists these into the socket attachment so a hibernation wake-up
+   * does not restore a downgraded or revoked client at its ticket-time rights.
+   */
+  onCapabilitiesChanged?: (
+    adapterId: string,
+    capabilities: DocumentCapabilities,
+  ) => void
 }
 
 interface RoomClient {
@@ -72,6 +86,7 @@ export class DocumentRoom {
   private readonly policy: RealtimePolicy
   private readonly clients = new Map<string, RoomClient>()
   private readonly verdicts = new Map<string, Verdict>()
+  private readonly onCapabilitiesChanged?: DocumentRoomDeps['onCapabilitiesChanged']
   private buffer = new Doc()
   private bufferedUpdates = 0
   /** Latest awareness frame per socket, replayed to late joiners (cache only). */
@@ -83,6 +98,7 @@ export class DocumentRoom {
     this.verifier = deps.verifier
     this.now = deps.now ?? (() => Date.now())
     this.policy = { ...realtimePolicy, ...deps.policy }
+    this.onCapabilitiesChanged = deps.onCapabilitiesChanged
   }
 
   clientCount() {
@@ -242,9 +258,15 @@ export class DocumentRoom {
   private async revalidateUser(userId: string): Promise<void> {
     let verdict = this.verdicts.get(userId)
     if (!verdict || this.now() - verdict.at >= this.policy.verdictCacheTtlMs) {
-      const capabilities = await this.verifier.verify(this.fileId, userId)
-      verdict = { at: this.now(), capabilities }
-      this.verdicts.set(userId, verdict)
+      try {
+        const capabilities = await this.verifier.verify(this.fileId, userId)
+        verdict = { at: this.now(), capabilities }
+        this.verdicts.set(userId, verdict)
+      } catch {
+        // Inconclusive check: keep the last known verdict rather than treating
+        // a Drive outage as "no access", which would revoke every client.
+        if (!verdict) return
+      }
     }
     for (const client of [...this.clients.values()]) {
       if (client.userId !== userId) continue
@@ -252,6 +274,7 @@ export class DocumentRoom {
       if (!fresh || !fresh.view) {
         // Loss of view closes the socket.
         client.capabilities = { view: false, edit: false, comment: false }
+        this.onCapabilitiesChanged?.(client.socket.id, client.capabilities)
         client.socket.send(
           encodeControlMessage({
             type: 'revoked',
@@ -266,6 +289,7 @@ export class DocumentRoom {
         (client.capabilities.edit && !fresh.edit) ||
         (client.capabilities.comment && !fresh.comment)
       client.capabilities = fresh
+      this.onCapabilitiesChanged?.(client.socket.id, fresh)
       if (lost) {
         // Loss of edit (but not view) downgrades to awareness-only.
         client.socket.send(

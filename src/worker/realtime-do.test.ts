@@ -9,10 +9,19 @@ import { realtimePolicy } from '#/lib/documents/realtime/policy'
 import type { DocumentCapabilities } from '#/lib/documents/realtime/capabilities'
 
 // The DO builds its Drive verifier from env; admission revalidates through it,
-// so stub the module rather than reaching for D1 in a unit test.
+// so stub the module rather than reaching for D1 in a unit test. The verdict is
+// configurable per test so a revalidation pass can downgrade or revoke a user.
+const { verifyState } = vi.hoisted(() => {
+  type Verdict = { view: boolean; edit: boolean; comment: boolean }
+  const state: { result: Verdict | undefined } = {
+    result: { view: true, edit: true, comment: false },
+  }
+  return { verifyState: state }
+})
+
 vi.mock('#/lib/documents/realtime/drive.server', () => ({
   createDriveVerifier: () => ({
-    verify: async () => ({ view: true, edit: true, comment: false }),
+    verify: async () => verifyState.result,
   }),
 }))
 
@@ -392,5 +401,98 @@ describe('DocumentRealtimeDO relay after hibernation', () => {
     expect(socketA.sent).toHaveLength(1)
     expect(socketA.sent[0]).toEqual(new Uint8Array(frame))
     expect(socketB.sent).toHaveLength(0)
+  })
+})
+
+describe('DocumentRealtimeDO capability persistence', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.stubGlobal('WebSocketPair', function WebSocketPair() {
+      return { 0: new FakeWebSocket(), 1: new FakeWebSocket() }
+    })
+    vi.stubGlobal(
+      'Response',
+      function Response(
+        _body: unknown,
+        init?: {
+          status?: number
+          webSocket?: unknown
+        },
+      ) {
+        return { status: init?.status, webSocket: init?.webSocket }
+      },
+    )
+    verifyState.result = editorCaps
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    verifyState.result = editorCaps
+  })
+
+  it('persists a downgrade so a wake-up does not restore edit rights', async () => {
+    const harness = createState()
+    const doInstance = createDo(harness)
+    await doInstance.fetch(upgradeRequest(await ticketFor('u1', editorCaps)))
+    const [socket] = harness.sockets
+    expect(socket.deserializeAttachment()).toMatchObject({
+      capabilities: editorCaps,
+    })
+
+    verifyState.result = { view: true, edit: false, comment: false }
+    // The verdict cache is per room instance, so the alarm's fresh room asks
+    // the verifier again and sees the downgrade.
+    await harness.runAlarm(doInstance)
+
+    expect(socket.deserializeAttachment()).toMatchObject({
+      capabilities: { view: true, edit: false, comment: false },
+    })
+
+    // Hibernation discards the room; the woken object rebuilds from the
+    // attachment, which must no longer carry edit rights.
+    socket.sent = []
+    const woken = createDo(harness)
+    await woken.webSocketMessage(socket as never, updateFrame())
+
+    expect(socket.sent).toHaveLength(1)
+    expect(socket.sent[0]).toBe(
+      encodeControlMessage({
+        type: 'error',
+        message: 'Edit permission is required to send document updates.',
+      }),
+    )
+  })
+
+  it('persists a revocation so a wake-up does not restore view access', async () => {
+    const harness = createState()
+    const doInstance = createDo(harness)
+    await doInstance.fetch(upgradeRequest(await ticketFor('u1', editorCaps)))
+    const [socket] = harness.sockets
+
+    verifyState.result = undefined
+    await harness.runAlarm(doInstance)
+
+    expect(socket.deserializeAttachment()).toMatchObject({
+      capabilities: { view: false, edit: false, comment: false },
+    })
+    expect(socket.closed).toEqual({ code: 4403, reason: 'access revoked' })
+  })
+
+  it('does not rewrite the attachment when capabilities are unchanged', async () => {
+    const harness = createState()
+    const doInstance = createDo(harness)
+    await doInstance.fetch(upgradeRequest(await ticketFor('u1', editorCaps)))
+    const [socket] = harness.sockets
+
+    const serialize = vi.spyOn(socket, 'serializeAttachment')
+    await harness.runAlarm(doInstance)
+
+    // Revalidation runs every minute; an unchanged verdict must not cost a
+    // serialization per socket per pass.
+    expect(serialize).not.toHaveBeenCalled()
+    expect(socket.deserializeAttachment()).toMatchObject({
+      capabilities: editorCaps,
+    })
   })
 })
