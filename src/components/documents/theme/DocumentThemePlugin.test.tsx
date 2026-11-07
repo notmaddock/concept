@@ -97,11 +97,9 @@ it('re-asserts a pinned color scheme after an external change', async () => {
 
 it('returns to the app palette when the document chooses paper', async () => {
   await act(() =>
-    editor.update(() => $setDocumentTheme('ocean'), { discrete: true }),
+    editor.update(() => $setDocumentTheme('space'), { discrete: true }),
   )
-  expect(document.documentElement.style.getPropertyValue('--background')).toBe(
-    'oklch(0.955 0.012 259.81)',
-  )
+  expect(sheet.style.background).toContain('linear-gradient')
   await act(() =>
     editor.update(() => $setDocumentTheme('paper'), { discrete: true }),
   )

@@ -28,7 +28,6 @@ export function DocumentThemePlugin({
     const appliedVariables = new Set<string>()
     let appliedPaletteKey: string | undefined
     let appliedSheet: HTMLElement | null = null
-    let appliedSheetBackground: string | undefined
     let disposed = false
 
     const apply = () => {
@@ -64,15 +63,10 @@ export function DocumentThemePlugin({
           .getRootElement()
           ?.closest<HTMLElement>('[data-document-sheet]') ?? null
       if (sheet !== appliedSheet) {
-        appliedSheet?.style.removeProperty('background')
+        if (appliedSheet) appliedSheet.style.background = ''
         appliedSheet = sheet
-        appliedSheetBackground = undefined
       }
-      if (sheet && appliedSheetBackground !== sheetBackground) {
-        if (sheetBackground) sheet.style.background = sheetBackground
-        else sheet.style.removeProperty('background')
-        appliedSheetBackground = sheetBackground
-      }
+      if (sheet) sheet.style.background = sheetBackground ?? ''
     }
 
     applyRef.current = apply
@@ -88,7 +82,7 @@ export function DocumentThemePlugin({
       for (const name of appliedVariables) root.style.setProperty(name, '')
       delete root.dataset.documentTheme
       root.style.colorScheme = appModeRef.current
-      appliedSheet?.style.removeProperty('background')
+      if (appliedSheet) appliedSheet.style.background = ''
       clearDocumentTheme(documentId)
     }
   }, [editor, documentId])
