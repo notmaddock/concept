@@ -1,0 +1,95 @@
+import { useEffect, useRef } from 'react'
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
+import {
+  $getDocumentTheme,
+  clearDocumentTheme,
+  publishDocumentTheme,
+} from '#/lib/documents/document-theme'
+import {
+  getDocumentThemeById,
+  resolveTheme,
+} from '#/lib/documents/document-themes'
+import { useResolvedAppMode } from './use-app-mode'
+
+export function DocumentThemePlugin({ documentId }: { documentId: string }) {
+  const [editor] = useLexicalComposerContext()
+  const appMode = useResolvedAppMode()
+  const appModeRef = useRef(appMode)
+  appModeRef.current = appMode
+  const applyRef = useRef<() => void>(() => {})
+
+  useEffect(() => {
+    const appliedVariables = new Set<string>()
+    let appliedPaletteKey: string | undefined
+    let appliedSheet: HTMLElement | null = null
+    let appliedSheetBackground: string | undefined
+    let disposed = false
+
+    const apply = () => {
+      if (disposed) return
+      const id = editor.getEditorState().read($getDocumentTheme)
+      const theme = getDocumentThemeById(id)
+      const mode = appModeRef.current
+      const { palette, sheetBackground, colorScheme } = resolveTheme(
+        theme,
+        mode,
+      )
+      publishDocumentTheme(documentId, id)
+
+      const root = document.documentElement
+      const paletteKey = `${id}:${mode}`
+      if (paletteKey !== appliedPaletteKey) {
+        const nextNames = new Set(Object.keys(palette))
+        for (const name of appliedVariables) {
+          if (!nextNames.has(name)) root.style.setProperty(name, '')
+        }
+        for (const [name, value] of Object.entries(palette)) {
+          root.style.setProperty(name, value)
+        }
+        appliedVariables.clear()
+        for (const name of nextNames) appliedVariables.add(name)
+        root.dataset.documentTheme = id
+        root.style.colorScheme = colorScheme
+        appliedPaletteKey = paletteKey
+      }
+
+      const sheet =
+        editor
+          .getRootElement()
+          ?.closest<HTMLElement>('[data-document-sheet]') ?? null
+      if (sheet !== appliedSheet) {
+        appliedSheet?.style.removeProperty('background')
+        appliedSheet = sheet
+        appliedSheetBackground = undefined
+      }
+      if (sheet && appliedSheetBackground !== sheetBackground) {
+        if (sheetBackground) sheet.style.background = sheetBackground
+        else sheet.style.removeProperty('background')
+        appliedSheetBackground = sheetBackground
+      }
+    }
+
+    applyRef.current = apply
+    const unregisterRoot = editor.registerRootListener(apply)
+    const unregisterUpdate = editor.registerUpdateListener(apply)
+    apply()
+
+    return () => {
+      disposed = true
+      unregisterRoot()
+      unregisterUpdate()
+      const root = document.documentElement
+      for (const name of appliedVariables) root.style.setProperty(name, '')
+      delete root.dataset.documentTheme
+      root.style.colorScheme = appModeRef.current
+      appliedSheet?.style.removeProperty('background')
+      clearDocumentTheme(documentId)
+    }
+  }, [editor, documentId])
+
+  useEffect(() => {
+    applyRef.current()
+  }, [appMode])
+
+  return null
+}
