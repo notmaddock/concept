@@ -187,13 +187,13 @@ Scenes set a flat page tint in their palette and put a continuous gradient in
 
 - **space** (inspired by the attached screenshot): page = deep navy
   `oklch(0.17 0.05 265)`; sheet =
-  `linear-gradient(180deg, oklch(0.17 0.05 265), oklch(0.27 0.08 258), oklch(0.38 0.10 250))`.
+  `linear-gradient(135deg, oklch(0.17 0.05 265), oklch(0.27 0.08 258), oklch(0.38 0.10 250))`.
   A single continuous night-sky gradient, no stars or glows. Text near-white.
 - **sky**: page = pale blue-gray `oklch(0.94 0.02 220)`; sheet =
-  `linear-gradient(180deg, oklch(0.78 0.05 220), oklch(0.88 0.035 220), oklch(0.95 0.02 220))`.
+  `linear-gradient(135deg, oklch(0.78 0.05 220), oklch(0.88 0.035 220), oklch(0.95 0.02 220))`.
   Lighter, low-saturation blues and cyans, no cloud blobs. Dark slate text.
 - **dusk**: page = deep plum `oklch(0.20 0.05 330)`; sheet =
-  `linear-gradient(180deg, oklch(0.44 0.11 30), oklch(0.36 0.09 355), oklch(0.30 0.07 330))`.
+  `linear-gradient(135deg, oklch(0.44 0.11 30), oklch(0.36 0.09 355), oklch(0.30 0.07 330))`.
   A softer orange-to-magenta gradient, no blobs. Light text.
 
 Because the sheet is a rounded card on a flat tinted page, scenes read as

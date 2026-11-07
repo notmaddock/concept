@@ -184,13 +184,13 @@ function scenePalette(colors: SceneColors): ThemePalette {
 }
 
 const spaceBackground =
-  'linear-gradient(180deg, oklch(0.17 0.05 265), oklch(0.27 0.08 258), oklch(0.38 0.10 250))'
+  'linear-gradient(135deg, oklch(0.17 0.05 265), oklch(0.27 0.08 258), oklch(0.38 0.10 250))'
 
 const skyBackground =
-  'linear-gradient(180deg, oklch(0.78 0.05 220), oklch(0.88 0.035 220), oklch(0.95 0.02 220))'
+  'linear-gradient(135deg, oklch(0.78 0.05 220), oklch(0.88 0.035 220), oklch(0.95 0.02 220))'
 
 const duskBackground =
-  'linear-gradient(180deg, oklch(0.44 0.11 30), oklch(0.36 0.09 355), oklch(0.30 0.07 330))'
+  'linear-gradient(135deg, oklch(0.44 0.11 30), oklch(0.36 0.09 355), oklch(0.30 0.07 330))'
 
 const space = scenePalette({
   page: 'oklch(0.17 0.05 265)',
