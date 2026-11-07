@@ -1,7 +1,12 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { $createParagraphNode, $getRoot, createEditor } from 'lexical'
+import {
+  $createParagraphNode,
+  $getRoot,
+  createEditor,
+  ElementNode,
+} from 'lexical'
 import {
   $setDocumentTheme,
   clearDocumentTheme,
@@ -69,6 +74,25 @@ it('applies a scene to the page and sheet, then clears it on unmount', async () 
   expect(html.dataset.documentTheme).toBeUndefined()
   expect(html.style.getPropertyValue('--background')).toBe('')
   expect(sheet.style.background).toBe('')
+})
+
+it('re-asserts a pinned color scheme after an external change', async () => {
+  await act(() =>
+    editor.update(() => $setDocumentTheme('space'), { discrete: true }),
+  )
+  const html = document.documentElement
+  expect(html.style.colorScheme).toBe('dark')
+  html.style.colorScheme = 'light'
+  await act(() =>
+    editor.update(
+      () => {
+        const child = $getRoot().getFirstChild()
+        if (child instanceof ElementNode) child.setIndent(1)
+      },
+      { discrete: true },
+    ),
+  )
+  expect(html.style.colorScheme).toBe('dark')
 })
 
 it('returns to the app palette when the document chooses paper', async () => {

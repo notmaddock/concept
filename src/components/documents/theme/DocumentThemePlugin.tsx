@@ -43,6 +43,8 @@ export function DocumentThemePlugin({
       publishDocumentTheme(documentId, id)
 
       const root = document.documentElement
+      root.dataset.documentTheme = id
+      root.style.colorScheme = colorScheme
       const paletteKey = `${id}:${mode}`
       if (paletteKey !== appliedPaletteKey) {
         const nextNames = new Set(Object.keys(palette))
@@ -54,8 +56,6 @@ export function DocumentThemePlugin({
         }
         appliedVariables.clear()
         for (const name of nextNames) appliedVariables.add(name)
-        root.dataset.documentTheme = id
-        root.style.colorScheme = colorScheme
         appliedPaletteKey = paletteKey
       }
 
