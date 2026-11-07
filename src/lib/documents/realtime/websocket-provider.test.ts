@@ -9,7 +9,10 @@ import * as encoding from 'lib0/encoding'
 import { writeUpdate } from 'y-protocols/sync'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { realtimePolicy } from './policy'
-import { WebSocketRealtimeProvider } from './websocket-provider'
+import {
+  TicketRequestError,
+  WebSocketRealtimeProvider,
+} from './websocket-provider'
 import type { DocumentCapabilities } from './capabilities'
 import type { RealtimeHandle } from './realtime'
 import type { RealtimeTicket, WebSocketLike } from './websocket-provider'
@@ -246,6 +249,100 @@ describe('WebSocketRealtimeProvider', () => {
     await flush()
     expect(provider.getState().status).toBe('disconnected')
     expect(sockets).toHaveLength(0)
+  })
+
+  it('stops retrying when the ticket endpoint refuses permanently', async () => {
+    vi.useFakeTimers()
+    const fetchTicket = vi.fn(async () => {
+      throw new TicketRequestError(403, 'no drive access')
+    })
+    const { provider, sockets } = setup({ fetchTicket })
+    tracked(provider)
+    provider.connect()
+    await flush()
+    expect(provider.getState().status).toBe('disconnected')
+    expect(sockets).toHaveLength(0)
+    expect(fetchTicket).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(realtimePolicy.reconnectMaxMs * 3)
+    expect(sockets).toHaveLength(0)
+    expect(fetchTicket).toHaveBeenCalledOnce()
+  })
+
+  it('keeps retrying when the ticket endpoint fails transiently', async () => {
+    vi.useFakeTimers()
+    const fetchTicket = vi.fn(async () => {
+      throw new Error('down')
+    })
+    const { provider, sockets } = setup({ fetchTicket })
+    tracked(provider)
+    provider.connect()
+    await flush()
+    expect(provider.getState().status).toBe('disconnected')
+    expect(sockets).toHaveLength(0)
+    expect(fetchTicket).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(realtimePolicy.reconnectBaseMs)
+    expect(fetchTicket.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(sockets).toHaveLength(0)
+  })
+
+  it('keeps retrying when the ticket endpoint fails with a server error', async () => {
+    vi.useFakeTimers()
+    const fetchTicket = vi.fn(async () => {
+      throw new TicketRequestError(500, 'server error')
+    })
+    const { provider, sockets } = setup({ fetchTicket })
+    tracked(provider)
+    provider.connect()
+    await flush()
+    expect(provider.getState().status).toBe('disconnected')
+    await vi.advanceTimersByTimeAsync(realtimePolicy.reconnectBaseMs)
+    expect(fetchTicket.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(sockets).toHaveLength(0)
+  })
+
+  it('refetches the ticket after a 4401 close instead of reusing the expired one', async () => {
+    vi.useFakeTimers()
+    const { provider, sockets, fetchTicket } = setup()
+    tracked(provider)
+    provider.connect()
+    await flush()
+    expect(sockets).toHaveLength(1)
+    const socket = sockets[0]
+    socket.open()
+    admit(socket)
+    expect(provider.getState().status).toBe('connected')
+    expect(fetchTicket).toHaveBeenCalledTimes(1)
+
+    socket.serverClose(4401)
+    expect(provider.getState().status).toBe('disconnected')
+    await vi.advanceTimersByTimeAsync(realtimePolicy.reconnectMaxMs * 3)
+    expect(sockets).toHaveLength(1)
+
+    provider.connect()
+    await flush()
+    expect(fetchTicket).toHaveBeenCalledTimes(2)
+    expect(sockets).toHaveLength(2)
+    sockets[1].open()
+    admit(sockets[1])
+    expect(provider.getState().status).toBe('connected')
+  })
+
+  it('does not retry after a 4403 close', async () => {
+    vi.useFakeTimers()
+    const { provider, sockets, fetchTicket } = setup()
+    tracked(provider)
+    provider.connect()
+    await flush()
+    const socket = sockets[0]
+    socket.open()
+    admit(socket)
+    expect(provider.getState().status).toBe('connected')
+
+    socket.serverClose(4403)
+    expect(provider.getState().status).toBe('disconnected')
+    await vi.advanceTimersByTimeAsync(realtimePolicy.reconnectMaxMs * 3)
+    expect(sockets).toHaveLength(1)
+    expect(fetchTicket).toHaveBeenCalledTimes(1)
   })
 
   it('disconnects on demand and reconnects with a fresh socket', async () => {

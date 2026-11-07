@@ -97,9 +97,33 @@ const defaultFetchTicket = async (
     body: JSON.stringify({ storage: handle.storage, fileId: handle.fileId }),
   })
   if (!response.ok)
-    throw new Error(`Realtime ticket endpoint returned ${response.status}.`)
+    throw new TicketRequestError(
+      response.status,
+      `Realtime ticket endpoint returned ${response.status}.`,
+    )
   return (await response.json()) as RealtimeTicket
 }
+
+/**
+ * A ticket request the server refused for a reason retrying cannot fix:
+ * signed out (401), no Drive access (403), or realtime disabled (403).
+ */
+export class TicketRequestError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'TicketRequestError'
+  }
+
+  get permanent(): boolean {
+    return this.status === 401 || this.status === 403
+  }
+}
+
+/** Close codes the server uses for refusals that a retry cannot resolve. */
+const permanentCloseCodes = new Set([4401, 4403])
 
 const defaultCreateSocket = (url: string): WebSocketLike => {
   if (typeof WebSocket === 'undefined')
@@ -316,9 +340,17 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
       const ticket = await this.ensureTicket()
       if (attempt !== this.connectionAttempt) return
       this.openSocket(socketUrl(this.handle, ticket.ticket))
-    } catch {
+    } catch (error) {
+      if (attempt !== this.connectionAttempt) return
+      // A refused ticket will be refused again; stop instead of polling the
+      // endpoint every backoff tick for as long as the tab stays open.
+      if (error instanceof TicketRequestError && error.permanent) {
+        this.connecting = false
+        this.stopRetrying()
+        return
+      }
       // Silent: the Drive-only flow continues without realtime.
-      if (attempt === this.connectionAttempt) this.handleConnectionFailure()
+      this.handleConnectionFailure()
     } finally {
       if (attempt === this.connectionAttempt) this.connecting = false
     }
@@ -354,7 +386,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
     socket.onerror = () => {
       // onclose follows; the close handler drives reconnect.
     }
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       if (this.socket === socket) this.socket = undefined
       this.stopTimers()
       if (
@@ -363,6 +395,13 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
         this.state.status === 'revoked'
       )
         return
+      // A refused ticket or a revoked grant will not succeed on retry, and an
+      // expired cached ticket must not be reused for the next attempt.
+      if (event.code !== undefined && permanentCloseCodes.has(event.code)) {
+        this.ticket = undefined
+        this.stopRetrying()
+        return
+      }
       this.handleConnectionFailure()
     }
   }
@@ -382,6 +421,22 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
       this.reconnectTimer = undefined
       void this.open()
     }, delay)
+  }
+
+  /**
+   * Ends the reconnect loop after a refusal retrying cannot fix. The editor
+   * keeps working through Drive; a later `connect()` (e.g. the user toggling
+   * collaboration back on) starts a fresh attempt.
+   */
+  private stopRetrying() {
+    this.clearReconnect()
+    this.backoff = realtimePolicy.reconnectBaseMs
+    this.setState({
+      status: 'disconnected',
+      capabilities: this.state.capabilities,
+      peers: 0,
+      collaborators: [],
+    })
   }
 
   private clearReconnect() {
