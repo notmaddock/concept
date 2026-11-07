@@ -385,8 +385,12 @@ describe('DocumentRealtimeDO relay after hibernation', () => {
     // keeps both sockets attached, so the woken object must rebuild every
     // client from its attachment before it can relay to anyone but the sender.
     const woken = createDo(harness)
-    await woken.webSocketMessage(socketB as never, updateFrame())
+    const frame = updateFrame()
+    await woken.webSocketMessage(socketB as never, frame)
 
+    // The peer receives the sender's exact frame, and the sender is not echoed.
     expect(socketA.sent).toHaveLength(1)
+    expect(socketA.sent[0]).toEqual(new Uint8Array(frame))
+    expect(socketB.sent).toHaveLength(0)
   })
 })
