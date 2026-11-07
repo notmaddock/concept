@@ -1,5 +1,14 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchDriveCapabilities } from './drive.server'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createDriveVerifier, fetchDriveCapabilities } from './drive.server'
+import {
+  clearCachedDriveTokenForUser,
+  getDriveAccessTokenForUser,
+} from './user-token.server'
+
+vi.mock('./user-token.server', () => ({
+  getDriveAccessTokenForUser: vi.fn(),
+  clearCachedDriveTokenForUser: vi.fn(),
+}))
 
 function stubFetch(status: number, body?: object) {
   const fetchMock = vi.fn().mockResolvedValue(
@@ -9,6 +18,31 @@ function stubFetch(status: number, body?: object) {
   )
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
+}
+
+/** Stubs fetch with one response per call, in order. */
+function stubFetchSequence(
+  responses: Array<{ status: number; body?: object }>,
+) {
+  const fetchMock = vi.fn()
+  for (const response of responses) {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        response.body === undefined ? null : JSON.stringify(response.body),
+        { status: response.status },
+      ),
+    )
+  }
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+const env = {} as Cloudflare.Env
+const origin = 'https://app.test'
+
+const editableBody = {
+  id: 'file-1',
+  capabilities: { canEdit: true, canModifyContent: true, canComment: false },
 }
 
 afterEach(() => {
@@ -79,5 +113,98 @@ describe('fetchDriveCapabilities', () => {
     await expect(fetchDriveCapabilities('file-1', 'token-1')).rejects.toThrow(
       'Drive files.get failed with status 500.',
     )
+  })
+})
+
+describe('createDriveVerifier', () => {
+  const getToken = vi.mocked(getDriveAccessTokenForUser)
+  const clearToken = vi.mocked(clearCachedDriveTokenForUser)
+
+  beforeEach(() => {
+    getToken.mockReset()
+    clearToken.mockReset()
+    getToken.mockResolvedValue('token-1')
+  })
+
+  it('resolves undefined when Drive reports no access (403/404)', async () => {
+    const verifier = createDriveVerifier(env, origin)
+
+    stubFetch(403)
+    await expect(verifier.verify('file-1', 'user-1')).resolves.toBeUndefined()
+
+    stubFetch(404)
+    await expect(verifier.verify('file-1', 'user-1')).resolves.toBeUndefined()
+
+    expect(getToken).toHaveBeenCalledWith(env, origin, 'user-1')
+    expect(clearToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects on a 500 instead of reporting no access', async () => {
+    stubFetch(500)
+    const verifier = createDriveVerifier(env, origin)
+    await expect(verifier.verify('file-1', 'user-1')).rejects.toThrow(
+      'Drive files.get failed with status 500.',
+    )
+    expect(clearToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the Drive request fails at the network level', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed'))
+    vi.stubGlobal('fetch', fetchMock)
+    const verifier = createDriveVerifier(env, origin)
+    await expect(verifier.verify('file-1', 'user-1')).rejects.toThrow(
+      'fetch failed',
+    )
+  })
+
+  it('rejects when no access token can be obtained', async () => {
+    const fetchMock = stubFetch(200, editableBody)
+    getToken.mockRejectedValue(new Error('User has no Google refresh token.'))
+    const verifier = createDriveVerifier(env, origin)
+    await expect(verifier.verify('file-1', 'user-1')).rejects.toThrow(
+      'User has no Google refresh token.',
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('clears the cached token and retries once after a 401', async () => {
+    const fetchMock = stubFetchSequence([
+      { status: 401 },
+      { status: 200, body: editableBody },
+    ])
+    const verifier = createDriveVerifier(env, origin)
+    await expect(verifier.verify('file-1', 'user-1')).resolves.toEqual({
+      view: true,
+      edit: true,
+      comment: false,
+    })
+    expect(clearToken).toHaveBeenCalledTimes(1)
+    expect(clearToken).toHaveBeenCalledWith('user-1')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(getToken).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects when the retry after a 401 also fails', async () => {
+    const fetchMock = stubFetchSequence([{ status: 401 }, { status: 401 }])
+    const verifier = createDriveVerifier(env, origin)
+    await expect(verifier.verify('file-1', 'user-1')).rejects.toThrow(
+      'Drive files.get failed with status 401.',
+    )
+    expect(clearToken).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects when the retry after a 401 fails at the network level', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+    vi.stubGlobal('fetch', fetchMock)
+    const verifier = createDriveVerifier(env, origin)
+    await expect(verifier.verify('file-1', 'user-1')).rejects.toThrow(
+      'fetch failed',
+    )
+    expect(clearToken).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

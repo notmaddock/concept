@@ -71,7 +71,34 @@ export class DocumentRealtimeDO extends DurableObject {
         fileId: this.fileId,
         secret: env.BETTER_AUTH_SECRET,
         verifier,
+        onCapabilitiesChanged: (adapterId, capabilities) =>
+          this.persistCapabilities(adapterId, capabilities),
       })
+  }
+
+  /**
+   * Writes revalidated capabilities back onto the socket attachment. Without
+   * this a wake-up rebuilds the client from the ticket-time snapshot, silently
+   * restoring a downgraded or revoked user's original rights.
+   */
+  private persistCapabilities(
+    adapterId: string,
+    capabilities: DocumentCapabilities,
+  ): void {
+    for (const ws of this.ctx.getWebSockets(socketTag)) {
+      const attachment = ws.deserializeAttachment()
+      if (!isAttachment(attachment) || attachment.adapterId !== adapterId)
+        continue
+      // Revalidation runs every minute; skip the write when nothing changed.
+      const current = attachment.capabilities
+      if (
+        current.view === capabilities.view &&
+        current.edit === capabilities.edit &&
+        current.comment === capabilities.comment
+      )
+        continue
+      ws.serializeAttachment({ ...attachment, capabilities })
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -111,6 +138,7 @@ export class DocumentRealtimeDO extends DurableObject {
 
     const admittedClient = room.client(adapterId)
     if (!admittedClient) {
+      console.warn('[realtime] admission lost; closing socket 1011')
       server.close(1011, 'admission lost')
       return new Response(null, {
         status: 101,
@@ -147,9 +175,12 @@ export class DocumentRealtimeDO extends DurableObject {
       ])
       return
     }
-    const room = this.createRoom()
-    room.restore(ws, attachment)
+    const room = this.roomFromSockets()
     const data = typeof message === 'string' ? message : new Uint8Array(message)
+    if (!room.hasClient(attachment.adapterId))
+      // The socket is attached but the room could not rebuild it; without this
+      // the frame is dropped and the client sees an unexplained stall.
+      console.warn('[realtime] frame for an unknown adapter; dropping')
     room.receive(attachment.adapterId, data)
     // A save may have changed the ACL; it also means the room is active, so
     // keep revalidation on the fast cadence and re-arm for the next pass.
@@ -175,13 +206,28 @@ export class DocumentRealtimeDO extends DurableObject {
   async alarm(): Promise<void> {
     const sockets = this.ctx.getWebSockets(socketTag)
     if (sockets.length === 0) return
-    const room = this.createRoom()
-    for (const ws of sockets) {
-      const attachment = ws.deserializeAttachment()
-      if (isAttachment(attachment)) room.restore(ws, attachment)
-    }
+    const room = this.roomFromSockets()
     await room.revalidate()
     await this.armRevalidation()
+  }
+
+  /**
+   * Rebuilds the room with every attached socket. Hibernation discards the
+   * room's in-memory client map while the runtime keeps the sockets attached,
+   * so any event that relays or revalidates must restore all of them first —
+   * restoring only the sender would leave its peers invisible to `relay`.
+   */
+  private roomFromSockets(): DocumentRoom {
+    const room = this.createRoom()
+    for (const ws of this.ctx.getWebSockets(socketTag)) {
+      const attachment = ws.deserializeAttachment()
+      if (isAttachment(attachment)) room.restore(ws, attachment)
+      else
+        // A socket without an attachment is invisible to relay and revalidate,
+        // so its owner silently sees no peers. Surface it instead.
+        console.warn('[realtime] socket without a valid attachment; skipping')
+    }
+    return room
   }
 
   /** Replays frames held while the socket had no attachment yet. */
@@ -192,8 +238,7 @@ export class DocumentRealtimeDO extends DurableObject {
     const frames = this.pendingFrames.get(ws)
     if (!frames) return
     this.pendingFrames.delete(ws)
-    const room = this.createRoom()
-    room.restore(ws, attachment)
+    const room = this.roomFromSockets()
     for (const frame of frames)
       room.receive(
         attachment.adapterId,
