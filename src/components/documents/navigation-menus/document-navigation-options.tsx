@@ -2,6 +2,16 @@ import { INSERT_IMAGE_COMMAND } from '#/components/nova/images/commands'
 import { importFormats } from '#/lib/documents/import/formats'
 import type { ImportFormat } from '#/lib/documents/import/formats'
 import type { ExportFormat } from '#/lib/documents/export'
+import {
+  DEFAULT_DOCUMENT_THEME_ID,
+  documentThemes,
+} from '#/lib/documents/document-themes'
+import {
+  getDocumentTheme,
+  subscribeDocumentTheme,
+} from '#/lib/documents/document-theme'
+import { selectDocumentTheme } from '../theme/select-document-theme'
+import { useCallback, useSyncExternalStore } from 'react'
 import { formatSections } from './format-options'
 import type { useFormatActions } from './use-format-actions'
 
@@ -79,6 +89,8 @@ type NavigationContext = {
   creating: boolean
   theme: ReturnType<typeof useTheme>['theme']
   setTheme: ReturnType<typeof useTheme>['setTheme']
+  documentTheme: string
+  setDocumentTheme: (id: string) => void
 }
 
 type ActionDefinition = {
@@ -304,7 +316,7 @@ export const documentNavigation: MenuDefinition[] = [
     items: [
       {
         id: 'theme',
-        label: 'Theme',
+        label: 'Appearance',
         icon: PaletteIcon,
         children: [
           {
@@ -338,6 +350,30 @@ export const documentNavigation: MenuDefinition[] = [
             checked: (context) => context.theme === 'system',
           },
         ],
+      },
+      {
+        id: 'document-theme',
+        label: 'Document theme',
+        icon: PaletteIcon,
+        children: documentThemes.map((theme) => ({
+          id: `document-theme-${theme.id}`,
+          label: `${theme.label} theme`,
+          menuLabel: theme.label,
+          keywords: [
+            'theme',
+            'color',
+            'background',
+            theme.label.toLowerCase(),
+            theme.id,
+          ],
+          icon: PaletteIcon,
+          focusAfterSelect: 'editor' as const,
+          onSelect: (context: NavigationContext) =>
+            context.setDocumentTheme(theme.id),
+          checked: (context: NavigationContext) =>
+            context.documentTheme === theme.id,
+          disabled: (context: NavigationContext) => Boolean(context.readOnly),
+        })),
       },
     ],
   },
@@ -410,13 +446,23 @@ export function useDocumentNavigationOptions({
   format,
 }: NavigationActions = disabledActions) {
   const workspace = useDocumentWorkspace()
+  const readOnly = Boolean(
+    workspace.document?.readOnly || workspace.document?.drive?.readOnly,
+  )
+  const documentId = workspace.document?.id ?? ''
+  const documentTheme = useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => subscribeDocumentTheme(documentId, listener),
+      [documentId],
+    ),
+    () => getDocumentTheme(documentId),
+    () => DEFAULT_DOCUMENT_THEME_ID,
+  )
   const context: NavigationContext = {
     edit,
     format,
     enabled: workspace.enabled,
-    readOnly: Boolean(
-      workspace.document?.readOnly || workspace.document?.drive?.readOnly,
-    ),
+    readOnly,
     creating: workspace.creating,
     onOpen: workspace.openDocument,
     onOpenDrive: workspace.openGoogleDrivePicker,
@@ -439,6 +485,9 @@ export function useDocumentNavigationOptions({
       )
     },
     onCreate: workspace.createDocument,
+    documentTheme,
+    setDocumentTheme: (id) =>
+      selectDocumentTheme(workspace.editorRef.current, id, readOnly),
     ...useTheme(),
   }
   const options: NavigationOption[] = []
