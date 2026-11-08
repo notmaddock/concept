@@ -53,12 +53,12 @@ function isPublication(data: string): boolean {
 export class DocumentRealtimeDO extends DurableObject {
   private readonly fileId: string
   private readonly createRoom: () => DocumentRoom
+  private room?: DocumentRoom
   /** Frames that arrived before the socket's attachment was written. */
   private readonly pendingFrames = new Map<
     WorkersWebSocket,
     Array<string | ArrayBuffer>
   >()
-
   constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
     super(ctx, env)
     this.fileId = ctx.id.name ?? ctx.id.toString()
@@ -100,6 +100,18 @@ export class DocumentRealtimeDO extends DurableObject {
       ws.serializeAttachment({ ...attachment, capabilities })
     }
   }
+  private getRoom(): DocumentRoom {
+    if (!this.room) {
+      this.room = this.createRoom()
+      for (const ws of this.ctx.getWebSockets(socketTag)) {
+        const attachment = ws.deserializeAttachment()
+        if (isAttachment(attachment)) this.room.restore(ws, attachment)
+        else
+          console.warn('[realtime] socket without a valid attachment; skipping')
+      }
+    }
+    return this.room
+  }
 
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
@@ -116,11 +128,12 @@ export class DocumentRealtimeDO extends DurableObject {
     const pair = new WebSocketPair()
     const [client, server] = Object.values(pair)
 
+    const room = this.getRoom()
+
     // Accept before anything sends: the runtime rejects send() on a socket
     // that has not been accepted, and admission replies with `admitted`.
     this.ctx.acceptWebSocket(server, [socketTag])
 
-    const room = this.createRoom()
     const adapterId = crypto.randomUUID()
     const admitted = await room.admit(
       {
@@ -175,7 +188,7 @@ export class DocumentRealtimeDO extends DurableObject {
       ])
       return
     }
-    const room = this.roomFromSockets()
+    const room = this.getRoom()
     const data = typeof message === 'string' ? message : new Uint8Array(message)
     if (!room.hasClient(attachment.adapterId))
       // The socket is attached but the room could not rebuild it; without this
@@ -206,28 +219,9 @@ export class DocumentRealtimeDO extends DurableObject {
   async alarm(): Promise<void> {
     const sockets = this.ctx.getWebSockets(socketTag)
     if (sockets.length === 0) return
-    const room = this.roomFromSockets()
+    const room = this.getRoom()
     await room.revalidate()
     await this.armRevalidation()
-  }
-
-  /**
-   * Rebuilds the room with every attached socket. Hibernation discards the
-   * room's in-memory client map while the runtime keeps the sockets attached,
-   * so any event that relays or revalidates must restore all of them first —
-   * restoring only the sender would leave its peers invisible to `relay`.
-   */
-  private roomFromSockets(): DocumentRoom {
-    const room = this.createRoom()
-    for (const ws of this.ctx.getWebSockets(socketTag)) {
-      const attachment = ws.deserializeAttachment()
-      if (isAttachment(attachment)) room.restore(ws, attachment)
-      else
-        // A socket without an attachment is invisible to relay and revalidate,
-        // so its owner silently sees no peers. Surface it instead.
-        console.warn('[realtime] socket without a valid attachment; skipping')
-    }
-    return room
   }
 
   /** Replays frames held while the socket had no attachment yet. */
@@ -238,7 +232,7 @@ export class DocumentRealtimeDO extends DurableObject {
     const frames = this.pendingFrames.get(ws)
     if (!frames) return
     this.pendingFrames.delete(ws)
-    const room = this.roomFromSockets()
+    const room = this.getRoom()
     for (const frame of frames)
       room.receive(
         attachment.adapterId,
@@ -250,9 +244,23 @@ export class DocumentRealtimeDO extends DurableObject {
     // getWebSockets can still return a socket that is mid-close, so drop its
     // attachment to keep it from being rebuilt as a live client.
     this.pendingFrames.delete(ws)
+    const attachment = ws.deserializeAttachment()
+    if (isAttachment(attachment)) {
+      this.room?.remove(attachment.adapterId)
+    }
     ws.serializeAttachment(null)
-    if (this.ctx.getWebSockets(socketTag).length === 0)
+    const remaining = this.ctx
+      .getWebSockets(socketTag)
+      .filter(
+        (s) =>
+          s !== ws &&
+          s.readyState === WebSocket.OPEN &&
+          isAttachment(s.deserializeAttachment()),
+      )
+    if (remaining.length === 0) {
       await this.ctx.storage.deleteAlarm()
+      this.room = undefined
+    }
   }
 
   private async armRevalidation(): Promise<void> {
