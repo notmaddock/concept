@@ -59,7 +59,13 @@ export async function issueRealtimeTicket(
   const now = deps.now ?? Date.now()
   const expiresAt = now + realtimePolicy.ticketTtlMs
   const ticket = await signRealtimeTicket(
-    { userId: deps.userId, fileId: input.fileId, capabilities, exp: expiresAt },
+    {
+      jti: crypto.randomUUID(),
+      userId: deps.userId,
+      fileId: input.fileId,
+      capabilities,
+      exp: expiresAt,
+    },
     deps.secret,
   )
   return { status: 200, body: { ticket, expiresAt, capabilities } }

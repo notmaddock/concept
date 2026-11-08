@@ -257,10 +257,15 @@ export class DocumentRoom {
     const userIds = new Set(
       [...this.clients.values()].map((client) => client.userId),
     )
-    await Promise.all([...userIds].map((userId) => this.revalidateUser(userId)))
+    await Promise.all(
+      [...userIds].map((userId) => this.revalidateUser(userId, true)),
+    )
   }
 
-  private async revalidateUser(userId: string): Promise<void> {
+  private async revalidateUser(
+    userId: string,
+    isBackground = false,
+  ): Promise<void> {
     let verdict = this.verdicts.get(userId)
     if (!verdict || this.now() - verdict.at >= this.policy.verdictCacheTtlMs) {
       try {
@@ -270,7 +275,14 @@ export class DocumentRoom {
       } catch {
         // Inconclusive check: keep the last known verdict rather than treating
         // a Drive outage as "no access", which would revoke every client.
-        if (!verdict) return
+        if (!verdict) {
+          if (isBackground) {
+            verdict = { at: this.now(), capabilities: undefined }
+            this.verdicts.set(userId, verdict)
+          } else {
+            return
+          }
+        }
       }
     }
     for (const client of [...this.clients.values()]) {

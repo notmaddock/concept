@@ -37,11 +37,25 @@ describe('issueRealtimeTicket', () => {
     expect(body.capabilities).toEqual(editorCaps)
     const payload = await verifyRealtimeTicket(body.ticket, secret, 1_000_000)
     expect(payload).toEqual({
+      jti: expect.any(String),
       userId: 'user-1',
       fileId: 'file-1',
       capabilities: editorCaps,
       exp: 1_000_000 + realtimePolicy.ticketTtlMs,
     })
+    expect(payload?.jti).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    )
+    const second = await issueRealtimeTicket(
+      { storage: 'google-drive', fileId: 'file-1' },
+      baseDeps,
+    )
+    const payload2 = await verifyRealtimeTicket(
+      (second.body as TicketBody).ticket,
+      secret,
+      1_000_000,
+    )
+    expect(payload?.jti).not.toEqual(payload2?.jti)
   })
 
   it('refuses when Drive denies access', async () => {
