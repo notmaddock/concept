@@ -35,9 +35,10 @@ export abstract class ResizableNode<T> extends DecoratorNode<T> {
   }
 
   protected validateDisplayWidth(width: number | null): number | null {
-    if (width !== null && (!Number.isFinite(width) || width <= 0))
+    if (width === null) return null
+    if (typeof width !== 'number' || !Number.isFinite(width))
       throw new Error('Invalid display width')
-    return width
+    return Math.max(1, width)
   }
 
   getDisplayWidth(): number | null {
