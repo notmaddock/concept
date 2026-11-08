@@ -1,7 +1,7 @@
 import type { Doc } from 'yjs'
 import type { AssetId, AssetRepository } from './assets'
 import { IncompleteAssetsError } from './package'
-import type { NormalizedSnapshot } from './package'
+import type { NormalizedSnapshot, PackageAsset } from './package'
 import { captureDocument } from './references'
 
 const recoveryAssets = new WeakMap<Doc, ReadonlyArray<AssetId>>()
@@ -35,19 +35,36 @@ export async function captureSnapshot(
   const descriptors = repository ? await repository.list() : []
   const pin = repository?.pin(descriptors.map((descriptor) => descriptor.id))
   try {
-    const assets = await Promise.all(
-      descriptors.map(async (descriptor) => {
-        const blob = await repository!.get(descriptor.id)
-        if (!blob) throw new IncompleteAssetsError([descriptor.id])
-        return { descriptor, blob }
-      }),
-    )
-    const available = new Set(descriptors.map((descriptor) => descriptor.id))
-    const missing = [
+    const requiredIds = new Set<AssetId>([
       ...captured.requiredAssets,
       ...(recoveryAssets.get(doc) ?? []),
-    ].filter((id) => !available.has(id))
-    if (missing.length) throw new IncompleteAssetsError(missing)
+    ])
+    const available = new Set(descriptors.map((descriptor) => descriptor.id))
+    const missing = [...requiredIds].filter((id) => !available.has(id))
+    const assets: PackageAsset[] = []
+    await Promise.all(
+      descriptors.map(async (descriptor) => {
+        const blob = await repository!.get(descriptor.id)
+        if (!blob) {
+          if (requiredIds.has(descriptor.id)) {
+            missing.push(descriptor.id)
+          }
+        } else {
+          assets.push({ descriptor, blob })
+        }
+      }),
+    )
+    if (missing.length) {
+      const error = new IncompleteAssetsError(Array.from(new Set(missing)))
+      throw Object.assign(error, {
+        snapshot: {
+          name: captured.name,
+          update: captured.update,
+          assets,
+          requiredFeatures: [],
+        },
+      })
+    }
     return {
       name: captured.name,
       update: captured.update,

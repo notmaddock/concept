@@ -4,6 +4,7 @@ import { createEditor, $getRoot } from 'lexical'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { HorizontalRuleNode } from '@lexical/extension'
+import { ImageNode } from '#/components/nova/nodes/ImageNode'
 import { createYjsBinding, syncYjsChangesToLexical } from '@lexical/yjs'
 import { convertImport } from './index'
 import type { ImportFormat } from './formats'
@@ -21,7 +22,14 @@ async function converted(
   const doc = new Doc()
   const root = doc.get('root', XmlText)
   const editor = createEditor({
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, HorizontalRuleNode],
+    nodes: [
+      HeadingNode,
+      QuoteNode,
+      ListNode,
+      ListItemNode,
+      HorizontalRuleNode,
+      ImageNode,
+    ],
     onError: (error) => {
       throw error
     },
@@ -123,4 +131,47 @@ it('rejects oversized imports before reading their payload', async () => {
     ),
   ).rejects.toThrow('Import file is too large')
   expect(read).toBe(false)
+})
+
+it('replaces unsupported or malformed embedded images with text fallbacks without failing import', async () => {
+  const { text } = await converted(
+    '<p>Intro</p><img src="data:image/svg+xml;base64,PHN2Zz4=" alt="Diagram"><img src="data:image/png;base64,***invalid***" alt="Corrupt"><img src="data:image/unsupported;base64,1234"><p>Outro</p>',
+    'Document.html',
+    'html',
+  )
+  expect(text).toContain('Intro')
+  expect(text).toContain('[Image: Diagram]')
+  expect(text).toContain('[Image: Corrupt]')
+  expect(text).toContain('[Image]')
+  expect(text).toContain('Outro')
+})
+
+it('normalizes RFC 2045 line-wrapped base64 images during HTML import', async () => {
+  const base64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+  const wrapped = `data:image/png;base64,\r\n  ${base64.slice(0, 30)}\r\n  ${base64.slice(30, 60)}\r\n  ${base64.slice(60)}\r\n`
+  const originalImage = globalThis.Image
+  try {
+    globalThis.Image = class {
+      src = ''
+      naturalWidth = 1
+      naturalHeight = 1
+      decode = async () => {}
+    } as unknown as typeof Image
+
+    const { file, state } = await converted(
+      `<p>Before</p><img src="${wrapped}" alt="Pixel"><p>After</p>`,
+      'Wrapped.html',
+      'html',
+    )
+    expect(file.assets).toHaveLength(1)
+    expect(file.assets[0].descriptor.mediaType).toBe('image/png')
+    expect(state.root.children.map((node) => node.type)).toEqual([
+      'paragraph',
+      'image',
+      'paragraph',
+    ])
+  } finally {
+    globalThis.Image = originalImage
+  }
 })

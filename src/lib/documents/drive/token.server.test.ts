@@ -214,19 +214,40 @@ it('reports unconfigured servers without starting auth', async () => {
 })
 
 it.each(['FAILED_TO_GET_ACCESS_TOKEN', 'FAILED_TO_REFRESH_ACCESS_TOKEN'])(
-  'keeps collapsed refresh failures retryable: %s',
+  'requires reconnection for OAuth refresh credential failures: %s',
   async (code) => {
     mocks.getAccessToken.mockRejectedValue({
       statusCode: 400,
       body: { code, message: 'private refresh detail' },
     })
     const response = await handleDriveToken(request(), bindings)
-    expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({
-      error: 'Google Drive is temporarily unavailable.',
-    })
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ error: 'Reconnect Google Drive.' })
   },
 )
+
+it('requires reconnection when refresh fails with invalid_grant', async () => {
+  mocks.getAccessToken.mockRejectedValue({
+    statusCode: 400,
+    body: {
+      error: 'invalid_grant',
+      error_description: 'Token has been expired or revoked.',
+    },
+  })
+  const response = await handleDriveToken(request(), bindings)
+  expect(response.status).toBe(401)
+  expect(await response.json()).toEqual({ error: 'Reconnect Google Drive.' })
+})
+
+it('reports disconnected when session check encounters OAuth credential error', async () => {
+  mocks.getSession.mockRejectedValue({
+    statusCode: 400,
+    body: { code: 'FAILED_TO_REFRESH_ACCESS_TOKEN' },
+  })
+  const response = await handleDriveToken(request('session'), bindings)
+  expect(response.status).toBe(200)
+  expect(await response.json()).toEqual({ connected: false, configured: true })
+})
 
 it('requires reconnection for explicitly missing refresh credentials', async () => {
   mocks.refreshToken.mockRejectedValue({

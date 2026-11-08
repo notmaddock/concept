@@ -32,19 +32,33 @@ afterEach(async () => {
 })
 
 it('renders children immediately and initializes analytics only in the scheduled task', async () => {
+  // Dynamic import exercises module reload after vi.resetModules() for isolated initialization state
   const { default: Provider } = await import('./provider')
   await act(() => root.render(<Provider>Editor</Provider>))
   expect(container.textContent).toBe('Editor')
   expect(init).not.toHaveBeenCalled()
   expect(schedule).toHaveBeenCalledOnce()
   await schedule.mock.calls[0][0]()
-  expect(init).toHaveBeenCalledWith('test-key', expect.any(Object))
+  expect(init).toHaveBeenCalledWith(
+    'test-key',
+    expect.objectContaining({
+      api_host: 'https://us.i.posthog.com',
+      ui_host: 'https://us.posthog.com',
+      autocapture: false,
+      disable_session_recording: true,
+      mask_all_text: true,
+      person_profiles: 'identified_only',
+      capture_pageview: false,
+      defaults: '2026-08-30',
+    }),
+  )
   await act(() => root.unmount())
   expect(cancel).toHaveBeenCalledOnce()
 })
 
 it('does not schedule analytics when no key is configured', async () => {
   vi.stubEnv('VITE_POSTHOG_KEY', '')
+  // Dynamic import exercises module reload after vi.resetModules() for isolated initialization state
   const { default: Provider } = await import('./provider')
   await act(() => root.render(<Provider>Editor</Provider>))
   expect(schedule).not.toHaveBeenCalled()
@@ -62,6 +76,12 @@ it.each([
   await schedule.mock.calls[0][0]()
   expect(init).toHaveBeenCalledWith(
     'test-key',
-    expect.objectContaining({ api_host: apiHost, ui_host: uiHost }),
+    expect.objectContaining({
+      api_host: apiHost,
+      ui_host: uiHost,
+      autocapture: false,
+      disable_session_recording: true,
+      mask_all_text: true,
+    }),
   )
 })

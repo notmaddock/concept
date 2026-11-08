@@ -1,7 +1,14 @@
 import type { RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'
 import type { DocumentPersistence } from '#/lib/documents/storage'
-import { useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { Awareness } from 'y-protocols/awareness'
 import { LexicalCollaboration } from '@lexical/react/LexicalCollaborationContext'
 import { CollaborationPlugin } from '@lexical/react/LexicalCollaborationPlugin'
@@ -70,6 +77,16 @@ export function DocumentEditor({
   const awarenessData = useMemo(
     () => (profile?.image ? { avatar: profile.image } : undefined),
     [profile?.image],
+  )
+  const providerFactory = useCallback(
+    (_: string, documents: Map<string, Doc>) => {
+      if (!session) {
+        throw new Error('Document session is not initialized')
+      }
+      documents.set(id, session.doc)
+      return session.provider
+    },
+    [id, session],
   )
 
   useEffect(() => {
@@ -284,10 +301,7 @@ export function DocumentEditor({
                   id={id}
                   username={profile?.name}
                   awarenessData={awarenessData}
-                  providerFactory={(_, documents) => {
-                    documents.set(id, session.doc)
-                    return session.provider
-                  }}
+                  providerFactory={providerFactory}
                   cursorsContainerRef={cursorsContainerRef}
                   selectionHighlight
                   shouldBootstrap={false}

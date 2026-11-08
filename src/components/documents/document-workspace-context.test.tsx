@@ -8,6 +8,7 @@ import {
   DocumentWorkspaceProvider,
   useDocumentWorkspace,
 } from './document-workspace-context'
+import type { DocumentWorkspaceState } from './document-workspace-context'
 
 const mocks = vi.hoisted(() => ({
   connected: true,
@@ -19,6 +20,9 @@ const mocks = vi.hoisted(() => ({
   deleteLocal: vi.fn<(id: string) => Promise<void>>(async () => {}),
   openPicker: vi.fn(),
   storageGet: vi.fn(async (_id?: string) => undefined),
+  setOffline: vi.fn<(id: string, value: boolean) => Promise<void>>(
+    async () => {},
+  ),
   documents: [] as DocumentInfo[],
   document: undefined as DocumentInfo | undefined,
   status: { phase: 'local' as const },
@@ -53,6 +57,8 @@ vi.mock('#/lib/documents/document-storage', () => ({
   documentStorage: {
     get: (id: string) => mocks.storageGet(id),
   },
+  setDocumentOfflineAvailable: (id: string, value: boolean) =>
+    mocks.setOffline(id, value),
 }))
 vi.mock('#/lib/documents/storage', () => ({
   localDocumentStorage: {
@@ -67,7 +73,7 @@ vi.mock('#/lib/documents/sync', () => ({
 
 let root: Root
 let container: HTMLDivElement
-let workspace: ReturnType<typeof useDocumentWorkspace>
+let workspace: DocumentWorkspaceState
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -83,6 +89,8 @@ beforeEach(() => {
   mocks.openPicker.mockReset()
   mocks.storageGet.mockReset()
   mocks.storageGet.mockResolvedValue(undefined)
+  mocks.setOffline.mockClear()
+  mocks.setOffline.mockResolvedValue(undefined)
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -340,4 +348,136 @@ it('retains the current document and reports one error when selected file regist
   expect(error).toHaveBeenCalledExactlyOnceWith('Access denied', {
     id: 'google-picker-error',
   })
+})
+
+it('delegates setOfflineAvailable safely to setDocumentOfflineAvailable', async () => {
+  mocks.document = { id: 'Gdoc1', name: 'Drive Document', updatedAt: 1 }
+  function Harness() {
+    workspace = useDocumentWorkspace()
+    return null
+  }
+  await act(async () => {
+    root.render(
+      <DocumentWorkspaceProvider id="Gdoc1">
+        <Harness />
+      </DocumentWorkspaceProvider>,
+    )
+    await Promise.resolve()
+  })
+
+  await act(async () => {
+    workspace.setOfflineAvailable(true)
+  })
+  expect(mocks.setOffline).toHaveBeenCalledWith('Gdoc1', true)
+
+  await act(async () => {
+    workspace.setOfflineAvailable(false)
+  })
+  expect(mocks.setOffline).toHaveBeenCalledWith('Gdoc1', false)
+})
+
+it('shows toast error when setDocumentOfflineAvailable fails', async () => {
+  const toastErrorSpy = vi.spyOn(toast, 'error').mockImplementation(() => '')
+  mocks.document = { id: 'Gdoc1', name: 'Drive Document', updatedAt: 1 }
+  mocks.setOffline.mockRejectedValueOnce(new Error('Drive quota exceeded'))
+  function Harness() {
+    workspace = useDocumentWorkspace()
+    return null
+  }
+  await act(async () => {
+    root.render(
+      <DocumentWorkspaceProvider id="Gdoc1">
+        <Harness />
+      </DocumentWorkspaceProvider>,
+    )
+    await Promise.resolve()
+  })
+
+  await act(async () => {
+    workspace.setOfflineAvailable(true)
+  })
+  expect(toastErrorSpy).toHaveBeenCalledWith('Drive quota exceeded', {
+    id: 'document-workspace-error',
+  })
+})
+
+it('ignores setOfflineAvailable when no document is active', async () => {
+  mocks.document = undefined
+  function Harness() {
+    workspace = useDocumentWorkspace()
+    return null
+  }
+  await act(async () => {
+    root.render(
+      <DocumentWorkspaceProvider>
+        <Harness />
+      </DocumentWorkspaceProvider>,
+    )
+    await Promise.resolve()
+  })
+
+  act(() => {
+    workspace.setOfflineAvailable(true)
+  })
+  expect(mocks.setOffline).not.toHaveBeenCalled()
+})
+
+it('memoizes workspace value and action callbacks across re-renders when state is unchanged', async () => {
+  mocks.document = { id: 'doc-1', name: 'Doc 1', updatedAt: 1 }
+  const snapshots: DocumentWorkspaceState[] = []
+
+  function Harness() {
+    const ws = useDocumentWorkspace()
+    snapshots.push(ws)
+    return null
+  }
+
+  function App({ count }: { count: number }) {
+    return (
+      <DocumentWorkspaceProvider id="doc-1">
+        <Harness />
+        <span data-count={count} />
+      </DocumentWorkspaceProvider>
+    )
+  }
+
+  await act(async () => {
+    root.render(<App count={1} />)
+    await Promise.resolve()
+  })
+
+  const initial = snapshots[snapshots.length - 1]
+
+  await act(async () => {
+    root.render(<App count={2} />)
+    await Promise.resolve()
+  })
+
+  const afterRerender = snapshots[snapshots.length - 1]
+
+  expect(afterRerender).toBe(initial)
+  expect(afterRerender.connectDrive).toBe(initial.connectDrive)
+  expect(afterRerender.openGoogleDrivePicker).toBe(
+    initial.openGoogleDrivePicker,
+  )
+  expect(afterRerender.disconnectDrive).toBe(initial.disconnectDrive)
+  expect(afterRerender.saveToDrive).toBe(initial.saveToDrive)
+  expect(afterRerender.syncNow).toBe(initial.syncNow)
+  expect(afterRerender.setOfflineAvailable).toBe(initial.setOfflineAvailable)
+  expect(afterRerender.copyDocument).toBe(initial.copyDocument)
+  expect(afterRerender.downloadDocument).toBe(initial.downloadDocument)
+  expect(afterRerender.exportDocument).toBe(initial.exportDocument)
+  expect(afterRerender.focusEditor).toBe(initial.focusEditor)
+  expect(afterRerender.createDocument).toBe(initial.createDocument)
+  expect(afterRerender.renameDocument).toBe(initial.renameDocument)
+  expect(afterRerender.renameDocumentById).toBe(initial.renameDocumentById)
+  expect(afterRerender.deleteDocument).toBe(initial.deleteDocument)
+
+  // Opening a document dialog changes fileAction inside useWorkspaceState, but not workspace
+  act(() => {
+    initial.openDocument()
+  })
+
+  const afterAction = snapshots[snapshots.length - 1]
+  expect(afterAction).toBe(initial)
 })

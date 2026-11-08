@@ -72,10 +72,6 @@ export function DocumentList({
           else if (event.key === 'ArrowUp') next = Math.max(0, index - 1)
           else if (event.key === 'Home') next = 0
           else if (event.key === 'End') next = documents.length - 1
-          else if (event.key === 'Tab') {
-            const candidate = index + (event.shiftKey ? -1 : 1)
-            if (candidate >= 0 && candidate < documents.length) next = candidate
-          }
           if (next !== undefined) {
             event.preventDefault()
             listWindow.focus(next)

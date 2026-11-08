@@ -274,10 +274,24 @@ export function FloatingTextFormatToolbar({
         )}
       <PopoverContent
         side={
-          panel &&
           rangeRect &&
-          rangeRect.top < 360 &&
-          window.innerHeight - rangeRect.top - rangeRect.height > rangeRect.top
+          (panel
+            ? rangeRect.top <
+                Math.min(
+                  (typeof window !== 'undefined' ? window.innerHeight : 800) *
+                    0.5,
+                  384,
+                ) +
+                  64 ||
+              (typeof window !== 'undefined' ? window.innerHeight : 800) -
+                rangeRect.top -
+                rangeRect.height >
+                rangeRect.top
+            : rangeRect.top < 48 &&
+              (typeof window !== 'undefined' ? window.innerHeight : 800) -
+                rangeRect.top -
+                rangeRect.height >
+                rangeRect.top)
             ? 'bottom'
             : 'top'
         }

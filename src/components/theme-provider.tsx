@@ -54,12 +54,16 @@ export function ThemeProvider({
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const stored = localStorage.getItem(storageKey)
-    setThemeState(
-      stored === 'light' || stored === 'dark' || stored === 'system'
-        ? stored
-        : defaultTheme,
-    )
+    let resolvedTheme: Theme = defaultTheme
+    try {
+      const stored = localStorage.getItem(storageKey)
+      if (stored === 'light' || stored === 'dark' || stored === 'system') {
+        resolvedTheme = stored
+      }
+    } catch {
+      resolvedTheme = defaultTheme
+    }
+    setThemeState(resolvedTheme)
     setMounted(true)
   }, [defaultTheme, storageKey])
 
@@ -77,7 +81,9 @@ export function ThemeProvider({
   }, [theme, mounted])
 
   const setTheme = (next: Theme) => {
-    localStorage.setItem(storageKey, next)
+    try {
+      localStorage.setItem(storageKey, next)
+    } catch {}
     setThemeState(next)
   }
 

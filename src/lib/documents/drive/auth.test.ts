@@ -274,3 +274,58 @@ it('rejects malformed server connection state', async () => {
   await expect(auth.prepareGoogleDriveAuth()).rejects.toThrow('Could not check')
   expect(auth.isGoogleDriveConnected()).toBe(false)
 })
+
+it('coordinates multi-tab token requests using navigator.locks to prevent simultaneous refreshes', async () => {
+  type LockCallback = (lock?: unknown) => Promise<unknown>
+  let queue: Promise<unknown> = Promise.resolve()
+  const requestMock = vi.fn((_name: string, callback: LockCallback) => {
+    const run = queue.then(() => callback())
+    queue = run.catch(() => {})
+    return run
+  })
+
+  vi.stubGlobal('navigator', { locks: { request: requestMock } })
+
+  const { promise: firstFetch, resolve: resolveFirstFetch } =
+    Promise.withResolvers<Response>()
+  const { promise: secondFetch, resolve: resolveSecondFetch } =
+    Promise.withResolvers<Response>()
+
+  fetchMock
+    .mockImplementationOnce(() => firstFetch)
+    .mockImplementationOnce(() => secondFetch)
+
+  // Dynamic import exercises distinct module instances across tabs after vi.resetModules.
+  const auth1 = await import('./auth')
+  const tab1Promise = auth1.getGoogleDriveToken({ forceRefresh: true })
+
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+  expect(requestMock).toHaveBeenCalledWith(
+    'concept:google-token-refresh',
+    expect.any(Function),
+  )
+
+  vi.resetModules()
+  // Simulate a second tab with a fresh module instance.
+  const auth2 = await import('./auth')
+  const tab2Promise = auth2.getGoogleDriveToken({ forceRefresh: true })
+
+  await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(2))
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+
+  resolveFirstFetch(brokerToken('token-tab-1'))
+  await expect(tab1Promise).resolves.toBe('token-tab-1')
+
+  await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+  resolveSecondFetch(brokerToken('token-tab-2'))
+  await expect(tab2Promise).resolves.toBe('token-tab-2')
+})
+
+it('falls back cleanly when navigator.locks is not available', async () => {
+  vi.stubGlobal('navigator', {})
+  fetchMock.mockResolvedValueOnce(brokerToken('fallback-token'))
+  // Dynamic import exercises fresh module instance after vi.stubGlobal.
+  const auth = await import('./auth')
+  await expect(auth.getGoogleDriveToken()).resolves.toBe('fallback-token')
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+})

@@ -143,23 +143,34 @@ export async function disconnectGoogleDrive() {
   invalidateGoogleDriveSession()
 }
 
+function withTokenRefreshLock<T>(task: () => Promise<T>): Promise<T> {
+  if (
+    typeof navigator !== 'undefined' &&
+    'locks' in navigator &&
+    typeof navigator.locks.request === 'function'
+  ) {
+    return navigator.locks.request('concept:google-token-refresh', task)
+  }
+  return task()
+}
+
 function waitForToken(promise: Promise<string>, signal?: AbortSignal) {
   if (!signal) return promise
   if (signal.aborted) return Promise.reject(signal.reason)
-  return new Promise<string>((resolve, reject) => {
-    const abort = () => reject(signal.reason)
-    signal.addEventListener('abort', abort, { once: true })
-    void promise.then(
-      (value) => {
-        signal.removeEventListener('abort', abort)
-        resolve(value)
-      },
-      (error: unknown) => {
-        signal.removeEventListener('abort', abort)
-        reject(error)
-      },
-    )
-  })
+  const { promise: result, resolve, reject } = Promise.withResolvers<string>()
+  const abort = () => reject(signal.reason)
+  signal.addEventListener('abort', abort, { once: true })
+  void promise.then(
+    (value) => {
+      signal.removeEventListener('abort', abort)
+      resolve(value)
+    },
+    (error: unknown) => {
+      signal.removeEventListener('abort', abort)
+      reject(error)
+    },
+  )
+  return result
 }
 
 export function getGoogleDriveToken({
@@ -184,47 +195,49 @@ export function getGoogleDriveToken({
     return Promise.resolve(token.value)
   const refresh = refreshRequired || Boolean(token)
   const revision = state.revision
-  const promise = fetch('/api/drive/token', {
-    method: 'POST',
-    credentials: 'same-origin',
-    cache: 'no-store',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(refresh ? { forceRefresh: true } : {}),
-    signal: AbortSignal.timeout(15000),
-  })
-    .then(async (response) => {
-      if (revision !== state.revision) throw new GoogleDriveAuthError()
-      if (response.status === 401) {
-        invalidateGoogleDriveSession()
-        throw new GoogleDriveAuthError()
-      }
-      if (!response.ok)
-        throw new Error('Google Drive is temporarily unavailable.')
-      const data = (await response.json()) as {
-        accessToken?: unknown
-        expiresAt?: unknown
-      }
-      if (revision !== state.revision) throw new GoogleDriveAuthError()
-      if (
-        typeof data.accessToken !== 'string' ||
-        !data.accessToken ||
-        typeof data.expiresAt !== 'number' ||
-        !Number.isFinite(data.expiresAt) ||
-        data.expiresAt <= Date.now()
-      )
-        throw new Error('Could not obtain a valid Google Drive access token.')
-      token = { value: data.accessToken, expiresAt: data.expiresAt }
-      refreshRequired = false
-      state.configured = true
-      if (!state.connected) {
-        state.connected = true
-        notify()
-      }
+  const promise = withTokenRefreshLock(async () => {
+    if (revision !== state.revision) throw new GoogleDriveAuthError()
+    if (!refreshRequired && token && token.expiresAt > Date.now() + 60000)
       return token.value
+    const response = await fetch('/api/drive/token', {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(refresh ? { forceRefresh: true } : {}),
+      signal: AbortSignal.timeout(15000),
     })
-    .finally(() => {
-      if (tokenRequest?.promise === promise) tokenRequest = undefined
-    })
+    if (revision !== state.revision) throw new GoogleDriveAuthError()
+    if (response.status === 401) {
+      invalidateGoogleDriveSession()
+      throw new GoogleDriveAuthError()
+    }
+    if (!response.ok)
+      throw new Error('Google Drive is temporarily unavailable.')
+    const data = (await response.json()) as {
+      accessToken?: unknown
+      expiresAt?: unknown
+    }
+    if (revision !== state.revision) throw new GoogleDriveAuthError()
+    if (
+      typeof data.accessToken !== 'string' ||
+      !data.accessToken ||
+      typeof data.expiresAt !== 'number' ||
+      !Number.isFinite(data.expiresAt) ||
+      data.expiresAt <= Date.now()
+    )
+      throw new Error('Could not obtain a valid Google Drive access token.')
+    token = { value: data.accessToken, expiresAt: data.expiresAt }
+    refreshRequired = false
+    state.configured = true
+    if (!state.connected) {
+      state.connected = true
+      notify()
+    }
+    return token.value
+  }).finally(() => {
+    if (tokenRequest?.promise === promise) tokenRequest = undefined
+  })
   tokenRequest = { promise, forceRefresh: refresh }
   return waitForToken(promise, signal)
 }

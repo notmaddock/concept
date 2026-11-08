@@ -4,6 +4,8 @@ import type { ComponentProps, ReactNode } from 'react'
 import type { Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { DocumentList } from './DocumentList'
+import { useDocumentListWindow } from './use-document-list-window'
+import type { DocumentListWindow } from './use-document-list-window'
 
 vi.mock('@tanstack/react-router', () => ({ Link: () => null }))
 vi.mock('./DocumentContextMenu', () => ({
@@ -110,8 +112,7 @@ it('supports keyboard traversal across virtual windows and keeps focused rows mo
   await act(async () => {
     document.activeElement?.dispatchEvent(
       new KeyboardEvent('keydown', {
-        key: 'Tab',
-        shiftKey: true,
+        key: 'ArrowUp',
         bubbles: true,
         cancelable: true,
       }),
@@ -181,4 +182,58 @@ it('marks only offline-available Drive documents with the offline icon', async (
     root.render(<DocumentList documents={[...items]} onDelete={vi.fn()} />),
   )
   expect(container.querySelector('[aria-label="Available offline"]')).toBeNull()
+})
+
+it('does not intercept Tab key so standard keyboard navigation can exit the list', async () => {
+  const list = await render()
+  const first = list.querySelector('a')!
+  await act(() => first.focus())
+  const tabEvent = new KeyboardEvent('keydown', {
+    key: 'Tab',
+    bubbles: true,
+    cancelable: true,
+  })
+  first.dispatchEvent(tabEvent)
+  expect(tabEvent.defaultPrevented).toBe(false)
+  expect(document.activeElement).toBe(first)
+})
+
+it('allows reveal() when count is below virtualization threshold', async () => {
+  const shortDocs = Array.from({ length: 40 }, (_, index) => ({
+    id: `short-${index}`,
+    name: `Short Document ${index}`,
+    updatedAt: index,
+  }))
+  await act(() =>
+    root.render(
+      <DocumentList
+        documents={shortDocs}
+        activeId="short-35"
+        onDelete={vi.fn()}
+      />,
+    ),
+  )
+  const list = container.querySelector('ul')!
+  list.getBoundingClientRect = () => ({ top: -container.scrollTop }) as DOMRect
+  expect(container.scrollTop).toBeGreaterThan(0)
+  expect(list.querySelector('[data-document-index="35"]')).not.toBeNull()
+})
+
+it('prevents negative index injection in useDocumentListWindow', async () => {
+  let listWindow!: DocumentListWindow
+  function Probe() {
+    listWindow = useDocumentListWindow(100, 0)
+    return <ul ref={listWindow.listRef} />
+  }
+  await act(() => root.render(<Probe />))
+  await act(() => {
+    listWindow.setFocusedIndex(-1)
+  })
+  expect(listWindow.indexes).not.toContain(-1)
+  expect(listWindow.indexes.every((index) => index >= 0)).toBe(true)
+  await act(() => {
+    listWindow.focus(-1)
+  })
+  expect(listWindow.indexes).not.toContain(-1)
+  expect(listWindow.indexes.every((index) => index >= 0)).toBe(true)
 })

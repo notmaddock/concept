@@ -7,6 +7,7 @@ import type { DocumentCapabilities } from './capabilities'
  * never calls Drive per connection.
  */
 export interface RealtimeTicketPayload {
+  jti: string
   userId: string
   fileId: string
   capabilities: DocumentCapabilities
@@ -56,6 +57,9 @@ function validPayload(value: unknown): value is RealtimeTicketPayload {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const payload = value as Record<string, unknown>
   return (
+    typeof payload.jti === 'string' &&
+    payload.jti.length > 0 &&
+    payload.jti.length <= 256 &&
     typeof payload.userId === 'string' &&
     payload.userId.length > 0 &&
     payload.userId.length <= 256 &&
@@ -68,12 +72,20 @@ function validPayload(value: unknown): value is RealtimeTicketPayload {
   )
 }
 
+export type SignRealtimeTicketPayload = Omit<RealtimeTicketPayload, 'jti'> & {
+  jti?: string
+}
+
 /** Produces a `v1.<payload>.<signature>` ticket string. */
 export async function signRealtimeTicket(
-  payload: RealtimeTicketPayload,
+  payload: SignRealtimeTicketPayload,
   secret: string,
 ): Promise<string> {
-  const body = base64UrlEncode(textEncoder.encode(JSON.stringify(payload)))
+  const fullPayload: RealtimeTicketPayload = {
+    ...payload,
+    jti: payload.jti ?? crypto.randomUUID(),
+  }
+  const body = base64UrlEncode(textEncoder.encode(JSON.stringify(fullPayload)))
   const signature = await sign(await hmacKey(secret), `v1.${body}`)
   return `v1.${body}.${signature}`
 }

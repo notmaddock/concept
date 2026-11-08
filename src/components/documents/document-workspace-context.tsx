@@ -1,7 +1,9 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -22,6 +24,7 @@ import {
 import {
   refreshDriveDocuments,
   documentStorage,
+  setDocumentOfflineAvailable,
 } from '#/lib/documents/document-storage'
 import { openGooglePicker } from '#/lib/documents/drive/picker'
 import { localDocumentStorage } from '#/lib/documents/storage'
@@ -146,7 +149,28 @@ function useWorkspaceState(id?: string) {
     }
   }, [driveConnected])
 
-  async function connectDrive() {
+  const libraryRef = useRef(library)
+  libraryRef.current = library
+
+  const createDocument = useCallback(
+    () => libraryRef.current.createDocument(),
+    [],
+  )
+  const renameDocument = useCallback(
+    (name: string) => libraryRef.current.renameDocument(name),
+    [],
+  )
+  const renameDocumentById = useCallback(
+    (documentId: string, name: string) =>
+      libraryRef.current.renameDocumentById(documentId, name),
+    [],
+  )
+  const deleteDocument = useCallback(
+    (documentId: string) => libraryRef.current.deleteDocument(documentId),
+    [],
+  )
+
+  const connectDrive = useCallback(async () => {
     setDriveLoading(true)
     driveConnectionPending.current = true
     try {
@@ -167,12 +191,12 @@ function useWorkspaceState(id?: string) {
       driveConnectionPending.current = false
       setDriveLoading(false)
     }
-  }
+  }, [id, document?.id])
 
   const [pickerLoading, setPickerLoading] = useState(false)
   const pickerPending = useRef(false)
 
-  async function openGoogleDrivePicker() {
+  const openGoogleDrivePicker = useCallback(async () => {
     if (pickerPending.current) return
     pickerPending.current = true
     setPickerLoading(true)
@@ -199,22 +223,22 @@ function useWorkspaceState(id?: string) {
       pickerPending.current = false
       setPickerLoading(false)
     }
-  }
+  }, [id, navigate])
 
-  function openDocument() {
+  const openDocument = useCallback(() => {
     setFileAction('open')
-  }
+  }, [])
 
-  function copyDocument() {
+  const copyDocument = useCallback(() => {
     if (documentRef.current && document) setFileAction('copy')
     else
       toast.error(
         'Open a document and wait for it to load before making a copy.',
         { id: 'document-workspace-error' },
       )
-  }
+  }, [document])
 
-  async function downloadDocument() {
+  const downloadDocument = useCallback(async () => {
     try {
       if (!document || !documentRef.current)
         throw new Error(
@@ -231,76 +255,65 @@ function useWorkspaceState(id?: string) {
         { id: 'document-workspace-error' },
       )
     }
-  }
+  }, [document])
 
-  async function exportDocument(format: ExportFormat) {
-    const editor = editorRef.current
-    if (!document || !editor) {
-      toast.error('Open a document and wait for it to load before exporting.', {
-        id: 'document-workspace-error',
-      })
-      return
-    }
-    try {
-      const file = await serializeExport(
-        editor,
-        document.name,
-        format,
-        documentSessions.get(document.id)?.assets,
-      )
-      if (file.notice) toast.info(file.notice)
-      downloadExport(document.name, file)
-    } catch {
-      toast.error('Could not export the document. Please try again.', {
-        id: 'document-workspace-error',
-      })
-    }
-  }
-
-  const workspace = {
-    ...library,
-    documents: library.documents.filter(
-      (item) =>
-        !item.drive ||
-        (driveConnected && (!driveIds || driveIds.has(item.id))) ||
-        item.id === document?.id ||
-        item.drive.offlineAvailable ||
-        item.drive.dirty,
-    ),
-    saveStatus,
-    driveLoading,
-    driveConnected,
-    openGoogleDrivePicker,
-    pickerLoading,
-    disconnectDrive: () => {
-      setDriveLoading(true)
-      void disconnectGoogleDrive()
-        .then(async () => {
-          setDriveIds(new Set())
-          await Promise.all(
-            library.documents
-              .filter((item) => item.drive && !item.drive.dirty)
-              .map((item) => localDocumentStorage.delete(item.id)),
-          )
-          if (document?.drive || id?.startsWith('G'))
-            await navigate({ to: '/' })
-        })
-        .catch((cause: unknown) =>
-          toast.error(
-            cause instanceof Error
-              ? cause.message
-              : 'Could not disconnect Google Drive.',
-            { id: 'document-workspace-error' },
-          ),
+  const exportDocument = useCallback(
+    async (format: ExportFormat) => {
+      const editor = editorRef.current
+      if (!document || !editor) {
+        toast.error(
+          'Open a document and wait for it to load before exporting.',
+          {
+            id: 'document-workspace-error',
+          },
         )
-        .finally(() => setDriveLoading(false))
+        return
+      }
+      try {
+        const file = await serializeExport(
+          editor,
+          document.name,
+          format,
+          documentSessions.get(document.id)?.assets,
+        )
+        if (file.notice) toast.info(file.notice)
+        downloadExport(document.name, file)
+      } catch {
+        toast.error('Could not export the document. Please try again.', {
+          id: 'document-workspace-error',
+        })
+      }
     },
-    connectionRevision,
-    connectDrive,
-    saveToDrive: () => setSaveToDriveOpen(true),
-    saveToDriveOpen,
-    onSaveToDriveOpenChange: setSaveToDriveOpen,
-    onDriveSaved: async (savedId: string) => {
+    [document],
+  )
+
+  const disconnectDrive = useCallback(() => {
+    setDriveLoading(true)
+    void disconnectGoogleDrive()
+      .then(async () => {
+        setDriveIds(new Set())
+        await Promise.all(
+          libraryRef.current.documents
+            .filter((item) => item.drive && !item.drive.dirty)
+            .map((item) => localDocumentStorage.delete(item.id)),
+        )
+        if (document?.drive || id?.startsWith('G')) await navigate({ to: '/' })
+      })
+      .catch((cause: unknown) =>
+        toast.error(
+          cause instanceof Error
+            ? cause.message
+            : 'Could not disconnect Google Drive.',
+          { id: 'document-workspace-error' },
+        ),
+      )
+      .finally(() => setDriveLoading(false))
+  }, [document?.drive, id, navigate])
+
+  const saveToDrive = useCallback(() => setSaveToDriveOpen(true), [])
+
+  const onDriveSaved = useCallback(
+    async (savedId: string) => {
       setSaveToDriveOpen(false)
       await navigate({ to: '/', hash: documentHash(savedId) })
       setDriveLoading(true)
@@ -317,48 +330,145 @@ function useWorkspaceState(id?: string) {
         setDriveLoading(false)
       }
     },
-    syncNow: () => {
-      void documentSessions.get(document?.id ?? '')?.sync(true)
-    },
-    setOfflineAvailable: (value: boolean) => {
-      void documentSessions
-        .get(document?.id ?? '')
-        ?.setOfflineAvailable(value)
-        .catch((cause: unknown) =>
+    [navigate],
+  )
+
+  const syncNow = useCallback(() => {
+    void documentSessions.get(document?.id ?? '')?.sync(true)
+  }, [document?.id])
+
+  const setOfflineAvailable = useCallback(
+    (value: boolean) => {
+      if (!document?.id) return
+      void setDocumentOfflineAvailable(document.id, value).catch(
+        (cause: unknown) =>
           toast.error(
             cause instanceof Error
               ? cause.message
               : 'Could not change offline availability.',
             { id: 'document-workspace-error' },
           ),
-        )
+      )
     },
-    error: library.error,
-    enabled: Boolean(document),
-    documentRef,
-    editorRef,
-    cursorsContainerRef,
-    detailsOpen,
-    onDetailsOpenChange: setDetailsOpen,
-    showDetails: () => setDetailsOpen(true),
-    shareOpen,
-    onShareOpenChange: setShareOpen,
-    shareDocument: () => setShareOpen(true),
-    pageSetupOpen,
-    onPageSetupOpenChange: setPageSetupOpen,
-    openDocument,
-    importDocument: (format: ImportFormat) => setFileAction(format),
-    copyDocument,
-    downloadDocument,
-    exportDocument,
-    openPageSetup: () => setPageSetupOpen(true),
-    focusEditor: () => {
-      editorRef.current?.getRootElement()?.focus({ preventScroll: true })
-      editorRef.current?.focus()
-    },
-  }
+    [document?.id],
+  )
 
-  return { workspace, fileAction, closeFileDialog: () => setFileAction(null) }
+  const showDetails = useCallback(() => setDetailsOpen(true), [])
+  const shareDocument = useCallback(() => setShareOpen(true), [])
+  const openPageSetup = useCallback(() => setPageSetupOpen(true), [])
+  const importDocument = useCallback((format: ImportFormat) => {
+    setFileAction(format)
+  }, [])
+
+  const focusEditor = useCallback(() => {
+    editorRef.current?.getRootElement()?.focus({ preventScroll: true })
+    editorRef.current?.focus()
+  }, [])
+
+  const closeFileDialog = useCallback(() => {
+    setFileAction(null)
+  }, [])
+
+  const documents = useMemo(
+    () =>
+      library.documents.filter(
+        (item) =>
+          !item.drive ||
+          (driveConnected && (!driveIds || driveIds.has(item.id))) ||
+          item.id === document?.id ||
+          item.drive.offlineAvailable ||
+          item.drive.dirty,
+      ),
+    [library.documents, driveConnected, driveIds, document?.id],
+  )
+
+  const workspace = useMemo(
+    () => ({
+      document,
+      documents,
+      loaded: library.loaded,
+      error: library.error,
+      creating: library.creating,
+      createDocument,
+      renameDocument,
+      renameDocumentById,
+      deleteDocument,
+      saveStatus,
+      driveLoading,
+      driveConnected,
+      openGoogleDrivePicker,
+      pickerLoading,
+      disconnectDrive,
+      connectionRevision,
+      connectDrive,
+      saveToDrive,
+      saveToDriveOpen,
+      onSaveToDriveOpenChange: setSaveToDriveOpen,
+      onDriveSaved,
+      syncNow,
+      setOfflineAvailable,
+      enabled: Boolean(document),
+      documentRef,
+      editorRef,
+      cursorsContainerRef,
+      detailsOpen,
+      onDetailsOpenChange: setDetailsOpen,
+      showDetails,
+      shareOpen,
+      onShareOpenChange: setShareOpen,
+      shareDocument,
+      pageSetupOpen,
+      onPageSetupOpenChange: setPageSetupOpen,
+      openDocument,
+      importDocument,
+      copyDocument,
+      downloadDocument,
+      exportDocument,
+      openPageSetup,
+      focusEditor,
+    }),
+    [
+      document,
+      documents,
+      library.loaded,
+      library.error,
+      library.creating,
+      createDocument,
+      renameDocument,
+      renameDocumentById,
+      deleteDocument,
+      saveStatus,
+      driveLoading,
+      driveConnected,
+      openGoogleDrivePicker,
+      pickerLoading,
+      disconnectDrive,
+      connectionRevision,
+      connectDrive,
+      saveToDrive,
+      saveToDriveOpen,
+      onDriveSaved,
+      syncNow,
+      setOfflineAvailable,
+      detailsOpen,
+      showDetails,
+      shareOpen,
+      shareDocument,
+      pageSetupOpen,
+      openDocument,
+      importDocument,
+      copyDocument,
+      downloadDocument,
+      exportDocument,
+      openPageSetup,
+      focusEditor,
+    ],
+  )
+
+  return useMemo(
+    () => ({ workspace, fileAction, closeFileDialog }),
+    [workspace, fileAction, closeFileDialog],
+  )
 }
 
 export type DocumentWorkspaceState = ReturnType<

@@ -526,6 +526,57 @@ describe('DocumentRoom revalidation resilience', () => {
     room.remove('s1')
   })
 
+  it('revokes a user when background revalidation in revalidate() fails and no verdict exists', async () => {
+    const verifier = makeThrowingVerifier()
+    const room = new DocumentRoom({
+      fileId,
+      secret,
+      verifier,
+      now: () => 500_000,
+    })
+    const socket = new FakeSocket('s1')
+    await expect(
+      room.admit(socket, await ticketFor('user-1', editorCaps)),
+    ).resolves.toBe(true)
+    expect(socket.closed).toBeUndefined()
+
+    await room.revalidate()
+
+    expect(socket.lastControl()).toEqual({
+      type: 'revoked',
+      capabilities: { view: false, edit: false, comment: false },
+    })
+    expect(socket.closed?.code).toBe(4403)
+    expect(room.clientCount()).toBe(0)
+    expect(room.hasClient('s1')).toBe(false)
+  })
+
+  it('revokes a restored client without cached verdict when revalidation throws', async () => {
+    const verifier = makeThrowingVerifier()
+    const room = new DocumentRoom({
+      fileId,
+      secret,
+      verifier,
+      now: () => 500_000,
+    })
+    const socket = new FakeSocket('s1')
+    room.restore(socket, {
+      adapterId: 's1',
+      userId: 'user-1',
+      capabilities: editorCaps,
+    })
+    expect(room.clientCount()).toBe(1)
+
+    await room.revalidate()
+
+    expect(socket.lastControl()).toEqual({
+      type: 'revoked',
+      capabilities: { view: false, edit: false, comment: false },
+    })
+    expect(socket.closed?.code).toBe(4403)
+    expect(room.clientCount()).toBe(0)
+  })
+
   it('still revokes and closes with 4403 on a genuine undefined verdict', async () => {
     let now = 500_000
     const verifier = makeVerifier({ 'user-1': editorCaps })

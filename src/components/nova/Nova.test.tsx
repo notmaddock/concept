@@ -7,11 +7,14 @@ import {
   $createTextNode,
   $getRoot,
   $getSelection,
+  createEditor,
 } from 'lexical'
 import type { LexicalEditor } from 'lexical'
 import { $createImageNode } from './nodes/ImageNode'
 import type { AssetId } from '#/lib/documents/assets'
 import { Nova } from './Nova'
+import { getSelectedNode } from './utils/getSelectedNode'
+import { ResizableNode } from './nodes/ResizableNode'
 
 vi.mock('./plugins/DragPlugin/DragPlugin', () => ({
   DragPlugin: () => <div data-testid="drag-plugin" />,
@@ -140,5 +143,127 @@ describe('Nova editor mode and read-only behavior', () => {
     })
     expect(editor?.isEditable()).toBe(true)
     expect(container.querySelector('[contenteditable="true"]')).not.toBeNull()
+  })
+
+  it('cleans up editorRef.current to null on unmount', async () => {
+    const editorRef = createRef<LexicalEditor>()
+    await act(async () => {
+      root.render(<Nova editorRef={editorRef} />)
+    })
+    expect(editorRef.current).not.toBeNull()
+    await act(async () => {
+      root.render(<div>unmounted</div>)
+    })
+    expect(editorRef.current).toBeNull()
+  })
+  it('cleans up callback editorRef with null on unmount', async () => {
+    const editorRef = vi.fn()
+    await act(async () => {
+      root.render(<Nova editorRef={editorRef} />)
+    })
+    expect(editorRef).toHaveBeenCalledWith(expect.anything())
+    await act(async () => {
+      root.render(<div>unmounted</div>)
+    })
+    expect(editorRef).toHaveBeenLastCalledWith(null)
+  })
+
+  it('safely handles non-range selections in getSelectedNode', () => {
+    expect(getSelectedNode(null)).toBeNull()
+    expect(getSelectedNode(undefined)).toBeNull()
+    expect(getSelectedNode({})).toBeNull()
+    expect(getSelectedNode({ anchor: {} })).toBeNull()
+  })
+  it('returns selected text node when range selection is present', async () => {
+    const editorRef = createRef<LexicalEditor>()
+    await act(async () => {
+      root.render(<Nova editorRef={editorRef} />)
+    })
+    const editor = editorRef.current!
+    await act(async () => {
+      editor.update(() => {
+        const rootNode = $getRoot()
+        rootNode.clear()
+        const textNode = $createTextNode('Sample text')
+        const paragraph = $createParagraphNode().append(textNode)
+        rootNode.append(paragraph)
+        textNode.select(0, 6)
+      })
+    })
+    editor.getEditorState().read(() => {
+      const selection = $getSelection()
+      const selectedNode = getSelectedNode(selection)
+      expect(selectedNode).not.toBeNull()
+      expect(selectedNode?.getTextContent()).toBe('Sample text')
+    })
+  })
+
+  describe('ResizableNode', () => {
+    class MockResizableNode extends ResizableNode<null> {
+      static getType() {
+        return 'mock-resizable'
+      }
+      static clone(node: MockResizableNode) {
+        return new MockResizableNode(
+          node.__displayWidth,
+          node.__key,
+          node.__alignment,
+        )
+      }
+      createDOM() {
+        return document.createElement('div')
+      }
+      updateDOM() {
+        return false
+      }
+      decorate() {
+        return null
+      }
+      public validateWidth(width: number | null) {
+        return this.validateDisplayWidth(width)
+      }
+    }
+
+    it('verifies dimensions are finite and clamps to positive numbers', () => {
+      const editor = createEditor({ nodes: [MockResizableNode] })
+      editor.update(
+        () => {
+          const node = new MockResizableNode(200)
+          expect(node.__displayWidth).toBe(200)
+
+          const zeroNode = new MockResizableNode(0)
+          expect(zeroNode.__displayWidth).toBe(1)
+
+          const negativeNode = new MockResizableNode(-50)
+          expect(negativeNode.__displayWidth).toBe(1)
+
+          const nullNode = new MockResizableNode(null)
+          expect(nullNode.__displayWidth).toBeNull()
+
+          expect(node.validateWidth(350)).toBe(350)
+          expect(node.validateWidth(0)).toBe(1)
+          expect(node.validateWidth(-100)).toBe(1)
+          expect(node.validateWidth(null)).toBeNull()
+
+          expect(() => new MockResizableNode(NaN)).toThrow(
+            'Invalid display width',
+          )
+          expect(() => new MockResizableNode(Infinity)).toThrow(
+            'Invalid display width',
+          )
+          expect(() => new MockResizableNode(-Infinity)).toThrow(
+            'Invalid display width',
+          )
+          expect(() => node.validateWidth(NaN)).toThrow('Invalid display width')
+          expect(() => node.validateWidth(Infinity)).toThrow(
+            'Invalid display width',
+          )
+          expect(() => node.validateWidth(-Infinity)).toThrow(
+            'Invalid display width',
+          )
+        },
+        { discrete: true },
+      )
+    })
   })
 })

@@ -6,9 +6,11 @@ import type { Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Route } from './index'
+import { Route as IdRoute } from './d/$id'
 
 const state = vi.hoisted(() => ({
   hash: '',
+  id: 'doc-123',
   workspaceRenders: [] as Array<string | undefined>,
   workspaceEffects: [] as Array<string | undefined>,
 }))
@@ -37,12 +39,17 @@ vi.mock('#/components/documents/DocumentWorkspace', () => ({
 }))
 
 const DocumentRoute = Route.options.component as ComponentType
+const IdDocumentRoute = IdRoute.options.component as ComponentType
+vi.spyOn(IdRoute, 'useParams').mockImplementation(
+  () => ({ id: state.id }) as never,
+)
 let container: HTMLDivElement
 let root: Root | undefined
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   state.hash = ''
+  state.id = ''
   state.workspaceRenders = []
   state.workspaceEffects = []
   container = document.createElement('div')
@@ -94,3 +101,31 @@ it('mounts the default workspace only after hydration when no document hash exis
   })
   expect(state.workspaceEffects).toEqual([undefined])
 })
+
+it.each(['Gdrive-file-id', 'local-document-id'])(
+  'hydrates the /d/%s route without rendering workspace during SSR',
+  async (id) => {
+    state.id = id
+    const html = renderToString(<IdDocumentRoute />)
+    expect(html).toContain('Opening document…')
+    expect(state.workspaceRenders).toEqual([])
+    container.innerHTML = html
+    const hydrationError = vi.fn()
+    await act(() => {
+      root = hydrateRoot(container, <IdDocumentRoute />, {
+        onRecoverableError: hydrationError,
+      })
+    })
+    expect(hydrationError).not.toHaveBeenCalled()
+    expect(
+      container
+        .querySelector('[data-document-id]')
+        ?.getAttribute('data-document-id'),
+    ).toBe(id)
+    expect(state.workspaceRenders.length).toBeGreaterThan(0)
+    expect(state.workspaceRenders.every((rendered) => rendered === id)).toBe(
+      true,
+    )
+    expect(state.workspaceEffects).toEqual([id])
+  },
+)

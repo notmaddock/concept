@@ -221,6 +221,7 @@ export function ImageBlock({
                     blockRef.current?.getBoundingClientRect().width ??
                     source.intrinsicWidth
                   let width = initialWidth
+                  let didMove = false
                   const maxWidth =
                     blockRef.current?.parentElement?.clientWidth ?? initialWidth
                   const cleanup = () => {
@@ -232,6 +233,10 @@ export function ImageBlock({
                     cancelGesture.current = null
                   }
                   const move = (pointer: PointerEvent) => {
+                    if (pointer.clientX !== startX) {
+                      didMove = true
+                    }
+                    if (!didMove) return
                     width = Math.max(
                       imageMinimumDisplayWidth,
                       Math.min(
@@ -244,6 +249,7 @@ export function ImageBlock({
                   }
                   const finish = () => {
                     cleanup()
+                    if (!didMove) return
                     mutate((node) => node.setDisplayWidth(width))
                   }
                   const cancel = () => cleanup()
@@ -263,18 +269,32 @@ export function ImageBlock({
                   if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
                     event.preventDefault()
                     event.stopPropagation()
-                    mutate((node) =>
+                    const rectWidth =
+                      blockRef.current?.getBoundingClientRect().width
+                    const visibleWidth =
+                      rectWidth !== undefined && rectWidth > 0
+                        ? rectWidth
+                        : source.intrinsicWidth
+                    const containerWidth =
+                      blockRef.current?.parentElement?.clientWidth
+                    const maxWidth =
+                      containerWidth !== undefined && containerWidth > 0
+                        ? Math.min(imageDimensionLimit, containerWidth)
+                        : imageDimensionLimit
+                    mutate((node) => {
+                      const currentWidth =
+                        node.getDisplayWidth() ?? visibleWidth
+                      const delta = event.key === 'ArrowRight' ? 10 : -10
                       node.setDisplayWidth(
                         Math.min(
-                          imageDimensionLimit,
+                          maxWidth,
                           Math.max(
                             imageMinimumDisplayWidth,
-                            (node.getDisplayWidth() ?? source.intrinsicWidth) +
-                              (event.key === 'ArrowRight' ? 10 : -10),
+                            Math.round(currentWidth + delta),
                           ),
                         ),
-                      ),
-                    )
+                      )
+                    })
                   }
                 }}
               />

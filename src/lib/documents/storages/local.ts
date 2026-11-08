@@ -107,22 +107,22 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
   let persistence: IndexeddbPersistence | undefined
   let closed = false
   let closing: Promise<void> | undefined
-  let releaseContentLock: (() => void) | undefined
   let writeFailed = false
-  const contentLock =
-    typeof navigator !== 'undefined' && 'locks' in navigator
-      ? new Promise<void>((resolve, reject) => {
-          void navigator.locks
-            .request(`concept-content:${id}`, { mode: 'shared' }, async () => {
-              const released = new Promise<void>((release) => {
-                releaseContentLock = release
-              })
-              resolve()
-              await released
-            })
-            .catch(reject)
-        })
-      : Promise.resolve()
+  let releaseContentLock: (() => void) | undefined
+  let contentLockReleased: Promise<void> = Promise.resolve()
+  let contentLock = Promise.resolve()
+  if (typeof navigator !== 'undefined' && 'locks' in navigator) {
+    const { promise, resolve, reject } = Promise.withResolvers<void>()
+    contentLock = promise
+    contentLockReleased = navigator.locks
+      .request(`concept-content:${id}`, { mode: 'shared' }, async () => {
+        const released = Promise.withResolvers<void>()
+        releaseContentLock = released.resolve
+        resolve()
+        await released.promise
+      })
+      .catch(reject)
+  }
   const ensureOpen = () => {
     if (closed) throw new Error('Document closed')
   }
@@ -152,8 +152,18 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
       }
     }
   })
-  const session: DocumentPersistence = {
+  void whenSynced.catch(() => {
+    void contentLock.finally(() => releaseContentLock?.()).catch(() => {})
+    releaseContentLock?.()
+    detachAssets()
+    assets.close()
+    sessions.delete(session)
+    if (sessions.size === 0 && activeSessions.get(id) === sessions)
+      activeSessions.delete(id)
+  })
+  const session: DocumentPersistence & { contentLock?: Promise<void> } = {
     whenSynced,
+    contentLock: contentLockReleased.catch(() => {}),
     async flush() {
       await whenSynced
       await assets.flush()
@@ -188,8 +198,10 @@ function openDocument(id: string, doc: Doc): DocumentPersistence {
           : Promise.resolve()
       )
         .then(() => {})
-        .finally(() => {
+        .finally(async () => {
           void contentLock.finally(() => releaseContentLock?.()).catch(() => {})
+          releaseContentLock?.()
+          await contentLockReleased.catch(() => {})
           detachAssets()
           assets.close()
           sessions.delete(session)

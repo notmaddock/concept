@@ -3,6 +3,7 @@ import { signRealtimeTicket, verifyRealtimeTicket } from './ticket'
 
 const secret = 'test-secret'
 const payload = {
+  jti: 'test-jti-1',
   userId: 'user-1',
   fileId: 'file-1',
   capabilities: { view: true, edit: true, comment: false },
@@ -69,6 +70,35 @@ describe('realtime ticket', () => {
     )
     await expect(
       verifyRealtimeTicket(ticket, secret, 1),
+    ).resolves.toBeUndefined()
+  })
+
+  it('auto-generates a unique jti if omitted', async () => {
+    const withoutJti = {
+      userId: 'user-1',
+      fileId: 'file-1',
+      capabilities: { view: true, edit: true, comment: false },
+      exp: 1_000_000,
+    }
+    const ticket1 = await signRealtimeTicket(withoutJti, secret)
+    const ticket2 = await signRealtimeTicket(withoutJti, secret)
+    const verified1 = await verifyRealtimeTicket(ticket1, secret, 999_999)
+    const verified2 = await verifyRealtimeTicket(ticket2, secret, 999_999)
+    expect(verified1?.jti).toBeDefined()
+    expect(verified2?.jti).toBeDefined()
+    expect(verified1?.jti).not.toEqual(verified2?.jti)
+    expect(verified1?.jti).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    )
+  })
+
+  it('rejects a ticket with missing or invalid jti', async () => {
+    const ticketNoJti = await signRealtimeTicket(
+      { ...payload, jti: '' },
+      secret,
+    )
+    await expect(
+      verifyRealtimeTicket(ticketNoJti, secret, 999_999),
     ).resolves.toBeUndefined()
   })
 })

@@ -1,7 +1,6 @@
 import '#/styles/editor.css'
-import { EditorRefPlugin } from '@lexical/react/LexicalEditorRefPlugin'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import type { RefObject } from 'react'
+import type { RefCallback, RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'
 import { PageSetupPlugin } from '#/components/documents/page-setup/PageSetupPlugin'
 import { DocumentThemePlugin } from '#/components/documents/theme/DocumentThemePlugin'
@@ -17,6 +16,29 @@ import { ImageClipboardPlugin } from './clipboard/ImageClipboardPlugin'
 import type { EditorMode } from './mode'
 
 export type { EditorMode } from './mode'
+
+function EditorRefPlugin({
+  editorRef,
+}: {
+  editorRef:
+    RefCallback<LexicalEditor> | RefObject<LexicalEditor | null | undefined>
+}) {
+  const [editor] = useLexicalComposerContext()
+  useEffect(() => {
+    if (typeof editorRef === 'function') {
+      editorRef(editor)
+      return () => {
+        editorRef(null)
+      }
+    } else {
+      editorRef.current = editor
+      return () => {
+        editorRef.current = null
+      }
+    }
+  }, [editor, editorRef])
+  return null
+}
 
 function EditorModePlugin({ mode }: { mode: EditorMode }) {
   const [editor] = useLexicalComposerContext()
@@ -36,7 +58,8 @@ export function Nova({
   pageSetupOpen = false,
   onPageSetupOpenChange = () => {},
 }: {
-  editorRef?: RefObject<LexicalEditor | null>
+  editorRef?:
+    RefCallback<LexicalEditor> | RefObject<LexicalEditor | null | undefined>
   cursorsContainerRef?: RefObject<HTMLDivElement | null>
   collaboration?: React.ReactNode
   documentId?: string
@@ -47,6 +70,13 @@ export function Nova({
 }) {
   const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null)
   const isEditable = mode === 'edit'
+  useEffect(() => {
+    return () => {
+      if (editorRef && typeof editorRef === 'object') {
+        editorRef.current = null
+      }
+    }
+  }, [editorRef])
 
   return (
     <LexicalExtensionComposer
