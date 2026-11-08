@@ -318,3 +318,213 @@ it('commits mounted metadata controls through bidirectional Yjs and persisted re
     doc.destroy()
   }
 })
+
+it('does not convert responsive image to fixed pixel width when clicking resize handle without dragging', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+  const editor = createEditor({
+    nodes: [ImageNode],
+    onError: (error) => {
+      throw error
+    },
+  })
+  const media: DocumentMediaSession = {
+    documentId: 'click-test',
+    doc: new Doc(),
+    signal: new AbortController().signal,
+    canEdit: () => true,
+    isAlive: () => true,
+    flush: async () => {},
+    requestSave: () => {},
+    insert: vi.fn(),
+  }
+  const source = {
+    assetId: `sha256:${'c'.repeat(64)}` as AssetId,
+    intrinsicWidth: 500,
+    intrinsicHeight: 300,
+  }
+  try {
+    await act(async () => {
+      root.render(
+        <LexicalComposerContext.Provider
+          value={[editor, { getTheme: () => null }]}
+        >
+          <DocumentMediaContext.Provider value={media}>
+            <RichTextPlugin
+              contentEditable={<ContentEditable />}
+              ErrorBoundary={LexicalErrorBoundary}
+            />
+          </DocumentMediaContext.Provider>
+        </LexicalComposerContext.Provider>,
+      )
+      editor.update(
+        () => {
+          $getRoot().append($createImageNode(source))
+        },
+        { discrete: true },
+      )
+    })
+
+    await act(async () => {
+      container.querySelector<HTMLElement>('[role="button"]')!.click()
+    })
+    const handle = container.querySelector<HTMLElement>(
+      '[aria-label="Resize image from bottom right"]',
+    )!
+    expect(handle).not.toBeNull()
+
+    // Pointerdown and pointerup without move
+    await act(async () => {
+      handle.dispatchEvent(
+        new PointerEvent('pointerdown', { clientX: 200, bubbles: true }),
+      )
+      window.dispatchEvent(
+        new PointerEvent('pointerup', { clientX: 200, bubbles: true }),
+      )
+    })
+
+    const widthAfterClick = editor
+      .getEditorState()
+      .read(() =>
+        ($getRoot().getFirstChildOrThrow() as ImageNode).getDisplayWidth(),
+      )
+    expect(widthAfterClick).toBeNull()
+
+    // Pointerdown, move, and pointerup (dragging)
+    await act(async () => {
+      handle.dispatchEvent(
+        new PointerEvent('pointerdown', { clientX: 200, bubbles: true }),
+      )
+      window.dispatchEvent(
+        new PointerEvent('pointermove', { clientX: 250, bubbles: true }),
+      )
+      window.dispatchEvent(
+        new PointerEvent('pointerup', { clientX: 250, bubbles: true }),
+      )
+    })
+
+    const widthAfterDrag = editor
+      .getEditorState()
+      .read(() =>
+        ($getRoot().getFirstChildOrThrow() as ImageNode).getDisplayWidth(),
+      )
+    expect(widthAfterDrag).not.toBeNull()
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+  }
+})
+
+it('resizes via keyboard using visible width when displayWidth is null and clamps to container width', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+  const editor = createEditor({
+    nodes: [ImageNode],
+    onError: (error) => {
+      throw error
+    },
+  })
+  const media: DocumentMediaSession = {
+    documentId: 'kb-test',
+    doc: new Doc(),
+    signal: new AbortController().signal,
+    canEdit: () => true,
+    isAlive: () => true,
+    flush: async () => {},
+    requestSave: () => {},
+    insert: vi.fn(),
+  }
+  const source = {
+    assetId: `sha256:${'d'.repeat(64)}` as AssetId,
+    intrinsicWidth: 1000,
+    intrinsicHeight: 600,
+  }
+  try {
+    await act(async () => {
+      root.render(
+        <LexicalComposerContext.Provider
+          value={[editor, { getTheme: () => null }]}
+        >
+          <DocumentMediaContext.Provider value={media}>
+            <RichTextPlugin
+              contentEditable={<ContentEditable />}
+              ErrorBoundary={LexicalErrorBoundary}
+            />
+          </DocumentMediaContext.Provider>
+        </LexicalComposerContext.Provider>,
+      )
+      editor.update(
+        () => {
+          $getRoot().append($createImageNode(source))
+        },
+        { discrete: true },
+      )
+    })
+
+    await act(async () => {
+      container.querySelector<HTMLElement>('[role="button"]')!.click()
+    })
+
+    const block = container.querySelector<HTMLElement>('[role="button"]')!
+    const handle = container.querySelector<HTMLElement>(
+      '[aria-label="Resize image from bottom right"]',
+    )!
+
+    vi.spyOn(block, 'getBoundingClientRect').mockReturnValue({
+      width: 400,
+      height: 240,
+      top: 0,
+      left: 0,
+      bottom: 240,
+      right: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    })
+
+    Object.defineProperty(block.parentElement!, 'clientWidth', {
+      value: 450,
+      configurable: true,
+    })
+
+    // Resizing left (-10) with displayWidth: null should start from visible width 400 -> 390
+    await act(async () => {
+      handle.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }),
+      )
+    })
+    const widthAfterLeft = editor
+      .getEditorState()
+      .read(() =>
+        ($getRoot().getFirstChildOrThrow() as ImageNode).getDisplayWidth(),
+      )
+    expect(widthAfterLeft).toBe(390)
+
+    // Set displayWidth to 445 (close to container width 450)
+    await act(async () => {
+      editor.update(() => {
+        ;($getRoot().getFirstChildOrThrow() as ImageNode).setDisplayWidth(445)
+      })
+    })
+
+    // Resizing right (+10): 445 + 10 = 455, clamped to container width 450
+    await act(async () => {
+      handle.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }),
+      )
+    })
+    const widthAfterRight = editor
+      .getEditorState()
+      .read(() =>
+        ($getRoot().getFirstChildOrThrow() as ImageNode).getDisplayWidth(),
+      )
+    expect(widthAfterRight).toBe(450)
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+  }
+})

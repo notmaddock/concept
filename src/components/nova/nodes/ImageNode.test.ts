@@ -308,3 +308,67 @@ it('inherits validated resizing without mutating previous editor snapshots', () 
     close()
   }
 })
+
+it('imports DOM img width attribute parsing pixel units and falling back on CSS units or invalid numbers', () => {
+  const { editor, close } = client()
+  try {
+    const conversions = ImageNode.importDOM()
+    expect(conversions).not.toBeNull()
+    const imgImporter = conversions.img
+    expect(imgImporter).toBeDefined()
+
+    const makeImg = (width?: string | null) => {
+      const attrs = new Map<string, string>()
+      attrs.set('data-concept-image-source', JSON.stringify(source('a')))
+      attrs.set('alt', 'Test image')
+      attrs.set('data-concept-alignment', 'center')
+      if (width !== undefined && width !== null) {
+        attrs.set('width', width)
+      }
+      return {
+        getAttribute: (name: string) => attrs.get(name) ?? null,
+      } as unknown as HTMLElement
+    }
+
+    const importDisplayWidth = (img: HTMLElement) => {
+      const output = imgImporter(img)
+      expect(output).not.toBeNull()
+      if (!output) throw new Error('Missing output')
+      let width: number | null = null
+      editor.update(
+        () => {
+          const res = output.conversion(img)
+          width = res?.node ? (res.node as ImageNode).getDisplayWidth() : null
+        },
+        { discrete: true },
+      )
+      return width
+    }
+
+    // CSS units with px
+    expect(importDisplayWidth(makeImg('300px'))).toBe(300)
+    expect(importDisplayWidth(makeImg('300.4px'))).toBe(300)
+    expect(importDisplayWidth(makeImg('300.6px'))).toBe(301)
+    expect(importDisplayWidth(makeImg('450'))).toBe(450)
+
+    // CSS units that should fall back to natural size (null) instead of throwing/discarding
+    expect(importDisplayWidth(makeImg('100%'))).toBeNull()
+    expect(importDisplayWidth(makeImg('auto'))).toBeNull()
+
+    // Invalid numbers that fall back to null
+    expect(importDisplayWidth(makeImg('-10px'))).toBeNull()
+    expect(importDisplayWidth(makeImg('0'))).toBeNull()
+    expect(importDisplayWidth(makeImg('16385'))).toBeNull()
+    expect(importDisplayWidth(makeImg('not-a-number'))).toBeNull()
+
+    // No width attribute
+    expect(importDisplayWidth(makeImg(null))).toBeNull()
+
+    // Invalid source returns null
+    expect(
+      imgImporter({ getAttribute: () => null } as unknown as HTMLElement),
+    ).toBeNull()
+  } finally {
+    close()
+  }
+})

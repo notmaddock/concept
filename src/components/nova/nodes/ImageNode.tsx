@@ -8,6 +8,7 @@ import type {
 } from 'lexical'
 import type { ReactElement } from 'react'
 import {
+  imageDimensionLimit,
   validateImageDisplayWidth,
   validateImageSource,
 } from '@/lib/documents/image-schema'
@@ -137,8 +138,17 @@ export class ImageNode extends ResizableNode<ReactElement> {
             element.getAttribute('data-concept-alignment') ?? 'left',
           )
           const width = element.getAttribute('width')
+          const isPercentage = width !== null && width.includes('%')
+          const parsed =
+            width !== null && !isPercentage
+              ? Number.parseFloat(width)
+              : Number.NaN
           const displayWidth =
-            width === null ? null : validateImageDisplayWidth(Number(width))
+            Number.isFinite(parsed) &&
+            parsed > 0 &&
+            parsed <= imageDimensionLimit
+              ? Math.round(parsed)
+              : null
           return {
             priority: 4,
             conversion: () => ({
