@@ -19,19 +19,35 @@ function forwardCookies(source: Headers, target: Headers) {
     target.append('Set-Cookie', cookie)
 }
 
-function authFailure(error: unknown) {
+function authFailure(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
-  const body = 'body' in error ? error.body : undefined
+  const body =
+    'body' in error && error.body && typeof error.body === 'object'
+      ? error.body
+      : undefined
+  const code = body && 'code' in body ? String(body.code) : undefined
   if (
-    body &&
-    typeof body === 'object' &&
-    'code' in body &&
-    ['FAILED_TO_GET_ACCESS_TOKEN', 'FAILED_TO_REFRESH_ACCESS_TOKEN'].includes(
-      String(body.code),
-    )
+    code &&
+    [
+      'FAILED_TO_GET_ACCESS_TOKEN',
+      'FAILED_TO_REFRESH_ACCESS_TOKEN',
+      'REFRESH_TOKEN_NOT_FOUND',
+    ].includes(code)
   )
-    // Better Auth also uses these codes for transient refresh failures.
-    return false
+    return true
+
+  const hasInvalidGrant = (value: unknown) =>
+    typeof value === 'string' && value.toLowerCase().includes('invalid_grant')
+
+  if ('message' in error && hasInvalidGrant(error.message)) return true
+  if (body) {
+    if ('message' in body && hasInvalidGrant(body.message)) return true
+    if ('error' in body && hasInvalidGrant(body.error)) return true
+    if ('error_description' in body && hasInvalidGrant(body.error_description))
+      return true
+  }
+  if ('cause' in error && authFailure(error.cause)) return true
+
   return (
     ('statusCode' in error &&
       [400, 401, 403].includes(Number(error.statusCode))) ||
