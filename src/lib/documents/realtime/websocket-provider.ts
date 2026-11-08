@@ -5,6 +5,7 @@ import {
   Awareness,
   applyAwarenessUpdate,
   encodeAwarenessUpdate,
+  removeAwarenessStates,
 } from 'y-protocols/awareness'
 import { readSyncMessage, writeSyncStep1, writeUpdate } from 'y-protocols/sync'
 import { realtimePolicy } from './policy'
@@ -224,9 +225,12 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
     this.selfInitiatedClose = true
     this.clearReconnect()
     this.stopTimers()
+    this.detachDoc()
     this.socket?.close()
     this.socket = undefined
     this.listeners.clear()
+    this.awareness.destroy()
+    this.awarenessDoc.destroy()
   }
 
   attach(doc: Doc): void {
@@ -275,11 +279,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
     const clients = [...this.awareness.getStates().keys()]
     this.awarenessDirty.clear()
     if (clients.length === 0) return
-    applyAwarenessUpdate(
-      this.awareness,
-      encodeAwarenessUpdate(this.awareness, clients),
-      this,
-    )
+    removeAwarenessStates(this.awareness, clients, this)
     // y-protocols keeps the local state when its own client is removed.
     if (this.awareness.getLocalState() !== null)
       this.awareness.setLocalState(null)

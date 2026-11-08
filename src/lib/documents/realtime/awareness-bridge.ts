@@ -1,6 +1,7 @@
 import {
   applyAwarenessUpdate,
   encodeAwarenessUpdate,
+  removeAwarenessStates,
 } from 'y-protocols/awareness'
 import type { Awareness } from 'y-protocols/awareness'
 
@@ -109,5 +110,11 @@ export function bridgeAwareness(
     stopped = true
     editorAwareness.off('update', onEditorUpdate)
     realtimeAwareness.off('update', onRealtimeUpdate)
+    const remoteClients = [...editorAwareness.getStates().keys()].filter(
+      (clientID) => clientID !== editorAwareness.clientID,
+    )
+    if (remoteClients.length > 0) {
+      removeAwarenessStates(editorAwareness, remoteClients, bridgeOrigin)
+    }
   }
 }

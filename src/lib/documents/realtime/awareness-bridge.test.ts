@@ -137,4 +137,31 @@ describe('bridgeAwareness', () => {
     expect(editor.getLocalState()).not.toBeNull()
     expect(realtime.getLocalState()).not.toBeNull()
   })
+
+  it('evicts remote peer states from editor awareness on cleanup', () => {
+    const editor = makeAwareness()
+    const realtime = makeAwareness()
+    editor.setLocalState(selection)
+
+    const peer = makeAwareness()
+    peer.setLocalState({ ...selection, name: 'Peer' })
+    publish(peer, realtime)
+
+    const cleanup = bridge(editor, realtime)
+    expect(editor.getStates().has(peer.clientID)).toBe(true)
+
+    let updateReceived = false
+    let removedClients: number[] = []
+    editor.on('update', ({ removed }: { removed: number[] }) => {
+      updateReceived = true
+      removedClients = removed
+    })
+
+    cleanup()
+
+    expect(editor.getStates().has(peer.clientID)).toBe(false)
+    expect(editor.getLocalState()).toEqual(selection)
+    expect(updateReceived).toBe(true)
+    expect(removedClients).toContain(peer.clientID)
+  })
 })

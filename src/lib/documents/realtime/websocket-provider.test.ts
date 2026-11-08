@@ -476,4 +476,63 @@ describe('WebSocketRealtimeProvider', () => {
       focusing: true,
     })
   })
+
+  it('clears remote peer awareness states on disconnect', async () => {
+    const { provider, sockets } = setup()
+    tracked(provider)
+    provider.connect()
+    await flush()
+    const socket = sockets[0]
+    socket.open()
+    admit(socket)
+
+    const peerAwareness = new Awareness(new Doc())
+    peerAwareness.setLocalState({
+      presence: true,
+      name: 'Ada',
+    })
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, 3)
+    encoding.writeVarUint8Array(
+      encoder,
+      encodeAwarenessUpdate(peerAwareness, [peerAwareness.clientID]),
+    )
+    socket.receive(encoding.toUint8Array(encoder))
+    expect(provider.awareness.getStates().has(peerAwareness.clientID)).toBe(
+      true,
+    )
+    expect(provider.getState().peers).toBe(1)
+
+    provider.disconnect()
+    expect(provider.awareness.getStates().size).toBe(0)
+    expect(provider.awareness.getStates().has(peerAwareness.clientID)).toBe(
+      false,
+    )
+    expect(provider.getState().peers).toBe(0)
+    expect(provider.getState().collaborators).toEqual([])
+  })
+
+  it('detaches document and destroys awareness and awarenessDoc on close', () => {
+    const { provider } = setup()
+    const doc = new Doc()
+    provider.attach(doc)
+
+    const offSpy = vi.spyOn(doc, 'off')
+    const awareness = provider.awareness
+    const awarenessDoc = awareness.doc
+    let awarenessDocDestroyed = false
+    awarenessDoc.on('destroy', () => {
+      awarenessDocDestroyed = true
+    })
+
+    const awarenessDestroySpy = vi.spyOn(awareness, 'destroy')
+
+    provider.close()
+
+    expect(offSpy).toHaveBeenCalledWith('update', expect.any(Function))
+    expect(awarenessDestroySpy).toHaveBeenCalled()
+    expect(awarenessDocDestroyed).toBe(true)
+
+    doc.getText('content').insert(0, 'hello')
+  })
 })
