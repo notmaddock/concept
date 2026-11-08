@@ -1,11 +1,25 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { Dispatch, RefObject, SetStateAction } from 'react'
 
 const ROW_HEIGHT = 34
 const OVERSCAN = 6
 const INITIAL_VIEWPORT_HEIGHT = 600
 const VIRTUALIZATION_THRESHOLD = 60
 
-export function useDocumentListWindow(count: number, activeIndex: number) {
+export interface DocumentListWindow {
+  listRef: RefObject<HTMLUListElement | null>
+  virtual: boolean
+  indexes: number[]
+  focusedIndex: number | null
+  setFocusedIndex: Dispatch<SetStateAction<number | null>>
+  focus: (index: number) => void
+  rowHeight: number
+}
+
+export function useDocumentListWindow(
+  count: number,
+  activeIndex: number,
+): DocumentListWindow {
   const listRef = useRef<HTMLUListElement>(null)
   const scrollerRef = useRef<HTMLElement | null>(null)
   const [viewport, setViewport] = useState({
@@ -19,8 +33,13 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
   useEffect(() => {
     const list = listRef.current
     const scroller = list?.closest<HTMLElement>('[data-sidebar="content"]')
-    if (!list || !scroller || !virtual) return
+    if (!list || !scroller) return
     scrollerRef.current = scroller
+    if (!virtual) {
+      return () => {
+        scrollerRef.current = null
+      }
+    }
     let frame = 0
     const measure = () => {
       const top = Math.max(
@@ -52,8 +71,12 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
 
   function reveal(index: number) {
     const list = listRef.current
-    const scroller = scrollerRef.current
+    const scroller =
+      scrollerRef.current ??
+      list?.closest<HTMLElement>('[data-sidebar="content"]') ??
+      null
     if (!list || !scroller) return
+    scrollerRef.current = scroller
     const offset =
       list.getBoundingClientRect().top -
       scroller.getBoundingClientRect().top +
@@ -74,7 +97,7 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
   }
 
   useEffect(() => {
-    if (virtual && activeIndex >= 0) reveal(activeIndex)
+    if (activeIndex >= 0) reveal(activeIndex)
   }, [activeIndex, virtual])
 
   const start = virtual
@@ -95,7 +118,12 @@ export function useDocumentListWindow(count: number, activeIndex: number) {
   )
   if (virtual) {
     for (const index of [focusedIndex, pendingFocus]) {
-      if (index !== null && index < count && !indexes.includes(index))
+      if (
+        index !== null &&
+        index >= 0 &&
+        index < count &&
+        !indexes.includes(index)
+      )
         indexes.push(index)
     }
     indexes.sort((a, b) => a - b)
