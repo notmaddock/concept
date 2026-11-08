@@ -5,6 +5,7 @@ import { unzipSync, zipSync } from 'fflate'
 import { Doc, encodeStateAsUpdate, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { TestBroadcastChannel } from '#/test/broadcast-channel'
+import type { AssetId } from './assets'
 import { describeAsset, openAssetRepository } from './assets'
 import { importConcept } from './concept-file'
 import { readPackage, writePackage, snapshotRevision } from './package'
@@ -37,6 +38,10 @@ beforeEach(() => {
 afterEach(async () => {
   await Promise.all(sessions.map((session) => session.destroy()))
   documents.forEach((doc) => doc.destroy())
+  // Allow deferred broadcast channel cleanup macrotasks to drain.
+  const { promise, resolve } = Promise.withResolvers<void>()
+  setTimeout(resolve, 0)
+  await promise
   expect(TestBroadcastChannel.channels.size).toBe(0)
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
@@ -51,8 +56,19 @@ async function sourceSnapshot(): Promise<NormalizedSnapshot> {
   for (const blob of [
     new Blob(['%PDF-1.7\nattachment']),
     new Blob([new Uint8Array([0, 255, 128, 4, 0, 13])]),
-  ])
-    assets.push({ descriptor: await describeAsset(blob), blob })
+  ]) {
+    const descriptor = await describeAsset(blob)
+    assets.push({ descriptor, blob })
+    const node = new XmlText()
+    node.setAttribute('__type', 'image')
+    node.setAttribute('__imageVersion', 1)
+    node.setAttribute('__source', {
+      assetId: descriptor.id,
+      intrinsicWidth: 100,
+      intrinsicHeight: 100,
+    })
+    doc.get('root', XmlText).insertEmbed(0, node)
+  }
   return {
     name: 'Résumé',
     update: encodeStateAsUpdate(doc),
@@ -262,4 +278,72 @@ it('computes dirty revisions from trusted descriptors without reading asset byte
     ),
   ).not.toBe(revision)
   expect(get).not.toHaveBeenCalled()
+})
+
+it('ignores orphan repository assets without blobs and does not throw IncompleteAssetsError', async () => {
+  const original = await sourceSnapshot()
+  const imported = await importConcept(original)
+  const loaded = await reopen(imported.id)
+
+  const orphanId =
+    'sha256:0000000000000000000000000000000000000000000000000000000000000000' as AssetId
+  const realList = loaded.repository.list.bind(loaded.repository)
+  const realGet = loaded.repository.get.bind(loaded.repository)
+
+  vi.spyOn(loaded.repository, 'list').mockImplementation(async () => {
+    const list = await realList()
+    return [
+      ...list,
+      {
+        id: orphanId,
+        mediaType: 'application/octet-stream',
+        byteLength: 42,
+      },
+    ]
+  })
+  vi.spyOn(loaded.repository, 'get').mockImplementation(async (id) => {
+    if (id === orphanId) return undefined
+    return realGet(id)
+  })
+
+  const snapshot = await captureSnapshot(imported.name, loaded.doc)
+  expect(snapshot.assets).toHaveLength(2)
+})
+
+it('gracefully handles IncompleteAssetsError in library source read for document recovery', async () => {
+  const original = await sourceSnapshot()
+  const entries = unzipSync(await writePackage(original))
+  const absent = original.assets[0]
+  delete entries[`assets/${absent.descriptor.id.slice(7)}`]
+  const recovery = await readPackage(zipSync(entries, { level: 0 }))
+  if (recovery.kind !== 'incomplete')
+    throw new Error('Expected incomplete package')
+
+  const imported = await importConcept(
+    recovery.snapshot,
+    'Damaged import',
+    recovery.missingAssets,
+  )
+
+  const librarySource = documentSources.find(
+    (source) => source.kind === 'library',
+  )!
+  const selected = await librarySource.read(imported)
+
+  expect(selected.existingId).toBe(imported.id)
+  expect(selected.filename).toBe('Damaged import')
+  expect(selected.missingAssets).toEqual([absent.descriptor.id])
+  expect(selected.file.assets).toHaveLength(1)
+  expect(selected.file.name).toBe('Damaged import')
+  expect(selected.size).toBeGreaterThan(0)
+
+  const copy = await documentSaveProviders[0].save(
+    selected.file,
+    'Recovered document copy',
+    selected.missingAssets,
+  )
+  const reopenedCopy = await reopen(copy.id)
+  await expect(
+    captureSnapshot(copy.name, reopenedCopy.doc),
+  ).rejects.toMatchObject({ missingAssets: [absent.descriptor.id] })
 })

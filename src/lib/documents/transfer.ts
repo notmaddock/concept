@@ -1,10 +1,10 @@
-import { Doc } from 'yjs'
+import { Doc, encodeStateAsUpdate } from 'yjs'
 import type { LucideIcon } from 'lucide-react'
 import { storageLocations } from './storage-locations'
 import type { AssetId } from './assets'
 import type { NormalizedSnapshot } from './package'
 import { writePackage } from './package'
-import { captureSnapshot } from './working'
+import { captureSnapshot, IncompleteAssetsError } from './working'
 import type { DocumentInfo } from './storage'
 import { importConcept } from './concept-file'
 import { localDocumentStorage } from './storage'
@@ -59,14 +59,45 @@ export const documentSources: Array<DocumentSource> = [
       try {
         await session.whenSynced
         if (!doc.share.has('root')) initializeDocument(doc)
-        const snapshot = await captureSnapshot(document.name, doc)
-        const content = await writePackage(snapshot)
-        return {
-          file: snapshot,
-          filename: document.name,
-          size: content.byteLength,
-          origin: storageLocations.local.label,
-          existingId: document.id,
+        let snapshot: NormalizedSnapshot | undefined
+        try {
+          snapshot = await captureSnapshot(document.name, doc)
+          const content = await writePackage(snapshot)
+          return {
+            file: snapshot,
+            filename: document.name,
+            size: content.byteLength,
+            origin: storageLocations.local.label,
+            existingId: document.id,
+          }
+        } catch (error) {
+          if (error instanceof IncompleteAssetsError) {
+            const fallbackSnapshot: NormalizedSnapshot =
+              snapshot ??
+              ('snapshot' in error && error.snapshot
+                ? (error.snapshot as NormalizedSnapshot)
+                : {
+                    name: document.name.trim() || 'Untitled document',
+                    update: encodeStateAsUpdate(doc),
+                    assets: [],
+                    requiredFeatures: [],
+                  })
+            const size =
+              fallbackSnapshot.update.byteLength +
+              fallbackSnapshot.assets.reduce(
+                (total, asset) => total + asset.blob.size,
+                0,
+              )
+            return {
+              file: fallbackSnapshot,
+              filename: document.name,
+              size,
+              origin: storageLocations.local.label,
+              existingId: document.id,
+              missingAssets: [...error.missingAssets],
+            }
+          }
+          throw error
         }
       } finally {
         await session.destroy()
