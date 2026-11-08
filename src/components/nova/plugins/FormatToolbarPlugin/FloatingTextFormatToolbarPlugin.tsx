@@ -34,6 +34,32 @@ const INITIAL_FORMAT_STATE: FormatState = {
   isSuperscript: false,
 }
 
+function getNearestScrollContainer(node: Node | null): HTMLElement | null {
+  let current: HTMLElement | null =
+    node instanceof HTMLElement ? node : (node?.parentElement ?? null)
+  const win = current?.ownerDocument.defaultView ?? window
+
+  while (
+    current &&
+    current !== current.ownerDocument.body &&
+    current !== current.ownerDocument.documentElement
+  ) {
+    if (typeof win.getComputedStyle === 'function') {
+      const style = win.getComputedStyle(current)
+      if (
+        /(auto|scroll|overlay)/.test(
+          `${style.overflow}${style.overflowY}${style.overflowX}`,
+        )
+      ) {
+        return current
+      }
+    }
+    current = current.parentElement
+  }
+
+  return null
+}
+
 export function FloatingTextFormatToolbarPlugin() {
   const [editor] = useLexicalComposerContext()
   const [isOpen, setIsOpen] = useState(false)
@@ -81,6 +107,7 @@ export function FloatingTextFormatToolbarPlugin() {
       const points = getDOMSelectionPoints(nativeSelection, rootElement)
       if (
         !rootElement.contains(points.anchorNode) ||
+        !rootElement.contains(points.focusNode) ||
         (points.anchorNode === points.focusNode &&
           points.anchorOffset === points.focusOffset)
       ) {
@@ -122,13 +149,35 @@ export function FloatingTextFormatToolbarPlugin() {
         return
       }
 
+      const win = editor._window ?? window
+      let clipTop = 0
+      let clipLeft = 0
+      let clipBottom = win.innerHeight
+      let clipRight = win.innerWidth
+
+      const scrollContainer = getNearestScrollContainer(
+        points.anchorNode ?? rootElement,
+      )
+      if (scrollContainer) {
+        const containerRect = scrollContainer.getBoundingClientRect()
+        clipTop = Math.max(clipTop, containerRect.top)
+        clipBottom = Math.min(clipBottom, containerRect.bottom)
+        clipLeft = Math.max(clipLeft, containerRect.left)
+        clipRight = Math.min(clipRight, containerRect.right)
+      }
+
       const rootRect = rootElement.getBoundingClientRect()
-      if (
-        domRangeRect.bottom < rootRect.top ||
-        domRangeRect.top > rootRect.bottom ||
-        domRangeRect.right < rootRect.left ||
-        domRangeRect.left > rootRect.right
-      ) {
+      clipTop = Math.max(clipTop, rootRect.top)
+      clipBottom = Math.min(clipBottom, rootRect.bottom)
+      clipLeft = Math.max(clipLeft, rootRect.left)
+      clipRight = Math.min(clipRight, rootRect.right)
+
+      const clippedTop = Math.max(domRangeRect.top, clipTop)
+      const clippedBottom = Math.min(domRangeRect.bottom, clipBottom)
+      const clippedLeft = Math.max(domRangeRect.left, clipLeft)
+      const clippedRight = Math.min(domRangeRect.right, clipRight)
+
+      if (clippedBottom <= clippedTop || clippedRight <= clippedLeft) {
         setIsOpen(false)
         return
       }
@@ -150,10 +199,10 @@ export function FloatingTextFormatToolbarPlugin() {
           : nextFormatState,
       )
       const nextRect: PositionRect = {
-        top: domRangeRect.top,
-        left: domRangeRect.left,
-        width: domRangeRect.width,
-        height: domRangeRect.height,
+        top: clippedTop,
+        left: clippedLeft,
+        width: clippedRight - clippedLeft,
+        height: clippedBottom - clippedTop,
       }
       setRangeRect((current) =>
         current &&
