@@ -19,11 +19,12 @@ export async function imageDataUrl(blob: Blob): Promise<string> {
 }
 
 export function imageDataBlob(value: string): Blob {
-  if (value.length > imageTransferLimits.bytes * 1.4)
+  const normalized = value.replace(/\s+/g, '')
+  if (normalized.length > imageTransferLimits.bytes * 1.4)
     throw new Error('Image transfer is too large.')
   const match =
     /^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/]*={0,2})$/.exec(
-      value,
+      normalized,
     )
   if (!match) throw new Error('Unsupported embedded image.')
   const binary = atob(match[2])

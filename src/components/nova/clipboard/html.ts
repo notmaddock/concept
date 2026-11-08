@@ -116,9 +116,22 @@ export async function prepareHtmlImages(
       unsupported++
       continue
     }
-    const blob = source.startsWith('data:')
-      ? imageDataBlob(source)
-      : clipboardImage!
+    let blob: Blob
+    if (source.startsWith('data:')) {
+      try {
+        blob = imageDataBlob(source)
+      } catch {
+        element.replaceWith(
+          document.createTextNode(
+            element.alt ? `[Image: ${element.alt}]` : '[Image]',
+          ),
+        )
+        unsupported++
+        continue
+      }
+    } else {
+      blob = clipboardImage!
+    }
     bytes += blob.size
     if (bytes > imageTransferLimits.bytes)
       throw new Error('Embedded images are too large.')
