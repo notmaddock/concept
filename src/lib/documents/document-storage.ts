@@ -129,15 +129,17 @@ export const documentStorage: DocumentStorage = {
 }
 
 function openDocumentSession(id: string, doc: Doc, background = false) {
-  let local: DocumentPersistence | undefined
+  let local: (DocumentPersistence & { contentLock?: Promise<void> }) | undefined
   let sync: DocumentSync | undefined
   let closed = false
   let closing: Promise<void> | undefined
+  let contentLock: Promise<void> | undefined
   const isClosed = () => closed
   const whenSynced = (async () => {
     const info = await ensureDocument(id)
     if (!info || isClosed()) throw new Error('Document not found')
     local = localDocumentStorage.open(id, doc)
+    contentLock = local.contentLock
     await local.whenSynced
     if (isClosed()) return
     const createRealtime =
@@ -178,6 +180,7 @@ function openDocumentSession(id: string, doc: Doc, background = false) {
         await whenSynced.catch(() => {})
         await stopping
         await local?.destroy()
+        await contentLock
         await localDocumentStorage.clearContent(id)
       })()
       return closing

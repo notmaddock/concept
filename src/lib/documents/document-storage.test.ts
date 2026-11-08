@@ -571,3 +571,48 @@ it('keeps the editor session and status when offline preparation overlaps openin
     drive: { offlineAvailable: true },
   })
 })
+
+it('awaits contentLock release on session destroy before invoking clearContent to prevent bouncing', async () => {
+  await cache()
+  let sharedHeld = 0
+  let ifAvailableBounced = false
+  vi.stubGlobal('navigator', {
+    onLine: true,
+    locks: {
+      request: async (
+        _name: string,
+        optionsOrTask:
+          { mode?: string; ifAvailable?: boolean } | (() => Promise<unknown>),
+        task?: (lock: object | null) => Promise<unknown>,
+      ) => {
+        const callback =
+          typeof optionsOrTask === 'function' ? optionsOrTask : task!
+        const options = typeof optionsOrTask === 'function' ? {} : optionsOrTask
+        if (options.mode === 'shared') {
+          sharedHeld++
+          try {
+            return await callback({})
+          } finally {
+            sharedHeld--
+          }
+        }
+        if (options.ifAvailable) {
+          if (sharedHeld > 0) {
+            ifAvailableBounced = true
+            return callback(null)
+          }
+          return await callback({})
+        }
+        return await callback({})
+      },
+    },
+  })
+
+  const { session } = open()
+  await session.whenSynced
+  await session.destroy()
+  expect(ifAvailableBounced).toBe(false)
+  expect(
+    (await indexedDB.databases()).map((database) => database.name),
+  ).not.toContain(`concept-document:${info.id}`)
+})

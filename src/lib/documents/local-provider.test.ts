@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { IDBFactory } from 'fake-indexeddb'
 import { Doc, XmlText, encodeStateAsUpdate } from 'yjs'
 import {
   Awareness,
@@ -8,12 +9,14 @@ import {
 import { TestBroadcastChannel, flushBroadcasts } from '#/test/broadcast-channel'
 import { LocalProvider } from './local-provider'
 import { initializeDocument } from './initial-document'
+import { localDocumentStorage } from './storage'
 
 let providers: Array<LocalProvider>
 let docs: Array<Doc>
 
 beforeEach(() => {
   vi.stubGlobal('BroadcastChannel', TestBroadcastChannel)
+  vi.stubGlobal('indexedDB', new IDBFactory())
   TestBroadcastChannel.sent = 0
   providers = []
   docs = []
@@ -133,4 +136,60 @@ it('does not rebroadcast awareness states owned by the realtime bridge', async (
   await flushBroadcasts()
   expect(TestBroadcastChannel.sent).toBe(sent)
   remote.destroy()
+})
+
+it('cleans up active sessions and releases content locks when persistence sync rejects', async () => {
+  let sharedHeld = 0
+  let lockReleased = false
+  vi.stubGlobal('navigator', {
+    onLine: true,
+    locks: {
+      request: async (
+        _name: string,
+        optionsOrTask:
+          { mode?: string; ifAvailable?: boolean } | (() => Promise<unknown>),
+        task?: (lock: object | null) => Promise<unknown>,
+      ) => {
+        const callback =
+          typeof optionsOrTask === 'function' ? optionsOrTask : task!
+        const options = typeof optionsOrTask === 'function' ? {} : optionsOrTask
+        if (options.mode === 'shared') {
+          sharedHeld++
+          try {
+            return await callback({})
+          } finally {
+            sharedHeld--
+            lockReleased = true
+          }
+        }
+        if (options.ifAvailable) {
+          if (sharedHeld > 0) return callback(null)
+          return await callback({})
+        }
+        return await callback({})
+      },
+    },
+  })
+
+  const doc = new Doc()
+  docs.push(doc)
+  const id = 'missing-document'
+  const persistence = localDocumentStorage.open(id, doc)
+  const provider = new LocalProvider(id, doc, persistence)
+  providers.push(provider)
+
+  provider.connect()
+  await expect(persistence.whenSynced).rejects.toThrow('Document not found')
+  await vi.waitFor(() => expect(lockReleased).toBe(true))
+  expect(sharedHeld).toBe(0)
+
+  let lockAcquired = false
+  await navigator.locks.request(
+    `concept-content:${id}`,
+    { ifAvailable: true },
+    async (lock) => {
+      lockAcquired = Boolean(lock)
+    },
+  )
+  expect(lockAcquired).toBe(true)
 })
