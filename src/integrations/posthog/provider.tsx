@@ -32,6 +32,9 @@ export default function PostHogProvider({ children }: { children: ReactNode }) {
           posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
             api_host: apiHost,
             ui_host: posthogUiHost(apiHost),
+            autocapture: false,
+            disable_session_recording: true,
+            mask_all_text: true,
             person_profiles: 'identified_only',
             capture_pageview: false,
             defaults: '2026-08-30',
