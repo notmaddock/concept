@@ -2,8 +2,10 @@ import { $getRoot } from 'lexical'
 import type { DocumentAssetResolver } from '../asset-session'
 import { imageElements, resolveImageData } from '../image-transfer'
 import type { LexicalEditor } from 'lexical'
+import type { ExportFormat } from '../import/formats'
+import { documentFormats } from '../import/formats'
 
-export type ExportFormat = 'text' | 'markdown' | 'html'
+export type { ExportFormat }
 
 export type ExportFile = {
   content: string
@@ -12,44 +14,57 @@ export type ExportFile = {
   notice?: string
 }
 
+const serializers: Record<
+  ExportFormat,
+  (
+    editor: LexicalEditor,
+    name: string,
+    resolver?: DocumentAssetResolver,
+  ) => Promise<{ content: string; notice?: string }>
+> = {
+  text: async (editor) => ({
+    content: editor.getEditorState().read(() => $getRoot().getTextContent()),
+  }),
+  markdown: async (editor) => {
+    // Deferred import to avoid bundling Markdown transformers during initial load
+    const { exportMarkdown } = await import('./markdown')
+    const state = editor.getEditorState()
+    return state.read(() => ({
+      content: exportMarkdown(),
+      notice: JSON.stringify(state.toJSON()).includes('"type":"image"')
+        ? 'Markdown represents images as alt text. Use HTML or Concept to preserve images.'
+        : undefined,
+    }))
+  },
+  html: async (editor, name, resolver) => {
+    // Deferred import to avoid bundling HTML export generator during initial load
+    const { exportHtml } = await import('./html')
+    const state = editor.getEditorState()
+    const html = state.read(() => exportHtml(editor, name))
+    const output = new DOMParser().parseFromString(html, 'text/html')
+    const images = imageElements(output)
+    const data = await resolveImageData(
+      images.map(({ id }) => id),
+      resolver,
+    )
+    for (const { element, id } of images) element.src = data.get(id)!
+    return { content: `<!doctype html>\n${output.documentElement.outerHTML}` }
+  },
+}
+
 export async function serializeExport(
   editor: LexicalEditor,
   name: string,
   format: ExportFormat,
   resolver?: DocumentAssetResolver,
 ): Promise<ExportFile> {
-  const state = editor.getEditorState()
-  if (format === 'text') {
-    return state.read(() => ({
-      content: $getRoot().getTextContent(),
-      extension: 'txt',
-      mime: 'text/plain;charset=utf-8',
-    }))
-  }
-  if (format === 'markdown') {
-    const { exportMarkdown } = await import('./markdown')
-    return state.read(() => ({
-      content: exportMarkdown(),
-      extension: 'md',
-      mime: 'text/markdown;charset=utf-8',
-      notice: JSON.stringify(state.toJSON()).includes('"type":"image"')
-        ? 'Markdown represents images as alt text. Use HTML or Concept to preserve images.'
-        : undefined,
-    }))
-  }
-  const { exportHtml } = await import('./html')
-  const html = state.read(() => exportHtml(editor, name))
-  const output = new DOMParser().parseFromString(html, 'text/html')
-  const images = imageElements(output)
-  const data = await resolveImageData(
-    images.map(({ id }) => id),
-    resolver,
-  )
-  for (const { element, id } of images) element.src = data.get(id)!
+  const spec = documentFormats[format]
+  const result = await serializers[format](editor, name, resolver)
   return {
-    content: `<!doctype html>\n${output.documentElement.outerHTML}`,
-    extension: 'html',
-    mime: 'text/html;charset=utf-8',
+    content: result.content,
+    extension: spec.extension,
+    mime: spec.mime,
+    notice: result.notice,
   }
 }
 
