@@ -15,11 +15,13 @@ export function createListenerSet(): ListenerSet {
       }
     },
     notify() {
-      for (const listener of listeners) {
-        try {
-          listener()
-        } catch {
-          // Isolate listener exceptions
+      for (const listener of [...listeners]) {
+        if (listeners.has(listener)) {
+          try {
+            listener()
+          } catch (error) {
+            console.error('[listener] callback failed:', error)
+          }
         }
       }
     },
