@@ -1,6 +1,6 @@
 import { act, useEffect } from 'react'
-import { createRoot } from 'react-dom/client'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
+import { setupTestRoot } from '#/test/react-test'
 import {
   $createParagraphNode,
   $createTextNode,
@@ -22,8 +22,7 @@ import { formatSections } from './format-options'
 import type { FormatAction } from './format-options'
 
 let editor: ReturnType<typeof createEditor>
-let root: ReturnType<typeof createRoot>
-let container: HTMLDivElement
+const harness = setupTestRoot()
 let actions: ReturnType<typeof useFormatActions>
 let renders = 0
 const choices = formatSections.flatMap((section) =>
@@ -50,9 +49,6 @@ function Harness({
 }
 
 beforeEach(async () => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  container = document.createElement('div')
-  root = createRoot(container)
   editor = createEditor({
     nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode],
     dom: paragraphDOM,
@@ -74,11 +70,7 @@ beforeEach(async () => {
     },
     { discrete: true },
   )
-  await act(async () => root.render(<Harness />))
-})
-afterEach(async () => {
-  await act(() => root.unmount())
-  vi.unstubAllGlobals()
+  await act(async () => harness.root.render(<Harness />))
 })
 
 async function apply(action: FormatAction) {
@@ -247,14 +239,14 @@ it('keeps formatting subscribers stable when text changes without format changes
 })
 
 it('pauses hidden formatting controls and refreshes when they become active', async () => {
-  await act(async () => root.render(<Harness active={false} />))
+  await act(async () => harness.root.render(<Harness active={false} />))
   expect(actions.disabled).toBe(true)
   await apply({ kind: 'text', value: 'italic' })
   const italic = choices.find(
     (action) => action.kind === 'text' && action.value === 'italic',
   )!
   expect(actions.checked(italic)).toBeUndefined()
-  await act(async () => root.render(<Harness />))
+  await act(async () => harness.root.render(<Harness />))
   expect(actions.disabled).toBe(false)
   expect(actions.checked(italic)).toBe(true)
 })
@@ -332,7 +324,9 @@ it('subscribes to the new editor when it mounts after document navigation', asyn
     { discrete: true },
   )
   await act(async () =>
-    root.render(<Harness documentId="other" replacement={replacement} />),
+    harness.root.render(
+      <Harness documentId="other" replacement={replacement} />,
+    ),
   )
   expect(actions.disabled).toBe(false)
   await act(() => replacement.setEditable(false))

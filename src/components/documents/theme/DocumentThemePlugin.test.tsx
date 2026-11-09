@@ -1,6 +1,6 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { setupTestRoot } from '#/test/react-test'
 import {
   $createParagraphNode,
   $getRoot,
@@ -14,26 +14,19 @@ import {
 import { DocumentThemePlugin } from './DocumentThemePlugin'
 
 let editor: ReturnType<typeof createEditor>
-let root: ReturnType<typeof createRoot>
-let container: HTMLDivElement
+const harness = setupTestRoot()
 let sheet: HTMLDivElement
-let mounted: boolean
-
 vi.mock('@lexical/react/LexicalComposerContext', () => ({
   useLexicalComposerContext: () => [editor],
 }))
 vi.mock('./use-app-mode', () => ({ useResolvedAppMode: () => 'light' }))
 
 beforeEach(async () => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  mounted = true
-  container = document.createElement('div')
   sheet = document.createElement('div')
   sheet.setAttribute('data-document-sheet', '')
   const editable = document.createElement('div')
   sheet.append(editable)
-  document.body.append(sheet, container)
-  root = createRoot(container)
+  document.body.append(sheet)
   editor = createEditor({
     onError(error) {
       throw error
@@ -43,17 +36,16 @@ beforeEach(async () => {
   editor.update(() => $getRoot().append($createParagraphNode()), {
     discrete: true,
   })
-  await act(() => root.render(<DocumentThemePlugin documentId="doc" ready />))
+  await act(() =>
+    harness.root.render(<DocumentThemePlugin documentId="doc" ready />),
+  )
 })
 
-afterEach(async () => {
-  if (mounted) await act(() => root.unmount())
+afterEach(() => {
   clearDocumentTheme('doc')
   editor.setRootElement(null)
   sheet.remove()
-  container.remove()
   vi.restoreAllMocks()
-  vi.unstubAllGlobals()
 })
 
 it('applies a scene to the page and sheet, then clears it on unmount', async () => {
@@ -68,8 +60,7 @@ it('applies a scene to the page and sheet, then clears it on unmount', async () 
   expect(html.style.colorScheme).toBe('dark')
 
   await act(() => {
-    mounted = false
-    root.unmount()
+    harness.root.unmount()
   })
   expect(html.dataset.documentTheme).toBeUndefined()
   expect(html.style.getPropertyValue('--background')).toBe('')

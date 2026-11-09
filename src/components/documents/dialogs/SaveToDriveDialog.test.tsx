@@ -1,14 +1,13 @@
+import { act } from 'react'
 import { Blob as NodeBlob } from 'node:buffer'
 import { attachDocumentAssets } from '#/lib/documents/working'
 import { describeAsset } from '#/lib/documents/assets'
 import type { AssetRecord, AssetRepository } from '#/lib/documents/assets'
 import { readPackage } from '#/lib/documents/package'
 import { waitForAct } from '#/test/wait-for-act'
-import { act } from 'react'
-import { createRoot } from 'react-dom/client'
-import type { Root } from 'react-dom/client'
 import { Doc, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { setupTestRoot } from '#/test/react-test'
 import { SaveToDriveDialog } from './SaveToDriveDialog'
 import { DriveCreatedFileError } from '#/lib/documents/drive/api'
 import { toast } from 'sonner'
@@ -46,8 +45,7 @@ vi.mock('#/lib/documents/storage', () => ({
   localDocumentStorage: { put: mocks.put, open: mocks.open },
 }))
 
-let root: Root
-let container: HTMLDivElement
+const harness = setupTestRoot()
 let doc: Doc
 let sourceAssets: AssetRecord[]
 
@@ -83,7 +81,6 @@ function repository(
 const onSaved = vi.fn()
 
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.resetAllMocks()
   vi.stubGlobal('Blob', NodeBlob)
   sourceAssets = []
@@ -105,24 +102,18 @@ beforeEach(() => {
       destroy: mocks.destroy,
     }
   })
-  container = document.createElement('div')
-  document.body.append(container)
-  root = createRoot(container)
   doc = new Doc()
   attachDocumentAssets(doc, repository('source', sourceAssets))
   doc.get('root', XmlText).insert(0, 'Original content')
 })
 
-afterEach(async () => {
-  await act(async () => root.unmount())
-  container.remove()
+afterEach(() => {
   doc.destroy()
-  vi.unstubAllGlobals()
 })
 
 async function render() {
   await act(async () => {
-    root.render(
+    harness.root.render(
       <SaveToDriveDialog
         source={{ name: 'Original', doc }}
         onSaved={onSaved}

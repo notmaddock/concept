@@ -1,41 +1,7 @@
-export type RGB = [number, number, number]
+import type { RGB } from '#/lib/color'
 
-export function contrastRatio(a: RGB, b: RGB) {
-  const luminance = (color: RGB) =>
-    color
-      .map((channel) => {
-        const value = channel / 255
-        return value <= 0.04045
-          ? value / 12.92
-          : ((value + 0.055) / 1.055) ** 2.4
-      })
-      .reduce(
-        (sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index],
-        0,
-      )
-  const first = luminance(a)
-  const second = luminance(b)
-  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)
-}
-
-export function readableColor(color: RGB, background: RGB): RGB {
-  if (contrastRatio(color, background) >= 4.5) return color
-  const black: RGB = [0, 0, 0]
-  const white: RGB = [255, 255, 255]
-  const destination =
-    contrastRatio(black, background) > contrastRatio(white, background)
-      ? black
-      : white
-  for (let amount = 0.01; amount <= 1.01; amount += 0.01) {
-    const candidate = color.map((channel, index) =>
-      Math.round(
-        channel + (destination[index] - channel) * Math.min(amount, 1),
-      ),
-    ) as RGB
-    if (contrastRatio(candidate, background) >= 4.5) return candidate
-  }
-  return destination
-}
+export { contrastRatio, readableColor } from '#/lib/color'
+export type { RGB } from '#/lib/color'
 
 let colorContext: CanvasRenderingContext2D | null | undefined
 

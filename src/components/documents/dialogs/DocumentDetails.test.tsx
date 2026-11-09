@@ -1,5 +1,4 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
 import {
   $createParagraphNode,
   $createTextNode,
@@ -8,7 +7,7 @@ import {
 } from 'lexical'
 import { Doc, encodeStateAsUpdate } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { Root } from 'react-dom/client'
+import { setupTestRoot } from '#/test/react-test'
 import {
   DocumentDetailsDialog,
   DocumentDetailsPopover,
@@ -22,13 +21,11 @@ vi.mock('yjs', async (original) => {
   return { ...actual, encodeStateAsUpdate: vi.fn(actual.encodeStateAsUpdate) }
 })
 
-let root: Root
-let container: HTMLDivElement
 let doc: Doc
+const harness = setupTestRoot()
 const info = { id: 'test-document', name: 'My notes', updatedAt: 1700000000000 }
 
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.stubGlobal(
     'matchMedia',
     vi.fn(() => ({
@@ -37,18 +34,12 @@ beforeEach(() => {
       removeEventListener: vi.fn(),
     })),
   )
-  container = document.createElement('div')
-  document.body.append(container)
-  root = createRoot(container)
   doc = new Doc()
 })
 
-afterEach(async () => {
-  await act(() => root.unmount())
-  container.remove()
+afterEach(() => {
   doc.destroy()
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 function value(label: string) {
@@ -68,7 +59,7 @@ it('shows metadata, live word counts, and the document state size', async () => 
     { discrete: true },
   )
   await act(() =>
-    root.render(
+    harness.root.render(
       <DocumentDetailsDialog
         document={info}
         documentRef={{ current: doc }}
@@ -110,7 +101,7 @@ it('waits for the existing editor session instead of opening another document', 
     current: null,
   }
   await act(() =>
-    root.render(
+    harness.root.render(
       <DocumentDetailsDialog
         document={info}
         documentRef={documentRef}
@@ -133,13 +124,13 @@ it('opens sidebar metadata only after a second without loading document content'
   vi.useFakeTimers()
   const openDocument = vi.spyOn(localDocumentStorage, 'open')
   await act(() =>
-    root.render(
+    harness.root.render(
       <DocumentDetailsPopover document={info}>
         <a href="#document">My notes</a>
       </DocumentDetailsPopover>,
     ),
   )
-  const trigger = container.querySelector('a')!
+  const trigger = harness.container.querySelector('a')!
   await act(() => {
     const pointer = new MouseEvent('pointerover', { bubbles: true })
     Object.defineProperty(pointer, 'pointerType', { value: 'mouse' })
@@ -171,7 +162,7 @@ it('coalesces document updates and skips serialization for selection-only change
     { discrete: true },
   )
   await act(() =>
-    root.render(
+    harness.root.render(
       <DocumentDetailsDialog
         document={info}
         documentRef={{ current: doc }}

@@ -1,33 +1,25 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
-import type { Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { setupTestRoot } from '#/test/react-test'
 import {
   CanaryWarningDialog,
   CANARY_WARNING_STORAGE_KEY,
 } from './canary-warning-dialog'
 
-let root: Root
-let container: HTMLDivElement
+const harness = setupTestRoot()
 
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   localStorage.clear()
-  container = document.createElement('div')
-  document.body.append(container)
-  root = createRoot(container)
 })
 
-afterEach(async () => {
-  await act(() => root.unmount())
-  container.remove()
+afterEach(() => {
   localStorage.clear()
 })
 
 describe('CanaryWarningDialog', () => {
   it('shows welcoming pre-alpha warning dialog when not yet acknowledged', async () => {
     await act(async () => {
-      root.render(<CanaryWarningDialog />)
+      harness.root.render(<CanaryWarningDialog />)
     })
 
     expect(document.body.textContent).toContain('Welcome to Concept!')
@@ -44,7 +36,7 @@ describe('CanaryWarningDialog', () => {
 
   it('keeps Acknowledge button disabled until checkbox is checked', async () => {
     await act(async () => {
-      root.render(<CanaryWarningDialog />)
+      harness.root.render(<CanaryWarningDialog />)
     })
 
     const acknowledgeButton = Array.from(
@@ -76,7 +68,7 @@ describe('CanaryWarningDialog', () => {
 
   it('saves acknowledgement to localStorage and closes when Acknowledge is clicked', async () => {
     await act(async () => {
-      root.render(<CanaryWarningDialog />)
+      harness.root.render(<CanaryWarningDialog />)
     })
 
     const checkbox = document.querySelector(
@@ -104,7 +96,7 @@ describe('CanaryWarningDialog', () => {
     localStorage.setItem(CANARY_WARNING_STORAGE_KEY, 'true')
 
     await act(async () => {
-      root.render(<CanaryWarningDialog />)
+      harness.root.render(<CanaryWarningDialog />)
     })
 
     expect(document.body.textContent).not.toContain('Welcome to Concept!')

@@ -23,6 +23,14 @@ import type {
 } from 'react'
 import { cn } from 'cn'
 import { flushSync } from 'react-dom'
+import {
+  clamp,
+  fromLinear,
+  linearToOklab,
+  oklchToLinear,
+  toLinear,
+  wrapHue,
+} from '@/lib/color'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -155,11 +163,6 @@ const FORMAT_LABELS: Record<ColorPickerFormat, string> = {
 /*                                 Color math                                 */
 /* -------------------------------------------------------------------------- */
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value))
-
-const wrapHue = (hue: number) => ((hue % 360) + 360) % 360
-
 /* Trailing zeros dropped, and never "-0". */
 const fixed = (value: number, digits: number) =>
   String(Number(value.toFixed(digits)) + 0)
@@ -209,30 +212,6 @@ function hslToHsv([hue, saturation, lightness]: Triple): Triple {
   return [hue, v === 0 ? 0 : 2 * (1 - l / v) * 100, v * 100]
 }
 
-const toLinear = (channel: number) => {
-  const c = channel / 255
-  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-}
-
-const fromLinear = (channel: number) =>
-  255 *
-  (channel <= 0.0031308
-    ? 12.92 * channel
-    : 1.055 * channel ** (1 / 2.4) - 0.055)
-
-/* OKLab by Björn Ottosson, the matrices CSS Color 4 uses. Linear sRGB in,
-   unbounded, so a wide-gamut color converts without clipping. */
-function linearToOklab([r, g, b]: Triple): Triple {
-  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
-  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
-  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
-  return [
-    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
-    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
-    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
-  ]
-}
-
 /* OKLab, or polar a and b, to OKLCH in the picker's units: L 0 to 100. */
 function oklabToOklch([lightness, a, b]: Triple, fallbackHue = 0): Triple {
   const chroma = Math.sqrt(a * a + b * b)
@@ -243,21 +222,6 @@ function oklabToOklch([lightness, a, b]: Triple, fallbackHue = 0): Triple {
 
 function rgbToOklch(rgb: Triple, fallbackHue = 0): Triple {
   return oklabToOklch(linearToOklab(rgb.map(toLinear) as Triple), fallbackHue)
-}
-
-function oklchToLinear([lightness, chroma, hue]: Triple): Triple {
-  const angle = (hue * Math.PI) / 180
-  const L = lightness / 100
-  const a = chroma * Math.cos(angle)
-  const b = chroma * Math.sin(angle)
-  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
-  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
-  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
-  return [
-    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
-  ]
 }
 
 const inSrgb = (linear: Triple) =>

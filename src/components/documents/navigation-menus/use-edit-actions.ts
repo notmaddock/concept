@@ -4,7 +4,6 @@ import {
   $getSelection,
   $isNodeSelection,
   $isRangeSelection,
-  $isTextNode,
   CAN_REDO_COMMAND,
   CAN_UNDO_COMMAND,
   COMMAND_PRIORITY_LOW,
@@ -16,6 +15,8 @@ import {
 } from 'lexical'
 import type { LexicalEditor } from 'lexical'
 import type { RefObject } from 'react'
+import { $clearSelectionFormatting } from './use-format-actions'
+import { isMac } from './ActionShortcut'
 
 export type EditAction =
   | 'undo'
@@ -27,16 +28,6 @@ export type EditAction =
   | 'select-all'
   | 'delete-selection'
   | 'clear-formatting'
-
-function $clearSelectionFormatting() {
-  const selection = $getSelection()
-  if (!$isRangeSelection(selection) || selection.isCollapsed()) return
-  selection.extract().forEach((node) => {
-    if ($isTextNode(node)) node.setFormat(0).setStyle('')
-  })
-  selection.format = 0
-  selection.style = ''
-}
 
 export function useEditActions(
   editorRef: RefObject<LexicalEditor | null>,
@@ -225,9 +216,7 @@ export function useEditActions(
         )
       }
     } catch {
-      const modifier = /Mac|iPhone|iPad/.test(navigator.platform)
-        ? '⌘'
-        : 'Ctrl+'
+      const modifier = isMac() ? '⌘' : 'Ctrl+'
       const shortcut =
         action === 'copy'
           ? `${modifier}C`

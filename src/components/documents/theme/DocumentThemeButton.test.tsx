@@ -1,7 +1,6 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { Root } from 'react-dom/client'
+import { beforeEach, expect, it, vi } from 'vitest'
+import { setupTestRoot } from '#/test/react-test'
 import { TooltipProvider } from '#/components/ui/tooltip'
 import { publishDocumentTheme } from '#/lib/documents/document-theme'
 import { DocumentThemeButton } from './DocumentThemeButton'
@@ -24,27 +23,17 @@ vi.mock('./select-document-theme', () => ({
   selectDocumentTheme: vi.fn(),
 }))
 
-let root: Root
-let container: HTMLDivElement
+const harness = setupTestRoot()
 
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.clearAllMocks()
   workspace.document = { id: 'doc' }
   publishDocumentTheme('doc', 'paper')
-  container = document.createElement('div')
-  document.body.append(container)
-  root = createRoot(container)
-})
-
-afterEach(async () => {
-  await act(() => root.unmount())
-  container.remove()
 })
 
 function render() {
   return act(() =>
-    root.render(
+    harness.root.render(
       <TooltipProvider>
         <DocumentThemeButton />
       </TooltipProvider>,
@@ -53,7 +42,7 @@ function render() {
 }
 
 function trigger() {
-  return container.querySelector<HTMLButtonElement>(
+  return harness.container.querySelector<HTMLButtonElement>(
     'button[aria-label="Document theme"]',
   )!
 }

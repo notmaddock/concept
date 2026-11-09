@@ -12,7 +12,7 @@ import {
 } from '#/lib/documents/document-theme'
 import { selectDocumentTheme } from '../theme/select-document-theme'
 import { useCallback, useSyncExternalStore } from 'react'
-import { formatSections } from './format-options'
+import { formatActions, formatSections } from './format-options'
 import type { useFormatActions } from './use-format-actions'
 
 import type { EditAction, useEditActions } from './use-edit-actions'
@@ -47,9 +47,7 @@ import {
 } from 'lucide-react'
 import { useTheme } from '#/components/theme-provider'
 
-export const formatActions = formatSections.flatMap((section) =>
-  section.choices.map((choice) => choice.action),
-)
+export { formatActions }
 
 export type ActionShortcut = {
   keys: string[]
@@ -215,54 +213,54 @@ export const documentNavigation: MenuDefinition[] = [
         id: 'export',
         label: 'Export as...',
         icon: FileDownIcon,
-        children: [
-          {
-            id: 'export-pdf',
-            label: 'Export as PDF',
-            menuLabel: 'PDF (.pdf)',
-            keywords: ['download'],
-            icon: FileTypeIcon,
-            focusAfterSelect: 'action',
-            onSelect: () => window.print(),
-          },
-          {
-            id: 'export-word',
-            label: 'Export as Word',
-            menuLabel: 'Word (.docx)',
-            keywords: ['docx'],
-            icon: FileTextIcon,
-            focusAfterSelect: 'action',
-            onSelect: () => {},
-            disabled: () => true,
-          },
-          {
-            id: 'export-markdown',
-            label: 'Export as Markdown',
-            menuLabel: 'Markdown (.md)',
-            keywords: ['md'],
-            icon: LetterTextIcon,
-            focusAfterSelect: 'action',
-            onSelect: (context) => context.onExport('markdown'),
-          },
-          {
-            id: 'export-text',
-            label: 'Export as plain text',
-            menuLabel: 'Plain text (.txt)',
-            keywords: ['txt'],
-            icon: FileTextIcon,
-            focusAfterSelect: 'action',
-            onSelect: (context) => context.onExport('text'),
-          },
-          {
-            id: 'export-html',
-            label: 'Export as HTML',
-            menuLabel: 'HTML (.html)',
-            keywords: ['web', 'download'],
-            icon: FileTypeIcon,
-            focusAfterSelect: 'action',
-            onSelect: (context) => context.onExport('html'),
-          },
-        ],
+        children: (
+          [
+            {
+              id: 'export-pdf',
+              label: 'Export as PDF',
+              menuLabel: 'PDF (.pdf)',
+              keywords: ['download'],
+              icon: FileTypeIcon,
+              onSelect: () => window.print(),
+            },
+            {
+              id: 'export-word',
+              label: 'Export as Word',
+              menuLabel: 'Word (.docx)',
+              keywords: ['docx'],
+              icon: FileTextIcon,
+              onSelect: () => {},
+              disabled: () => true,
+            },
+            {
+              id: 'export-markdown',
+              label: 'Export as Markdown',
+              menuLabel: 'Markdown (.md)',
+              keywords: ['md'],
+              icon: LetterTextIcon,
+              onSelect: (context: NavigationContext) =>
+                context.onExport('markdown'),
+            },
+            {
+              id: 'export-text',
+              label: 'Export as plain text',
+              menuLabel: 'Plain text (.txt)',
+              keywords: ['txt'],
+              icon: FileTextIcon,
+              onSelect: (context: NavigationContext) =>
+                context.onExport('text'),
+            },
+            {
+              id: 'export-html',
+              label: 'Export as HTML',
+              menuLabel: 'HTML (.html)',
+              keywords: ['web', 'download'],
+              icon: FileTypeIcon,
+              onSelect: (context: NavigationContext) =>
+                context.onExport('html'),
+            },
+          ] satisfies Omit<ActionDefinition, 'focusAfterSelect'>[]
+        ).map((item) => ({ ...item, focusAfterSelect: 'action' as const })),
       },
       {
         id: 'details',
@@ -294,22 +292,19 @@ export const documentNavigation: MenuDefinition[] = [
   },
   {
     label: 'Edit',
-    items: [
-      editOption('undo', 'Undo', Undo2Icon),
-      editOption('redo', 'Redo', Redo2Icon),
-      editOption('cut', 'Cut', ScissorsIcon, true),
-      editOption('copy', 'Copy', CopyIcon),
-      editOption('paste', 'Paste', ClipboardPasteIcon),
-      editOption('paste-plain', 'Paste without formatting', ClipboardTypeIcon),
-      editOption('select-all', 'Select all', TextSelectIcon, true),
-      editOption('delete-selection', 'Delete selection', Trash2Icon),
-      editOption(
-        'clear-formatting',
-        'Clear formatting',
-        RemoveFormattingIcon,
-        true,
-      ),
-    ],
+    items: (
+      [
+        ['undo', 'Undo', Undo2Icon],
+        ['redo', 'Redo', Redo2Icon],
+        ['cut', 'Cut', ScissorsIcon, true],
+        ['copy', 'Copy', CopyIcon],
+        ['paste', 'Paste', ClipboardPasteIcon],
+        ['paste-plain', 'Paste without formatting', ClipboardTypeIcon],
+        ['select-all', 'Select all', TextSelectIcon, true],
+        ['delete-selection', 'Delete selection', Trash2Icon],
+        ['clear-formatting', 'Clear formatting', RemoveFormattingIcon, true],
+      ] as const
+    ).map(([id, label, icon, sep]) => editOption(id, label, icon, sep)),
   },
   {
     label: 'View',
@@ -318,38 +313,28 @@ export const documentNavigation: MenuDefinition[] = [
         id: 'theme',
         label: 'Appearance',
         icon: PaletteIcon,
-        children: [
-          {
-            id: 'theme-light',
-            label: 'Light theme',
-            menuLabel: 'Light',
-            keywords: ['appearance'],
-            icon: SunIcon,
-            focusAfterSelect: 'editor',
-            onSelect: (context) => context.setTheme('light'),
-            checked: (context) => context.theme === 'light',
-          },
-          {
-            id: 'theme-dark',
-            label: 'Dark theme',
-            menuLabel: 'Dark',
-            keywords: ['appearance'],
-            icon: MoonIcon,
-            focusAfterSelect: 'editor',
-            onSelect: (context) => context.setTheme('dark'),
-            checked: (context) => context.theme === 'dark',
-          },
-          {
-            id: 'theme-system',
-            label: 'System theme',
-            menuLabel: 'System',
-            keywords: ['appearance', 'automatic'],
-            icon: MonitorIcon,
-            focusAfterSelect: 'editor',
-            onSelect: (context) => context.setTheme('system'),
-            checked: (context) => context.theme === 'system',
-          },
-        ],
+        children: (
+          [
+            ['light', 'Light theme', 'Light', SunIcon, ['appearance']],
+            ['dark', 'Dark theme', 'Dark', MoonIcon, ['appearance']],
+            [
+              'system',
+              'System theme',
+              'System',
+              MonitorIcon,
+              ['appearance', 'automatic'],
+            ],
+          ] as const
+        ).map(([id, label, menuLabel, icon, keywords]) => ({
+          id: `theme-${id}`,
+          label,
+          menuLabel,
+          keywords: [...keywords],
+          icon,
+          focusAfterSelect: 'editor' as const,
+          onSelect: (context: NavigationContext) => context.setTheme(id),
+          checked: (context: NavigationContext) => context.theme === id,
+        })),
       },
       {
         id: 'document-theme',
@@ -528,17 +513,17 @@ export function useDocumentNavigationOptions({
   return { menus, options }
 }
 
+const actionShortcuts = new Map<string, ActionShortcut>()
+function indexShortcuts(items: MenuItemDefinition[]) {
+  for (const item of items) {
+    if ('children' in item) indexShortcuts(item.children)
+    else if (item.shortcut) actionShortcuts.set(item.id, item.shortcut)
+  }
+}
+indexShortcuts(documentNavigation.flatMap((menu) => menu.items))
+
 export function getDocumentActionShortcut(
   id: string,
 ): ActionShortcut | undefined {
-  function find(items: MenuItemDefinition[]): ActionShortcut | undefined {
-    for (const item of items) {
-      if ('children' in item) {
-        const shortcut = find(item.children)
-        if (shortcut) return shortcut
-      } else if (item.id === id) return item.shortcut
-    }
-    return undefined
-  }
-  return find(documentNavigation.flatMap((menu) => menu.items))
+  return actionShortcuts.get(id)
 }

@@ -1,5 +1,6 @@
 import { $getRoot, $getState, $setState, createState } from 'lexical'
 import { DEFAULT_DOCUMENT_THEME_ID, documentThemeIds } from './document-themes'
+import { createListenerSet } from '#/lib/listener'
 
 export const documentThemeState = createState('documentTheme', {
   parse(value: unknown): string {
@@ -18,21 +19,18 @@ export function $setDocumentTheme(id: string) {
 }
 
 const themes = new Map<string, string>()
-const listeners = new Set<() => void>()
+const listeners = createListenerSet()
 
 export function getDocumentTheme(id: string) {
   return themes.get(id) ?? DEFAULT_DOCUMENT_THEME_ID
 }
 
 export function subscribeDocumentTheme(_id: string, listener: () => void) {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
+  return listeners.subscribe(listener)
 }
 
 function notify() {
-  listeners.forEach((listener) => listener())
+  listeners.notify()
 }
 
 export function publishDocumentTheme(id: string, themeId: string) {

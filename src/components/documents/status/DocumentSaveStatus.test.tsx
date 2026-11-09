@@ -1,25 +1,10 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { Root } from 'react-dom/client'
+import { expect, it, vi } from 'vitest'
 import type { SaveStatus } from '#/lib/documents/sync'
 import { DocumentSaveStatus } from './DocumentSaveStatus'
+import { setupTestRoot } from '#/test/react-test'
 
-let container: HTMLDivElement
-let root: Root
-
-beforeEach(() => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  container = document.createElement('div')
-  document.body.append(container)
-  root = createRoot(container)
-})
-
-afterEach(async () => {
-  await act(async () => root.unmount())
-  container.remove()
-  vi.unstubAllGlobals()
-})
+const harness = setupTestRoot()
 
 it.each<[SaveStatus['phase'], boolean, string]>([
   ['local', false, 'All changes saved locally'],
@@ -33,11 +18,11 @@ it.each<[SaveStatus['phase'], boolean, string]>([
   'announces %s and expands only when useful',
   async (phase, expanded, label) => {
     await act(async () => {
-      root.render(
+      harness.root.render(
         <DocumentSaveStatus status={{ phase }} provider="google-drive" />,
       )
     })
-    const trigger = container.querySelector('button')!
+    const trigger = harness.container.querySelector('button')!
     expect(trigger.getAttribute('aria-label')).toBe(label)
     expect(trigger.dataset.expanded).toBe(String(expanded))
     expect(
@@ -48,11 +33,11 @@ it.each<[SaveStatus['phase'], boolean, string]>([
 
 it('identifies a local save destination', async () => {
   await act(async () => {
-    root.render(<DocumentSaveStatus status={{ phase: 'saving' }} />)
+    harness.root.render(<DocumentSaveStatus status={{ phase: 'saving' }} />)
   })
-  expect(container.querySelector('button')?.getAttribute('aria-label')).toBe(
-    'Saving to this device',
-  )
+  expect(
+    harness.container.querySelector('button')?.getAttribute('aria-label'),
+  ).toBe('Saving to this device')
 })
 
 it('uses a controlled offline switch and exposes the containing folder action', async () => {
@@ -60,7 +45,7 @@ it('uses a controlled offline switch and exposes the containing folder action', 
   const onOpenContainingFolder = vi.fn()
   const renderStatus = async (offlineAvailable: boolean) => {
     await act(async () => {
-      root.render(
+      harness.root.render(
         <DocumentSaveStatus
           status={{ phase: 'synced', offlineAvailable }}
           provider="google-drive"
@@ -73,7 +58,7 @@ it('uses a controlled offline switch and exposes the containing folder action', 
   const getSwitch = () =>
     document.body.querySelector<HTMLElement>('[role="switch"]')!
   await renderStatus(false)
-  await act(async () => container.querySelector('button')!.click())
+  await act(async () => harness.container.querySelector('button')!.click())
   expect(getSwitch().getAttribute('aria-checked')).toBe('false')
   const label = getSwitch().closest('label')!
   expect(label.textContent).toContain('Available offline')

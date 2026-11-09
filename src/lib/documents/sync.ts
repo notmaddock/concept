@@ -35,6 +35,7 @@ import type { DocumentAssetResolver } from './asset-session'
 import type { PublicationTransport } from './publication'
 import type { DriveFileVersion } from './drive/api'
 import { capabilitiesFromDrive } from './realtime/capabilities'
+import { createListenerSet } from '#/lib/listener'
 import {
   isLiveCollaborationEnabled,
   subscribeLiveCollaboration,
@@ -70,33 +71,26 @@ export interface SaveStatus {
 
 const emptyStatus: SaveStatus = { phase: 'loading' }
 const statuses = new Map<string, SaveStatus>()
-const listeners = new Set<() => void>()
+const saveStatusListeners = createListenerSet()
 export const documentSessions = new Map<string, DocumentSync>()
 const realtimeProviders = new Map<string, RealtimeProvider>()
-const realtimeProviderListeners = new Set<() => void>()
+const realtimeProviderListeners = createListenerSet()
 export const getRealtimeProvider = (id: string) => realtimeProviders.get(id)
 export function subscribeRealtimeProviders(listener: () => void) {
-  realtimeProviderListeners.add(listener)
-  return () => {
-    realtimeProviderListeners.delete(listener)
-  }
+  return realtimeProviderListeners.subscribe(listener)
 }
 function notifyRealtimeProviders() {
-  realtimeProviderListeners.forEach((listener) => listener())
+  realtimeProviderListeners.notify()
 }
-export const subscribeSaveStatus = (listener: () => void) => {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
+export const subscribeSaveStatus = (listener: () => void) =>
+  saveStatusListeners.subscribe(listener)
 export const getSaveStatus = (id: string) => statuses.get(id) ?? emptyStatus
 export function setSaveStatus(id: string, status: SaveStatus) {
   statuses.set(id, status)
-  listeners.forEach((listener) => listener())
+  saveStatusListeners.notify()
 }
 export function clearSaveStatus(id: string) {
-  if (statuses.delete(id)) listeners.forEach((listener) => listener())
+  if (statuses.delete(id)) saveStatusListeners.notify()
 }
 
 export function documentName(doc: Doc, fallback: string) {

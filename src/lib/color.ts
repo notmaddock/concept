@@ -11,23 +11,22 @@ export type Oklch = {
 
 type Triple = [number, number, number]
 
-const clamp = (value: number, min: number, max: number) =>
+export const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value))
 
-const wrapHue = (hue: number) => ((hue % 360) + 360) % 360
-
-const toLinear = (channel: number) => {
+export const wrapHue = (hue: number) => ((hue % 360) + 360) % 360
+export const toLinear = (channel: number) => {
   const c = channel / 255
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
 }
 
-const fromLinear = (channel: number) =>
+export const fromLinear = (channel: number) =>
   255 *
   (channel <= 0.0031308
     ? 12.92 * channel
     : 1.055 * channel ** (1 / 2.4) - 0.055)
 
-function linearToOklab([r, g, b]: Triple): Triple {
+export function linearToOklab([r, g, b]: Triple): Triple {
   const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
   const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
   const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
@@ -47,7 +46,7 @@ function oklabToOklch([lightness, a, b]: Triple): Oklch {
   }
 }
 
-function oklchToLinear([lightness, chroma, hue]: Triple): Triple {
+export function oklchToLinear([lightness, chroma, hue]: Triple): Triple {
   const angle = (hue * Math.PI) / 180
   const L = lightness / 100
   const a = chroma * Math.cos(angle)
@@ -179,4 +178,23 @@ export function contrastRatio(first: RGB, second: RGB) {
   const a = relativeLuminance(first)
   const b = relativeLuminance(second)
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+}
+
+export function readableColor(color: RGB, background: RGB): RGB {
+  if (contrastRatio(color, background) >= 4.5) return color
+  const black: RGB = [0, 0, 0]
+  const white: RGB = [255, 255, 255]
+  const destination =
+    contrastRatio(black, background) > contrastRatio(white, background)
+      ? black
+      : white
+  for (let amount = 0.01; amount <= 1.01; amount += 0.01) {
+    const candidate = color.map((channel, index) =>
+      Math.round(
+        channel + (destination[index] - channel) * Math.min(amount, 1),
+      ),
+    ) as RGB
+    if (contrastRatio(candidate, background) >= 4.5) return candidate
+  }
+  return destination
 }
