@@ -54,6 +54,15 @@ function MenuItems({
       )
     }
 
+    const onClick = () => {
+      if (item.focusAfterSelect === 'editor') onEditorAction()
+      void item.onSelect()
+    }
+    const label = (
+      <>
+        <Icon /> {item.menuLabel ?? item.label}
+      </>
+    )
     return (
       <Fragment key={item.id}>
         {item.separatorBefore && <DropdownMenuSeparator />}
@@ -63,35 +72,26 @@ function MenuItems({
             className={documentMenuItemClassName}
             checked={item.checked}
             disabled={item.disabled}
-            onClick={() => {
-              if (item.focusAfterSelect === 'editor') onEditorAction()
-              void item.onSelect()
-            }}
+            onClick={onClick}
           >
-            <Icon /> {item.menuLabel ?? item.label}
+            {label}
           </DropdownMenuCheckboxItem>
         ) : item.checked !== undefined ? (
           <DropdownMenuRadioItem
             className={documentMenuItemClassName}
             value={item.id}
             disabled={item.disabled}
-            onClick={() => {
-              if (item.focusAfterSelect === 'editor') onEditorAction()
-              void item.onSelect()
-            }}
+            onClick={onClick}
           >
-            <Icon /> {item.menuLabel ?? item.label}
+            {label}
           </DropdownMenuRadioItem>
         ) : (
           <DropdownMenuItem
             className={documentMenuItemClassName}
-            onClick={() => {
-              if (item.focusAfterSelect === 'editor') onEditorAction()
-              void item.onSelect()
-            }}
+            onClick={onClick}
             disabled={item.disabled}
           >
-            <Icon /> {item.menuLabel ?? item.label}
+            {label}
             <ActionShortcut shortcut={item.shortcut} />
           </DropdownMenuItem>
         )}

@@ -45,6 +45,22 @@ import {
 } from '@lexical/list'
 import type { FormatAction } from './format-options'
 
+export function $clearSelectionFormatting() {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection) || selection.isCollapsed()) return
+  selection.extract().forEach((node) => {
+    if ($isTextNode(node)) node.setFormat(0).setStyle('')
+  })
+  selection.format = 0
+  selection.style = ''
+}
+
+const listCommands = {
+  bullet: INSERT_UNORDERED_LIST_COMMAND,
+  number: INSERT_ORDERED_LIST_COMMAND,
+  check: INSERT_CHECK_LIST_COMMAND,
+  none: REMOVE_LIST_COMMAND,
+} as const
 function $blocks(selection: RangeSelection): ElementNode[] {
   const blocks = new Map<string, ElementNode>()
   for (const node of [...selection.getNodes(), selection.anchor.getNode()]) {
@@ -87,11 +103,7 @@ export function $applyFormatAction(action: FormatAction) {
       $setParagraphStyle(node, style.cssText)
     })
   else if (action.kind === 'clear' && action.value === 'text') {
-    selection.extract().forEach((node) => {
-      if ($isTextNode(node)) node.setFormat(0).setStyle('')
-    })
-    selection.format = 0
-    selection.style = ''
+    $clearSelectionFormatting()
   } else if (action.kind === 'clear')
     $blocks(selection).forEach((node) => {
       $setParagraphStyle(node, '')
@@ -293,16 +305,7 @@ export function useFormatActions(
             undefined,
           )
         else if (action.kind === 'list')
-          editor.dispatchCommand(
-            action.value === 'bullet'
-              ? INSERT_UNORDERED_LIST_COMMAND
-              : action.value === 'number'
-                ? INSERT_ORDERED_LIST_COMMAND
-                : action.value === 'check'
-                  ? INSERT_CHECK_LIST_COMMAND
-                  : REMOVE_LIST_COMMAND,
-            undefined,
-          )
+          editor.dispatchCommand(listCommands[action.value], undefined)
         else if (action.kind === 'text')
           editor.dispatchCommand(FORMAT_TEXT_COMMAND, action.value)
         else $applyFormatAction(action)

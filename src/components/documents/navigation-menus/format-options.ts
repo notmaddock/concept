@@ -266,3 +266,7 @@ export const formatSections = [
     ],
   },
 ]
+
+export const formatActions = formatSections.flatMap((section) =>
+  section.choices.map((item) => item.action),
+)

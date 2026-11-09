@@ -3,7 +3,8 @@ import type { ActionShortcut as Shortcut } from './document-navigation-options'
 import { Kbd, KbdGroup } from '#/components/ui/kbd'
 
 const subscribe = () => () => {}
-const isMac = () => /Mac|iPhone|iPad/.test(navigator.platform)
+export const isMac = () =>
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 
 export function ActionShortcut({ shortcut }: { shortcut?: Shortcut }) {
   const mac = useSyncExternalStore(subscribe, isMac, () => false)
