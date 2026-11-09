@@ -30,7 +30,8 @@ function getSubscription(query: string): QuerySubscription {
 }
 
 function subscribeQuery(query: string, notify: () => void) {
-  if (typeof window === 'undefined') return () => {}
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function')
+    return () => {}
   const sub = getSubscription(query)
   const unsubscribe = sub.listeners.subscribe(notify)
   return () => {
@@ -49,8 +50,12 @@ export function useMediaQuery(query: string) {
   return useSyncExternalStore(
     subscribe,
     () => {
-      if (typeof window === 'undefined') return false
-      return getSubscription(query).mediaQuery.matches
+      if (
+        typeof window === 'undefined' ||
+        typeof window.matchMedia !== 'function'
+      )
+        return false
+      return subscriptions.get(query)?.mediaQuery.matches ?? false
     },
     () => false,
   )
