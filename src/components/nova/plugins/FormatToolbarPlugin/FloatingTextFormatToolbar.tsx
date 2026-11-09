@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useMediaQuery } from '#/hooks/use-media-query'
 
 import { TypographyControls, FormatIcon } from './TypographyControls'
 import { useFormatActions } from '#/components/documents/navigation-menus/use-format-actions'
@@ -24,18 +25,6 @@ import {
 import { ColorSelect } from './ColorSelect'
 import type { FormatState, PositionRect } from './types'
 
-const coarsePointerQuery = '(pointer: coarse)'
-function subscribeToPointer(onChange: () => void) {
-  const media = window.matchMedia(coarsePointerQuery)
-  media.addEventListener('change', onChange)
-  return () => media.removeEventListener('change', onChange)
-}
-function getCoarsePointer() {
-  return window.matchMedia(coarsePointerQuery).matches
-}
-function getServerCoarsePointer() {
-  return false
-}
 
 type FormatConfig = {
   format: TextFormatType
@@ -88,11 +77,7 @@ export function FloatingTextFormatToolbar({
   formatState,
   onOpenChange,
 }: FloatingTextFormatToolbarProps) {
-  const isMobile = useSyncExternalStore(
-    subscribeToPointer,
-    getCoarsePointer,
-    getServerCoarsePointer,
-  )
+  const isMobile = useMediaQuery('(pointer: coarse)')
   const [viewport, setViewport] = useState({
     bottom: 0,
     left: 0,
