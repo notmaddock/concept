@@ -25,7 +25,6 @@ import {
 import { ColorSelect } from './ColorSelect'
 import type { FormatState, PositionRect } from './types'
 
-
 type FormatConfig = {
   format: TextFormatType
   stateKey: keyof FormatState
