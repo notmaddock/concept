@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import type { ReactElement } from 'react'
 import type { DocumentInfo } from '#/lib/documents/storage'
-import { storageLocations } from '#/lib/documents/storage-locations'
-import { DriveIcon } from '../icons/DriveIcon'
+import { StorageLocation } from '../DocumentMetadataRows'
 import { useIsMobile } from '#/hooks/use-mobile'
 import {
   Popover,
@@ -11,19 +10,7 @@ import {
   PopoverTrigger,
 } from '#/components/ui/popover'
 
-export function StorageLocation({ document }: { document?: DocumentInfo }) {
-  const location = storageLocations.local
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      {document?.drive ? (
-        <DriveIcon className="size-3.5 shrink-0" />
-      ) : (
-        <location.icon aria-hidden="true" className="size-3.5 shrink-0" />
-      )}
-      {document?.drive ? 'Google Drive' : location.label}
-    </span>
-  )
-}
+export { StorageLocation }
 
 export function DocumentDetailsPopover({
   document,

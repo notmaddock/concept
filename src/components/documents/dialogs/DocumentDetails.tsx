@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useState } from 'react'
-import type { ReactNode, RefObject } from 'react'
+import { useEffect, useState } from 'react'
+import type { RefObject } from 'react'
 import { $getRoot } from 'lexical'
 import type { LexicalEditor } from 'lexical'
 import type { Doc } from 'yjs'
@@ -13,33 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#/components/ui/dialog'
-import { StorageLocation } from '../list/DocumentDetailsPopover'
+import {
+  DetailRows,
+  metadataRows,
+  StorageLocation,
+} from '../DocumentMetadataRows'
 
+export { StorageLocation }
 export { DocumentDetailsPopover } from '../list/DocumentDetailsPopover'
-
-function DetailRows({ rows }: { rows: Array<[string, ReactNode]> }) {
-  return (
-    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-3 text-sm">
-      {rows.map(([label, value]) => (
-        <Fragment key={label}>
-          <dt className="text-muted-foreground">{label}</dt>
-          <dd className="min-w-0 break-words [overflow-wrap:anywhere]">
-            {value}
-          </dd>
-        </Fragment>
-      ))}
-    </dl>
-  )
-}
-
-function metadataRows(document: DocumentInfo): Array<[string, ReactNode]> {
-  return [
-    ['Name', document.name],
-    ['Location', <StorageLocation key="location" document={document} />],
-    ['Library updated', new Date(document.updatedAt).toLocaleString()],
-    ['Document ID', document.id],
-  ]
-}
 
 export function DocumentDetailsDialog({
   document,
