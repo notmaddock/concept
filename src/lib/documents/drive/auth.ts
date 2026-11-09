@@ -1,4 +1,6 @@
 import { createAuthClient } from 'better-auth/client'
+import { createListenerSet } from '#/lib/listener'
+import type { ListenerSet } from '#/lib/listener'
 
 const authClient = createAuthClient()
 type SessionState = {
@@ -6,14 +8,14 @@ type SessionState = {
   configured: boolean
   revision: number
   loading?: Promise<void>
-  listeners: Set<() => void>
+  listeners: ListenerSet
 }
 const hot = import.meta.hot?.data as { driveSession?: SessionState } | undefined
 const state: SessionState = hot?.driveSession ?? {
   connected: false,
   configured: true,
   revision: 0,
-  listeners: new Set(),
+  listeners: createListenerSet(),
 }
 if (hot) hot.driveSession = state
 
@@ -64,19 +66,10 @@ export function getSessionProfile(): Promise<SessionProfile | undefined> {
 }
 
 export function subscribeGoogleDriveAuth(listener: () => void) {
-  state.listeners.add(listener)
-  return () => {
-    state.listeners.delete(listener)
-  }
+  return state.listeners.subscribe(listener)
 }
 function notify() {
-  state.listeners.forEach((listener) => {
-    try {
-      listener()
-    } catch {
-      // Isolate listener exceptions
-    }
-  })
+  state.listeners.notify()
 }
 
 export function invalidateGoogleDriveSession() {
