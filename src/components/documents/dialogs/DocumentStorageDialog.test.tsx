@@ -3,12 +3,11 @@ import { assetId } from '#/lib/documents/assets'
 import { writePackage } from '#/lib/documents/package'
 import { waitForAct } from '#/test/wait-for-act'
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
 import { Doc, XmlText } from 'yjs'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
 import type * as ConceptFileModule from '#/lib/documents/concept-file'
-import type { Root } from 'react-dom/client'
+import { setupTestRoot } from '#/test/react-test'
 import { DocumentStorageDialog } from './DocumentStorageDialog'
 import { storageLocations } from '#/lib/documents/storage-locations'
 import { captureSnapshot } from '#/lib/documents/working'
@@ -23,25 +22,18 @@ vi.mock('#/lib/documents/concept-file', async (original) => ({
   importConcept: mocks.importConcept,
 }))
 
-let root: Root
-let container: HTMLDivElement
+const harness = setupTestRoot()
 let doc: Doc
 const onClose = vi.fn()
 
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.clearAllMocks()
   mocks.importConcept.mockResolvedValue({ id: 'imported' })
   mocks.navigate.mockResolvedValue(undefined)
-  container = document.createElement('div')
-  document.body.append(container)
-  root = createRoot(container)
   doc = new Doc()
   doc.get('root', XmlText).insert(0, 'Document content')
 })
-afterEach(async () => {
-  await act(async () => root.unmount())
-  container.remove()
+afterEach(() => {
   doc.destroy()
 })
 
@@ -58,7 +50,9 @@ async function click(label: string) {
 
 it('requires device selection and confirmation showing file size and origin before opening', async () => {
   await act(async () =>
-    root.render(<DocumentStorageDialog mode="open" onClose={onClose} />),
+    harness.root.render(
+      <DocumentStorageDialog mode="open" onClose={onClose} />,
+    ),
   )
   expect(document.querySelector('input[type="file"]')).toBeNull()
   await click('This device')
@@ -99,7 +93,7 @@ it('requires device selection and confirmation showing file size and origin befo
 
 it('uses the same provider selection to save an independently named copy', async () => {
   await act(async () =>
-    root.render(
+    harness.root.render(
       <DocumentStorageDialog
         mode="copy"
         source={{ name: 'Original', doc }}
@@ -119,7 +113,9 @@ it('uses the same provider selection to save an independently named copy', async
 
 it('keeps invalid files out of storage and displays the error', async () => {
   await act(async () =>
-    root.render(<DocumentStorageDialog mode="open" onClose={onClose} />),
+    harness.root.render(
+      <DocumentStorageDialog mode="open" onClose={onClose} />,
+    ),
   )
   await click('This device')
   const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
@@ -156,7 +152,7 @@ it('opens a library document in place without saving a duplicate', async () => {
     existingId: 'existing-id',
   })
   await act(async () =>
-    root.render(
+    harness.root.render(
       <DocumentStorageDialog
         mode="open"
         onClose={onClose}
@@ -193,7 +189,7 @@ it('saves an imported document to the selected provider independently of its sou
   const saveOther = vi.fn().mockResolvedValue({ id: 'other-copy' })
   const file = await captureSnapshot('External document', doc)
   await act(async () =>
-    root.render(
+    harness.root.render(
       <DocumentStorageDialog
         mode="open"
         onClose={onClose}
@@ -253,7 +249,7 @@ it('saves an imported document to the selected provider independently of its sou
 it('converts an import before saving and reuses destination selection', async () => {
   const save = vi.fn().mockResolvedValue({ id: 'destination' })
   await act(async () =>
-    root.render(
+    harness.root.render(
       <DocumentStorageDialog
         mode="import"
         importFormat="markdown"
@@ -300,7 +296,7 @@ it('converts an import before saving and reuses destination selection', async ()
 
 it('reports library listing failures via toast and suppresses the empty message', async () => {
   await act(async () =>
-    root.render(
+    harness.root.render(
       <DocumentStorageDialog
         mode="open"
         onClose={onClose}
@@ -328,7 +324,7 @@ it('reports library listing failures via toast and suppresses the empty message'
 it('reports save failures via toast without closing the dialog', async () => {
   mocks.importConcept.mockRejectedValueOnce(new Error('Disk quota exceeded.'))
   await act(async () =>
-    root.render(
+    harness.root.render(
       <DocumentStorageDialog
         mode="copy"
         source={{ name: 'Original', doc }}
@@ -357,7 +353,9 @@ it('requires explicit recovery before importing an incomplete package as a local
   delete entries[`assets/${id.slice(7)}`]
   const bytes = zipSync(entries, { level: 0 })
   await act(async () =>
-    root.render(<DocumentStorageDialog mode="open" onClose={onClose} />),
+    harness.root.render(
+      <DocumentStorageDialog mode="open" onClose={onClose} />,
+    ),
   )
   await click('This device')
   const input = document.querySelector<HTMLInputElement>('input[type="file"]')!
@@ -396,7 +394,7 @@ it('opens Google Drive from the Open dialog and closes before showing the picker
     expect(onClose).toHaveBeenCalledOnce()
   })
   await act(async () =>
-    root.render(
+    harness.root.render(
       <DocumentStorageDialog
         mode="open"
         onClose={onClose}

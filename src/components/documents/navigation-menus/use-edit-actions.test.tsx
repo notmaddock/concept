@@ -1,5 +1,5 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
+import { setupTestRoot } from '#/test/react-test'
 import {
   $createParagraphNode,
   $createTextNode,
@@ -12,8 +12,7 @@ import {
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useEditActions } from './use-edit-actions'
 
-let container: HTMLDivElement
-let root: ReturnType<typeof createRoot>
+const harness = setupTestRoot()
 let editor: ReturnType<typeof createEditor>
 let actions: ReturnType<typeof useEditActions>
 const onError = vi.fn()
@@ -27,10 +26,6 @@ function Harness() {
 }
 
 beforeEach(async () => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  container = document.createElement('div')
-  document.body.append(container)
-  root = createRoot(container)
   editor = createEditor({
     namespace: 'edit-test',
     onError: (error) => {
@@ -46,14 +41,11 @@ beforeEach(async () => {
     },
     { discrete: true },
   )
-  await act(() => root.render(<Harness />))
+  await act(() => harness.root.render(<Harness />))
 })
 
-afterEach(async () => {
-  await act(() => root.unmount())
-  container.remove()
+afterEach(() => {
   onError.mockReset()
-  vi.unstubAllGlobals()
 })
 
 it('clears formatting only from the selected text', async () => {

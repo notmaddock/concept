@@ -1,25 +1,10 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { Root } from 'react-dom/client'
+import { expect, it, vi } from 'vitest'
 import type { RealtimeState } from '#/lib/documents/realtime/realtime'
 import { DocumentAccessStatus } from './DocumentAccessStatus'
+import { setupTestRoot } from '#/test/react-test'
 
-let container: HTMLDivElement
-let root: Root
-
-beforeEach(() => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  container = document.createElement('div')
-  document.body.append(container)
-  root = createRoot(container)
-})
-
-afterEach(async () => {
-  await act(async () => root.unmount())
-  container.remove()
-  vi.unstubAllGlobals()
-})
+const harness = setupTestRoot()
 
 const connected: RealtimeState = {
   status: 'connected',
@@ -35,7 +20,7 @@ const viewOnly: RealtimeState = {
 
 it('shows only the highest permission icon in the trigger', async () => {
   await act(async () => {
-    root.render(
+    harness.root.render(
       <DocumentAccessStatus
         readOnly={false}
         realtime={connected}
@@ -45,14 +30,14 @@ it('shows only the highest permission icon in the trigger', async () => {
       />,
     )
   })
-  const trigger = container.querySelector('button')!
+  const trigger = harness.container.querySelector('button')!
   expect(trigger.querySelector('.lucide-pencil')).not.toBeNull()
   expect(trigger.querySelector('.lucide-eye')).toBeNull()
 })
 
 it('shows an eye when the document is view only', async () => {
   await act(async () => {
-    root.render(
+    harness.root.render(
       <DocumentAccessStatus
         readOnly={true}
         realtime={viewOnly}
@@ -62,14 +47,14 @@ it('shows an eye when the document is view only', async () => {
       />,
     )
   })
-  const trigger = container.querySelector('button')!
+  const trigger = harness.container.querySelector('button')!
   expect(trigger.querySelector('.lucide-eye')).not.toBeNull()
   expect(trigger.querySelector('.lucide-pencil')).toBeNull()
 })
 
 it('lists granted and denied permissions with colored indicators', async () => {
   await act(async () => {
-    root.render(
+    harness.root.render(
       <DocumentAccessStatus
         readOnly={true}
         realtime={viewOnly}
@@ -79,7 +64,7 @@ it('lists granted and denied permissions with colored indicators', async () => {
       />,
     )
   })
-  await act(async () => container.querySelector('button')!.click())
+  await act(async () => harness.container.querySelector('button')!.click())
   const rows = document.body.querySelectorAll('[data-granted]')
   expect(rows).toHaveLength(3)
   expect(rows[0].textContent).toContain('You can view this file')
@@ -93,7 +78,7 @@ it('lists granted and denied permissions with colored indicators', async () => {
 
 it('keeps the trigger compact when live collaboration is off', async () => {
   await act(async () => {
-    root.render(
+    harness.root.render(
       <DocumentAccessStatus
         readOnly={false}
         realtime={connected}
@@ -103,14 +88,14 @@ it('keeps the trigger compact when live collaboration is off', async () => {
       />,
     )
   })
-  const trigger = container.querySelector('button')!
+  const trigger = harness.container.querySelector('button')!
   expect(trigger.dataset.expanded).toBe('false')
   expect(
     trigger.querySelector('.document-access-status-label')?.textContent,
   ).toBe('')
   expect(trigger.getAttribute('title')).toContain('Live collaboration off')
   expect(trigger.querySelector('.bg-amber-500')).not.toBeNull()
-  expect(container.textContent).not.toContain('Live collaboration off')
+  expect(harness.container.textContent).not.toContain('Live collaboration off')
 
   await act(async () => trigger.click())
   expect(document.body.textContent).toContain('Live collaboration off')
@@ -121,7 +106,7 @@ it('keeps the trigger compact when live collaboration is off', async () => {
 
 it('names the backing storage in the collaboration notice', async () => {
   await act(async () => {
-    root.render(
+    harness.root.render(
       <DocumentAccessStatus
         readOnly={false}
         realtime={connected}
@@ -131,7 +116,7 @@ it('names the backing storage in the collaboration notice', async () => {
       />,
     )
   })
-  await act(async () => container.querySelector('button')!.click())
+  await act(async () => harness.container.querySelector('button')!.click())
   expect(document.body.textContent).toContain(
     'Changes still sync through Acme Cloud',
   )
@@ -140,7 +125,7 @@ it('names the backing storage in the collaboration notice', async () => {
 
 it('hides live collaboration controls when the storage cannot collaborate', async () => {
   await act(async () => {
-    root.render(
+    harness.root.render(
       <DocumentAccessStatus
         readOnly={false}
         realtime={connected}
@@ -149,7 +134,7 @@ it('hides live collaboration controls when the storage cannot collaborate', asyn
       />,
     )
   })
-  const trigger = container.querySelector('button')!
+  const trigger = harness.container.querySelector('button')!
   expect(trigger.querySelector('.bg-amber-500')).toBeNull()
   expect(trigger.getAttribute('title')).toBe('Can edit')
 
@@ -160,7 +145,7 @@ it('hides live collaboration controls when the storage cannot collaborate', asyn
 
 it('expands into a view-only pill', async () => {
   await act(async () => {
-    root.render(
+    harness.root.render(
       <DocumentAccessStatus
         readOnly={true}
         realtime={viewOnly}
@@ -170,7 +155,7 @@ it('expands into a view-only pill', async () => {
       />,
     )
   })
-  const trigger = container.querySelector('button')!
+  const trigger = harness.container.querySelector('button')!
   expect(trigger.dataset.expanded).toBe('true')
   expect(
     trigger.querySelector('.document-access-status-label')?.textContent,
@@ -198,7 +183,7 @@ it.each([
     })),
   ]
   await act(async () => {
-    root.render(
+    harness.root.render(
       <DocumentAccessStatus
         readOnly={false}
         realtime={{ ...connected, collaborators }}
@@ -208,7 +193,7 @@ it.each([
       />,
     )
   })
-  const trigger = container.querySelector('button')!
+  const trigger = harness.container.querySelector('button')!
   expect(trigger.dataset.expanded).toBe('true')
   expect(
     trigger.querySelector('.document-access-status-label')?.textContent,
@@ -217,7 +202,7 @@ it.each([
 
 it('stays compact when the user is alone', async () => {
   await act(async () => {
-    root.render(
+    harness.root.render(
       <DocumentAccessStatus
         readOnly={false}
         realtime={{
@@ -237,7 +222,9 @@ it('stays compact when the user is alone', async () => {
       />,
     )
   })
-  expect(container.querySelector('button')!.dataset.expanded).toBe('false')
+  expect(harness.container.querySelector('button')!.dataset.expanded).toBe(
+    'false',
+  )
 })
 
 it('lists connected collaborators with names and activity stats', async () => {
@@ -261,7 +248,7 @@ it('lists connected collaborators with names and activity stats', async () => {
     ],
   }
   await act(async () => {
-    root.render(
+    harness.root.render(
       <DocumentAccessStatus
         readOnly={false}
         realtime={withCollaborators}
@@ -271,7 +258,7 @@ it('lists connected collaborators with names and activity stats', async () => {
       />,
     )
   })
-  await act(async () => container.querySelector('button')!.click())
+  await act(async () => harness.container.querySelector('button')!.click())
   const text = document.body.textContent
   expect(text).toContain('Collaborators')
   expect(text).toContain('2 online · 1 editing')
@@ -312,7 +299,7 @@ it('jumps to an editing collaborator but not to viewing or self rows', async () 
     },
   ]
   await act(async () => {
-    root.render(
+    harness.root.render(
       <DocumentAccessStatus
         readOnly={false}
         realtime={{ ...connected, collaborators }}
@@ -323,7 +310,7 @@ it('jumps to an editing collaborator but not to viewing or self rows', async () 
       />,
     )
   })
-  await act(async () => container.querySelector('button')!.click())
+  await act(async () => harness.container.querySelector('button')!.click())
   const jumps = document.body.querySelectorAll<HTMLButtonElement>(
     '[aria-label^="Jump to"]',
   )
@@ -338,7 +325,7 @@ it('jumps to an editing collaborator but not to viewing or self rows', async () 
 it('toggles the live collaboration kill switch from the menu', async () => {
   const onLiveCollaborationChange = vi.fn()
   await act(async () => {
-    root.render(
+    harness.root.render(
       <DocumentAccessStatus
         readOnly={false}
         realtime={connected}
@@ -348,7 +335,7 @@ it('toggles the live collaboration kill switch from the menu', async () => {
       />,
     )
   })
-  await act(async () => container.querySelector('button')!.click())
+  await act(async () => harness.container.querySelector('button')!.click())
   const toggle = document.body.querySelector<HTMLButtonElement>(
     '[data-slot="switch"]',
   )!

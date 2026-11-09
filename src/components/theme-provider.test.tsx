@@ -1,15 +1,13 @@
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
-import type { Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setupTestRoot } from '#/test/react-test'
 import { getThemeScript, ThemeProvider, useTheme } from './theme-provider'
 
 vi.mock('@tanstack/react-router', () => ({
   ScriptOnce: () => null,
 }))
 
-let root: Root
-let container: HTMLDivElement
+const harness = setupTestRoot()
 
 function TestThemeConsumer() {
   const { theme, setTheme } = useTheme()
@@ -23,7 +21,6 @@ function TestThemeConsumer() {
 }
 
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   localStorage.clear()
   vi.restoreAllMocks()
   vi.stubGlobal(
@@ -35,16 +32,10 @@ beforeEach(() => {
       removeEventListener: vi.fn(),
     })),
   )
-  container = document.createElement('div')
-  document.body.append(container)
-  root = createRoot(container)
 })
 
-afterEach(async () => {
-  await act(() => root.unmount())
-  container.remove()
+afterEach(() => {
   localStorage.clear()
-  vi.unstubAllGlobals()
 })
 
 describe('getThemeScript', () => {
@@ -71,7 +62,7 @@ describe('ThemeProvider localStorage error handling', () => {
     })
 
     await act(() =>
-      root.render(
+      harness.root.render(
         <ThemeProvider defaultTheme="dark" storageKey="theme">
           <TestThemeConsumer />
         </ThemeProvider>,
@@ -79,13 +70,14 @@ describe('ThemeProvider localStorage error handling', () => {
     )
 
     expect(
-      container.querySelector('[data-testid="current-theme"]')?.textContent,
+      harness.container.querySelector('[data-testid="current-theme"]')
+        ?.textContent,
     ).toBe('dark')
   })
 
   it('updates theme state safely when localStorage.setItem throws in setTheme', async () => {
     await act(() =>
-      root.render(
+      harness.root.render(
         <ThemeProvider defaultTheme="light" storageKey="theme">
           <TestThemeConsumer />
         </ThemeProvider>,
@@ -93,18 +85,20 @@ describe('ThemeProvider localStorage error handling', () => {
     )
 
     expect(
-      container.querySelector('[data-testid="current-theme"]')?.textContent,
+      harness.container.querySelector('[data-testid="current-theme"]')
+        ?.textContent,
     ).toBe('light')
 
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new DOMException('QuotaExceededError', 'QuotaExceededError')
     })
 
-    const setDarkButton = container.querySelectorAll('button')[0]
+    const setDarkButton = harness.container.querySelectorAll('button')[0]
     await act(() => setDarkButton.click())
 
     expect(
-      container.querySelector('[data-testid="current-theme"]')?.textContent,
+      harness.container.querySelector('[data-testid="current-theme"]')
+        ?.textContent,
     ).toBe('dark')
   })
 
@@ -112,7 +106,7 @@ describe('ThemeProvider localStorage error handling', () => {
     localStorage.setItem('theme', 'dark')
 
     await act(() =>
-      root.render(
+      harness.root.render(
         <ThemeProvider defaultTheme="system" storageKey="theme">
           <TestThemeConsumer />
         </ThemeProvider>,
@@ -120,25 +114,27 @@ describe('ThemeProvider localStorage error handling', () => {
     )
 
     expect(
-      container.querySelector('[data-testid="current-theme"]')?.textContent,
+      harness.container.querySelector('[data-testid="current-theme"]')
+        ?.textContent,
     ).toBe('dark')
   })
 
   it('persists theme to localStorage on setTheme when storage is functional', async () => {
     await act(() =>
-      root.render(
+      harness.root.render(
         <ThemeProvider defaultTheme="system" storageKey="theme">
           <TestThemeConsumer />
         </ThemeProvider>,
       ),
     )
 
-    const setDarkButton = container.querySelectorAll('button')[0]
+    const setDarkButton = harness.container.querySelectorAll('button')[0]
     await act(() => setDarkButton.click())
 
     expect(localStorage.getItem('theme')).toBe('dark')
     expect(
-      container.querySelector('[data-testid="current-theme"]')?.textContent,
+      harness.container.querySelector('[data-testid="current-theme"]')
+        ?.textContent,
     ).toBe('dark')
   })
 })
