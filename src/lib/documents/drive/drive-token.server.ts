@@ -45,7 +45,9 @@ export async function resolveGoogleDriveAccount(
   const account =
     accounts.response.find(
       (item) =>
-        item.providerId === 'google' && item.scopes.includes(DRIVE_SCOPE),
+        item.providerId === 'google' &&
+        Array.isArray(item.scopes) &&
+        item.scopes.includes(DRIVE_SCOPE),
     ) ?? null
 
   return { auth, session: session.response, account }
