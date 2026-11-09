@@ -1,15 +1,11 @@
-import { createAuth } from '#/lib/auth.server'
+import {
+  forwardCookies,
+  resolveGoogleDriveAccount,
+} from '../drive/drive-token.server'
 import { realtimePolicy } from './policy'
 import { signRealtimeTicket } from './ticket'
 import { fetchDriveCapabilities } from './drive.server'
 import type { DocumentCapabilities } from './capabilities'
-
-const driveScope = 'https://www.googleapis.com/auth/drive.file'
-
-function forwardCookies(source: Headers, target: Headers) {
-  for (const cookie of source.getSetCookie())
-    target.append('Set-Cookie', cookie)
-}
 
 export interface RealtimeTicketRequest {
   storage: string
@@ -108,22 +104,13 @@ export async function handleRealtimeTicket(
     return json({ error: 'Invalid request.' }, 400)
   }
   try {
-    const auth = createAuth(bindings, url.origin)
-    const session = await auth.api.getSession({
-      headers: request.headers,
-      returnHeaders: true,
-    })
-    forwardCookies(session.headers, responseHeaders)
-    if (!session.response) return json({ error: 'Sign in required.' }, 401)
-    const accounts = await auth.api.listUserAccounts({
-      headers: request.headers,
-      returnHeaders: true,
-    })
-    forwardCookies(accounts.headers, responseHeaders)
-    const account = accounts.response.find(
-      (item) =>
-        item.providerId === 'google' && item.scopes.includes(driveScope),
+    const { auth, session, account } = await resolveGoogleDriveAccount(
+      request,
+      bindings,
+      url.origin,
+      responseHeaders,
     )
+    if (!session) return json({ error: 'Sign in required.' }, 401)
     if (!account) return json({ error: 'Reconnect Google Drive.' }, 401)
     const tokens = await auth.api.getAccessToken({
       headers: request.headers,
@@ -134,7 +121,7 @@ export async function handleRealtimeTicket(
     const { accessToken } = tokens.response
     if (!accessToken) return json({ error: 'Reconnect Google Drive.' }, 401)
     const result = await issueRealtimeTicket(input, {
-      userId: session.response.user.id,
+      userId: session.user.id,
       accessToken,
       secret: bindings.BETTER_AUTH_SECRET,
     })

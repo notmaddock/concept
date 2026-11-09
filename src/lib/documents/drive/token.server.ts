@@ -1,6 +1,4 @@
-import { createAuth } from '#/lib/auth.server'
-
-const driveScope = 'https://www.googleapis.com/auth/drive.file'
+import { forwardCookies, resolveGoogleDriveAccount } from './drive-token.server'
 
 function configured(bindings: Partial<Cloudflare.Env>) {
   return Boolean(
@@ -12,11 +10,6 @@ function configured(bindings: Partial<Cloudflare.Env>) {
     bindings.OAUTH_PROXY_URL &&
     bindings.OAUTH_PROXY_SECRET,
   )
-}
-
-function forwardCookies(source: Headers, target: Headers) {
-  for (const cookie of source.getSetCookie())
-    target.append('Set-Cookie', cookie)
 }
 
 function authFailure(error: unknown): boolean {
@@ -114,25 +107,16 @@ export async function handleDriveToken(
     }
   }
   try {
-    const auth = createAuth(bindings, url.origin)
-    const session = await auth.api.getSession({
-      headers: request.headers,
-      returnHeaders: true,
-    })
-    forwardCookies(session.headers, responseHeaders)
-    if (!session.response)
+    const { auth, session, account } = await resolveGoogleDriveAccount(
+      request,
+      bindings,
+      url.origin,
+      responseHeaders,
+    )
+    if (!session)
       return sessionRequest
         ? json({ connected: false, configured: true })
         : reconnect()
-    const accounts = await auth.api.listUserAccounts({
-      headers: request.headers,
-      returnHeaders: true,
-    })
-    forwardCookies(accounts.headers, responseHeaders)
-    const account = accounts.response.find(
-      (item) =>
-        item.providerId === 'google' && item.scopes.includes(driveScope),
-    )
     if (sessionRequest)
       return json({ connected: Boolean(account), configured: true })
     if (!account) return reconnect()

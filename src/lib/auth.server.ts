@@ -42,3 +42,5 @@ export function createAuth(bindings: Cloudflare.Env, origin: string) {
     ],
   })
 }
+
+export type ServerAuth = ReturnType<typeof createAuth>
