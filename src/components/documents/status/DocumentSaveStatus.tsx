@@ -9,6 +9,7 @@ import {
   LoaderCircleIcon,
 } from 'lucide-react'
 import type { SaveStatus } from '#/lib/documents/sync'
+import { formatFileSize } from '#/lib/documents/format'
 import { Button } from '#/components/ui/button'
 import { Switch } from '#/components/ui/switch'
 import {
@@ -92,9 +93,7 @@ export function DocumentSaveStatus({
   const metadata = [
     [
       'Size',
-      status.size === undefined
-        ? undefined
-        : `${status.size.toLocaleString()} bytes`,
+      status.size === undefined ? undefined : formatFileSize(status.size),
     ],
     ['Revision', status.revision],
     ['Drive revision', status.remoteRevision],

@@ -6,6 +6,7 @@ import type { Doc } from 'yjs'
 import type { DocumentInfo } from '#/lib/documents/storage'
 import { encodeStateAsUpdate } from 'yjs'
 import { documentAssets } from '#/lib/documents/working'
+import { formatFileSize } from '#/lib/documents/format'
 import {
   Dialog,
   DialogContent,
@@ -78,10 +79,7 @@ export function DocumentDetailsDialog({
         setStatistics([
           ['Words', words.toLocaleString()],
           ['Characters', characters.toLocaleString()],
-          [
-            'Document state',
-            `${bytes.toLocaleString()} bytes (${(bytes / 1024).toFixed(1)} KB)`,
-          ],
+          ['Document state', formatFileSize(bytes)],
           ['Format', 'Concept · Version 2'],
         ])
       }

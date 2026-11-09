@@ -21,6 +21,7 @@ import {
 import { storageLocations } from '#/lib/documents/storage-locations'
 import { readConcept } from '#/lib/documents/concept-file'
 import { captureSnapshot } from '#/lib/documents/working'
+import { formatFileSize } from '#/lib/documents/format'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import {
@@ -465,9 +466,4 @@ export function DocumentStorageDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes.toLocaleString()} bytes`
-  return `${(bytes / 1024 ** (bytes >= 1024 ** 2 ? 2 : 1)).toFixed(1)} ${bytes >= 1024 ** 2 ? 'MB' : 'KB'} (${bytes.toLocaleString()} bytes)`
 }
