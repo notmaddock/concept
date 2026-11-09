@@ -164,14 +164,10 @@ export async function getFileMetadata(id: string, signal?: AbortSignal) {
   }
 }
 
-export async function listConceptFiles(): Promise<Array<DriveFile>> {
-  const parameters = new URLSearchParams({
-    q: `trashed = false and (mimeType = '${mimeType}' or mimeType = '${legacyConceptMimeType}' or name contains '.concept')`,
-    fields: `nextPageToken,files(${fields})`,
-    pageSize: '100',
-    includeItemsFromAllDrives: 'true',
-    orderBy: 'modifiedTime desc',
-  })
+async function fetchAllDriveFiles(
+  parameters: URLSearchParams,
+  filter?: (file: DriveFile) => boolean,
+): Promise<Array<DriveFile>> {
   const files: Array<DriveFile> = []
   let pageToken: string | undefined
   do {
@@ -181,42 +177,41 @@ export async function listConceptFiles(): Promise<Array<DriveFile>> {
       files?: Array<DriveFile>
       nextPageToken?: string
     }
-    files.push(
-      ...(result.files ?? []).filter(
-        (file) =>
-          file.mimeType === mimeType ||
-          file.mimeType === legacyConceptMimeType ||
-          file.name.toLowerCase().endsWith('.concept'),
-      ),
-    )
+    const batch = result.files ?? []
+    files.push(...(filter ? batch.filter(filter) : batch))
     pageToken = result.nextPageToken
   } while (pageToken)
   return files
 }
 
+export async function listConceptFiles(): Promise<Array<DriveFile>> {
+  return fetchAllDriveFiles(
+    new URLSearchParams({
+      q: `trashed = false and (mimeType = '${mimeType}' or mimeType = '${legacyConceptMimeType}' or name contains '.concept')`,
+      fields: `nextPageToken,files(${fields})`,
+      pageSize: '100',
+      includeItemsFromAllDrives: 'true',
+      orderBy: 'modifiedTime desc',
+    }),
+    (file) =>
+      file.mimeType === mimeType ||
+      file.mimeType === legacyConceptMimeType ||
+      file.name.toLowerCase().endsWith('.concept'),
+  )
+}
+
 export async function listFolders(
   parentId = 'root',
 ): Promise<Array<DriveFile>> {
-  const parameters = new URLSearchParams({
-    q: `trashed = false and mimeType = 'application/vnd.google-apps.folder' and '${parentId.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' in parents`,
-    fields: `nextPageToken,files(${fields})`,
-    pageSize: '100',
-    includeItemsFromAllDrives: 'true',
-    orderBy: 'name',
-  })
-  const files: Array<DriveFile> = []
-  let pageToken: string | undefined
-  do {
-    if (pageToken) parameters.set('pageToken', pageToken)
-    const response = await request(`${api}?${parameters}`)
-    const result = (await response.json()) as {
-      files?: Array<DriveFile>
-      nextPageToken?: string
-    }
-    files.push(...(result.files ?? []))
-    pageToken = result.nextPageToken
-  } while (pageToken)
-  return files
+  return fetchAllDriveFiles(
+    new URLSearchParams({
+      q: `trashed = false and mimeType = 'application/vnd.google-apps.folder' and '${parentId.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' in parents`,
+      fields: `nextPageToken,files(${fields})`,
+      pageSize: '100',
+      includeItemsFromAllDrives: 'true',
+      orderBy: 'name',
+    }),
+  )
 }
 
 async function readMedia(response: Response, signal?: AbortSignal) {
