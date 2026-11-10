@@ -1,4 +1,5 @@
 import { INSERT_IMAGE_COMMAND } from '#/components/nova/images/commands'
+import { INSERT_PAGE_BREAK } from '#/components/nova/pages/PageBreakExtension'
 import { importFormats } from '#/lib/documents/import/formats'
 import type { ImportFormat } from '#/lib/documents/import/formats'
 import type { ExportFormat } from '#/lib/documents/export'
@@ -82,6 +83,7 @@ type NavigationContext = {
   onSaveToDrive?: () => void | Promise<void>
   onExport: (format: ExportFormat) => Promise<void>
   onInsertImage?: () => void
+  onInsertPageBreak: () => void
   onPageSetup: () => void
   onCreate: () => Promise<void>
   creating: boolean
@@ -374,6 +376,15 @@ export const documentNavigation: MenuDefinition[] = [
         onSelect: (context) => context.onInsertImage?.(),
         disabled: (context) => Boolean(context.readOnly),
       },
+      {
+        id: 'insert-page-break',
+        label: 'Page break',
+        keywords: ['page', 'break', 'pagination'],
+        icon: ScissorsIcon,
+        focusAfterSelect: 'action',
+        onSelect: (context) => context.onInsertPageBreak(),
+        disabled: (context) => Boolean(context.readOnly),
+      },
     ],
   },
   {
@@ -468,6 +479,9 @@ export function useDocumentNavigationOptions({
         INSERT_IMAGE_COMMAND,
         undefined,
       )
+    },
+    onInsertPageBreak: () => {
+      workspace.editorRef.current?.dispatchCommand(INSERT_PAGE_BREAK, undefined)
     },
     onCreate: workspace.createDocument,
     documentTheme,

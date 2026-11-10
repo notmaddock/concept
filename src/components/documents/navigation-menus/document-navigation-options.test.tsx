@@ -26,7 +26,7 @@ const workspace = vi.hoisted(() => ({
   document: undefined as
     | { id?: string; readOnly?: boolean; drive?: { readOnly?: boolean } }
     | undefined,
-  editorRef: { current: {} },
+  editorRef: { current: { dispatchCommand: vi.fn() } },
   createDocument: vi.fn<() => Promise<void>>(),
   openPageSetup: vi.fn(),
   openDocument: vi.fn(),
@@ -107,6 +107,10 @@ it('exposes every menu action to search with the same state and handler', async 
   await navigation.options
     .find((option) => option.id === 'page-setup')
     ?.onSelect()
+  await navigation.options
+    .find((option) => option.id === 'insert-page-break')
+    ?.onSelect()
+  expect(workspace.editorRef.current.dispatchCommand).toHaveBeenCalledOnce()
   await navigation.options
     .find((option) => option.id === 'theme-dark')
     ?.onSelect()
