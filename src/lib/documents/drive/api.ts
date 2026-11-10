@@ -422,6 +422,10 @@ export async function trashConceptFile(
   )
 }
 
+export function driveFileUrl(id: string): string {
+  return `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`
+}
+
 export async function getContainingFolderUrl(
   id: string,
   resourceKey?: string,

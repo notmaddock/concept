@@ -512,6 +512,7 @@ export function DocumentWorkspaceProvider({
             open={workspace.shareOpen}
             onOpenChange={workspace.onShareOpenChange}
             onCopy={workspace.copyDocument}
+            driveFileId={document?.drive?.fileId}
           />
         )}
         {fileAction && (

@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { RenameDocumentDialog } from '../dialogs/RenameDocumentDialog'
 import { documentHash } from '#/lib/documents/document-url'
+import { driveFileUrl } from '#/lib/documents/drive/api'
 import {
   ExternalLinkIcon,
   HardDriveDownloadIcon,
@@ -89,6 +90,20 @@ export function DocumentContextMenu({
           >
             <ExternalLinkIcon /> Open in new tab
           </ContextMenuItem>
+          {driveFileId && (
+            <ContextMenuItem
+              className={documentMenuItemClassName}
+              render={
+                <a
+                  href={driveFileUrl(driveFileId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              }
+            >
+              <ExternalLinkIcon /> Open in Google Drive
+            </ContextMenuItem>
+          )}
           {driveFileId && (
             <ContextMenuCheckboxItem
               className={documentMenuItemClassName}

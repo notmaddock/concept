@@ -16,7 +16,10 @@ export function createAuth(bindings: Cloudflare.Env, origin: string) {
       google: {
         clientId: bindings.GOOGLE_CLIENT_ID,
         clientSecret: bindings.GOOGLE_CLIENT_SECRET,
-        scope: ['https://www.googleapis.com/auth/drive.file'],
+        scope: [
+          'https://www.googleapis.com/auth/drive.file',
+          'https://www.googleapis.com/auth/drive.install',
+        ],
         accessType: 'offline',
         prompt: 'consent',
       },

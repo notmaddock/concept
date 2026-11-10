@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import type { ReactNode } from 'react'
 import type { DocumentInfo } from '#/lib/documents/storage'
 import { storageLocations } from '#/lib/documents/storage-locations'
+import { driveFileUrl } from '#/lib/documents/drive/api'
 import { DriveIcon } from './icons/DriveIcon'
 
 export function StorageLocation({ document }: { document?: DocumentInfo }) {
@@ -47,5 +48,21 @@ export function metadataRows(
     ['Location', <StorageLocation key="location" document={document} />],
     ['Library updated', new Date(document.updatedAt).toLocaleString()],
     ['Document ID', document.id],
+    ...(document.drive
+      ? [
+          [
+            'Drive file',
+            <a
+              key="drive-file"
+              href={driveFileUrl(document.drive.fileId)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-4"
+            >
+              Open in Google Drive
+            </a>,
+          ] as [string, ReactNode],
+        ]
+      : []),
   ]
 }
