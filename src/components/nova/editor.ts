@@ -10,6 +10,7 @@ import { CheckListExtension, ListExtension } from '@lexical/list'
 import { RichTextExtension } from '@lexical/rich-text'
 import { defineExtension } from 'lexical'
 import { ImageNode } from './nodes/ImageNode'
+import { PagesExtension } from './pages'
 import { getInitialState } from './initial-state'
 import { defaultEditorTheme } from './theme'
 import { paragraphDOM } from './paragraph-format'
@@ -30,6 +31,7 @@ export const editorExtension = defineExtension({
     ClickAfterLastBlockExtension,
     SelectBlockExtension,
     AutoFocusExtension,
+    PagesExtension,
   ],
 
   $initialEditorState: getInitialState,

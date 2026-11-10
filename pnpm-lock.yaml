@@ -214,6 +214,9 @@ importers:
       '@lexical/selection':
         specifier: ^0.53.0
         version: 0.53.0(typescript@6.0.3)
+      '@lexical/utils':
+        specifier: 0.53.0
+        version: 0.53.0(typescript@6.0.3)
       '@lexical/yjs':
         specifier: ^0.53.0
         version: 0.53.0(typescript@6.0.3)(yjs@13.6.33)

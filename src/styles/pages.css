@@ -1,0 +1,109 @@
+/* Paged document layout. Page geometry comes from --page-* variables in px. */
+
+[data-document-sheet][data-page-mode='paper'] {
+  max-width: none;
+  background: transparent !important;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+[data-document-sheet][data-page-mode='paper'] [data-document-content] {
+  min-height: 100%;
+  padding: 0;
+}
+
+.concept-page {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--page-width, 793.7008px);
+  max-width: 100%;
+  min-height: var(--page-height, 1122.5197px);
+  margin: 0 auto 24px;
+  background: var(--card);
+  color: var(--card-foreground);
+  border-radius: 2px;
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 1px 2px rgb(0 0 0 / 0.08),
+    0 8px 24px rgb(0 0 0 / 0.08);
+}
+
+.concept-page:last-child {
+  margin-bottom: 0;
+}
+
+.concept-page-content {
+  box-sizing: border-box;
+  min-height: var(--page-height, 1122.5197px);
+  padding: var(--page-margin-top, 96px) var(--page-margin-right, 96px)
+    var(--page-margin-bottom, 96px) var(--page-margin-left, 96px);
+  outline: none;
+}
+
+hr[data-lexical-page-break] {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 0;
+  margin: 24px 0;
+  border: 0;
+  border-top: 1px dashed var(--border);
+  border-bottom: 1px dashed var(--border);
+  background: var(--muted);
+  outline: none;
+}
+
+hr[data-lexical-page-break]::after {
+  content: 'PAGE BREAK';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+hr[data-lexical-page-break].selected {
+  border-color: var(--primary);
+  background: color-mix(in oklch, var(--primary) 20%, transparent);
+}
+
+@media print {
+  [data-document-sheet][data-page-mode='paper'] {
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  .concept-page {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    break-after: page;
+    break-inside: avoid;
+  }
+
+  .concept-page:last-child {
+    break-after: auto;
+  }
+
+  .concept-page-content {
+    min-height: 0;
+    padding: 0 !important;
+  }
+
+  hr[data-lexical-page-break] {
+    display: none !important;
+  }
+}
