@@ -92,6 +92,7 @@ describe('PagesExtension', () => {
 
     setMode('pageless')
     await Promise.resolve()
+    await Promise.resolve()
 
     expect(rootTypes()).toEqual(['paragraph', 'paragraph'])
   })

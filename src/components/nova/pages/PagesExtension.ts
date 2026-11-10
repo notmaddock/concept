@@ -733,7 +733,7 @@ export const PagesExtension = defineExtension({
                 updatePageDimensions()
                 const [pageState] = change
                 if (pageState.mode !== 'paper') {
-                  destroyPageStructure()
+                  queueMicrotask(destroyPageStructure)
                   return
                 }
                 const hasPages = editor
@@ -742,7 +742,7 @@ export const PagesExtension = defineExtension({
                 if (hasPages) {
                   resizePages()
                 } else {
-                  fixPageStructure()
+                  queueMicrotask(fixPageStructure)
                 }
               },
             ),
