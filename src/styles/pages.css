@@ -14,6 +14,8 @@
 
 .concept-page {
   position: relative;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
   width: var(--page-width, 793.7008px);
   max-width: 100%;
@@ -34,7 +36,7 @@
 
 .concept-page-content {
   box-sizing: border-box;
-  min-height: var(--page-height, 1122.5197px);
+  margin-bottom: auto;
   padding: var(--page-margin-top, 96px) var(--page-margin-right, 96px)
     var(--page-margin-bottom, 96px) var(--page-margin-left, 96px);
   outline: none;
@@ -99,7 +101,6 @@ hr[data-lexical-page-break].selected {
   }
 
   .concept-page-content {
-    min-height: 0;
     padding: 0 !important;
   }
 
