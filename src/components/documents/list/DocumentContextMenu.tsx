@@ -43,11 +43,13 @@ export function DocumentContextMenu({
   onRename,
   onDelete,
   driveFileId,
+  driveResourceKey,
   offlineAvailable = false,
 }: {
   id: string
   offlineAvailable?: boolean
   driveFileId?: string
+  driveResourceKey?: string
   onRename?: (name: string) => Promise<boolean>
   children: ReactNode
   name: string
@@ -112,7 +114,9 @@ export function DocumentContextMenu({
           {driveFileId && (
             <ContextMenuItem
               className={documentMenuItemClassName}
-              onClick={() => void openContainingFolder(driveFileId)}
+              onClick={() =>
+                void openContainingFolder(driveFileId, driveResourceKey)
+              }
             >
               <FolderOpenIcon /> Open containing folder
             </ContextMenuItem>

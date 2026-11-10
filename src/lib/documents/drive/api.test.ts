@@ -312,6 +312,32 @@ it('requests content capabilities and shared-drive support when opening a file',
   ).toBe(true)
 })
 
+it('sends Drive resource keys for link-shared files', async () => {
+  fetchMock.mockResolvedValueOnce(metadata('"base"'))
+  await getFileMetadata('drive-id', undefined, 'resource-key')
+  expect(
+    new Headers(fetchMock.mock.calls[0][1]?.headers).get(
+      'X-Goog-Drive-Resource-Keys',
+    ),
+  ).toBe('drive-id/resource-key')
+
+  fetchMock.mockResolvedValueOnce(metadata('"next"'))
+  await updateConceptFile(
+    'drive-id',
+    'Test',
+    bytes('{}'),
+    '"base"',
+    undefined,
+    undefined,
+    'resource-key',
+  )
+  expect(
+    new Headers(fetchMock.mock.calls[1][1]?.headers).get(
+      'X-Goog-Drive-Resource-Keys',
+    ),
+  ).toBe('drive-id/resource-key')
+})
+
 it('includes shared-drive files in library listings', async () => {
   fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ files: [] })))
   await listConceptFiles()

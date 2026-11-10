@@ -96,11 +96,22 @@ async function request(
   url: string,
   init: RequestInit = {},
   retryAuth = true,
+  resourceKeys?: Record<string, string>,
 ): Promise<Response> {
   const headers = new Headers(init.headers)
   const token = await getGoogleDriveToken({ signal: init.signal ?? undefined })
   init.signal?.throwIfAborted()
   headers.set('Authorization', `Bearer ${token}`)
+  if (resourceKeys) {
+    const entries = Object.entries(resourceKeys).filter(
+      ([id, key]) => id && key,
+    )
+    if (entries.length)
+      headers.set(
+        'X-Goog-Drive-Resource-Keys',
+        entries.map(([id, key]) => `${id}/${key}`).join(','),
+      )
+  }
   const timeout = AbortSignal.timeout(30000)
   const requestUrl = new URL(url)
   requestUrl.searchParams.set('supportsAllDrives', 'true')
@@ -122,7 +133,7 @@ async function request(
           forceRefresh: true,
           signal: init.signal ?? undefined,
         })
-      return request(url, init, false)
+      return request(url, init, false, resourceKeys)
     }
     invalidateGoogleDriveSession()
     throw new GoogleDriveAuthError()
@@ -152,11 +163,18 @@ function fileUrl(id: string) {
   return `${conditionalApi}/${encodeURIComponent(id)}`
 }
 
-export async function getFileMetadata(id: string, signal?: AbortSignal) {
+export async function getFileMetadata(
+  id: string,
+  signal?: AbortSignal,
+  resourceKey?: string,
+) {
   if (!id.trim()) throw new DriveError(400, 'Invalid file ID.')
-  const response = await request(`${fileUrl(id)}?fields=${conditionalFields}`, {
-    signal,
-  })
+  const response = await request(
+    `${fileUrl(id)}?fields=${conditionalFields}`,
+    { signal },
+    true,
+    resourceKey ? { [id]: resourceKey } : undefined,
+  )
   const file = (await response.json()) as ConditionalFile
   return {
     file: normalizeFile(file),
@@ -266,19 +284,25 @@ export async function readConceptFile(
   id: string,
   signal?: AbortSignal,
   initial?: DriveFileVersion,
+  resourceKey?: string,
 ): Promise<DriveFileVersion & { content: Uint8Array }> {
   if (!id.trim()) throw new DriveError(400, 'Invalid file ID.')
+  const resourceKeys = resourceKey ? { [id]: resourceKey } : undefined
   // Bind downloaded bytes to their validator even if another writer saves mid-read.
   for (let attempt = 0; attempt < 3; attempt++) {
     const before =
-      attempt === 0 && initial ? initial : await getFileMetadata(id, signal)
+      attempt === 0 && initial
+        ? initial
+        : await getFileMetadata(id, signal, resourceKey)
     const etag = requiredEtag(before.etag)
     const response = await request(
       `${api}/${encodeURIComponent(id)}?alt=media`,
       { signal },
+      true,
+      resourceKeys,
     )
     const content = await readMedia(response, signal)
-    const after = await getFileMetadata(id, signal)
+    const after = await getFileMetadata(id, signal, resourceKey)
     if (etag === requiredEtag(after.etag))
       return { file: after.file, etag, content }
   }
@@ -294,6 +318,7 @@ async function upload(
   parentId = 'root',
   filename?: string,
   signal?: AbortSignal,
+  resourceKeys?: Record<string, string>,
 ): Promise<DriveFileVersion> {
   const media = new Blob([new Uint8Array(content)])
   if (media.size > packageLimits.packageBytes)
@@ -322,6 +347,8 @@ async function upload(
   const response = await request(
     `${uploadApi}${id ? `/${encodeURIComponent(id)}` : ''}?uploadType=multipart&fields=${conditionalFields}`,
     { method, headers, body, signal },
+    true,
+    resourceKeys,
   )
   const result = (await response.json()) as ConditionalFile
   const file = normalizeFile(result)
@@ -337,8 +364,19 @@ export function createConceptFile(
   name: string,
   content: Uint8Array,
   parentId = 'root',
+  folderResourceKey?: string,
 ) {
-  return upload('POST', undefined, name, content, undefined, parentId)
+  return upload(
+    'POST',
+    undefined,
+    name,
+    content,
+    undefined,
+    parentId,
+    undefined,
+    undefined,
+    folderResourceKey ? { [parentId]: folderResourceKey } : undefined,
+  )
 }
 
 export function updateConceptFile(
@@ -348,27 +386,52 @@ export function updateConceptFile(
   etag: string,
   filename?: string,
   signal?: AbortSignal,
+  resourceKey?: string,
 ) {
-  return upload('PUT', id, name, content, etag, 'root', filename, signal)
+  return upload(
+    'PUT',
+    id,
+    name,
+    content,
+    etag,
+    'root',
+    filename,
+    signal,
+    resourceKey ? { [id]: resourceKey } : undefined,
+  )
 }
 
-export async function trashConceptFile(id: string): Promise<void> {
+export async function trashConceptFile(
+  id: string,
+  resourceKey?: string,
+): Promise<void> {
   if (!id.trim()) throw new DriveError(400, 'Invalid file ID.')
-  const current = await getFileMetadata(id)
-  await request(`${fileUrl(id)}?fields=id`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'If-Match': requiredEtag(current.etag),
+  const current = await getFileMetadata(id, undefined, resourceKey)
+  await request(
+    `${fileUrl(id)}?fields=id`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'If-Match': requiredEtag(current.etag),
+      },
+      body: JSON.stringify({ labels: { trashed: true } }),
     },
-    body: JSON.stringify({ labels: { trashed: true } }),
-  })
+    true,
+    resourceKey ? { [id]: resourceKey } : undefined,
+  )
 }
 
-export async function getContainingFolderUrl(id: string): Promise<string> {
+export async function getContainingFolderUrl(
+  id: string,
+  resourceKey?: string,
+): Promise<string> {
   if (!id.trim()) throw new DriveError(400, 'Invalid file ID.')
   const response = await request(
     `${api}/${encodeURIComponent(id)}?fields=parents`,
+    {},
+    true,
+    resourceKey ? { [id]: resourceKey } : undefined,
   )
   const file = (await response.json()) as { parents?: Array<string> }
   const parent = file.parents?.[0]

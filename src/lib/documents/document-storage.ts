@@ -54,17 +54,30 @@ export async function refreshDriveDocuments() {
   return new Set(files.map((file) => `G${file.id}`))
 }
 
-async function ensureDocument(id: string) {
+async function ensureDocument(id: string, resourceKey?: string) {
   const existing = await localDocumentStorage.get(id)
-  if (existing || !id.startsWith('G')) return existing
-  const { file } = await getFileMetadata(id.slice(1))
+  if (existing) {
+    if (resourceKey && existing.drive?.resourceKey !== resourceKey)
+      return localDocumentStorage.patch(id, (current) => ({
+        ...current,
+        drive: current.drive ? { ...current.drive, resourceKey } : undefined,
+      }))
+    return existing
+  }
+  if (!id.startsWith('G')) return existing
+  const { file } = await getFileMetadata(id.slice(1), undefined, resourceKey)
   const isReadOnly = isDriveFileReadOnly(file)
   const info = {
     id,
     name: file.name.replace(/\.concept$/i, ''),
     updatedAt: Date.parse(file.modifiedTime ?? '') || Date.now(),
     readOnly: isReadOnly,
-    drive: { fileId: file.id, offlineAvailable: false, readOnly: isReadOnly },
+    drive: {
+      fileId: file.id,
+      offlineAvailable: false,
+      readOnly: isReadOnly,
+      resourceKey,
+    },
   }
   return localDocumentStorage.patch(id, (current) => current, info)
 }
@@ -106,7 +119,7 @@ export const documentStorage: DocumentStorage = {
     const info = await localDocumentStorage.get(id)
     if (info?.drive && !info.readOnly && !info.drive.readOnly) {
       try {
-        await trashConceptFile(info.drive.fileId)
+        await trashConceptFile(info.drive.fileId, info.drive.resourceKey)
       } catch (error) {
         if (
           !(error instanceof DriveError && error.status === 404) &&

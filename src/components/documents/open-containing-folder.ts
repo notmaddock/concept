@@ -1,13 +1,16 @@
 import { toast } from 'sonner'
 import { getContainingFolderUrl } from '#/lib/documents/drive/api'
 
-export async function openContainingFolder(fileId: string) {
+export async function openContainingFolder(
+  fileId: string,
+  resourceKey?: string,
+) {
   // Reserve the tab during the click so the async lookup is not popup-blocked.
   const tab = window.open('about:blank', '_blank')
   if (tab) tab.opener = null
   try {
     if (!tab) throw new Error('Allow popups to open the containing folder.')
-    tab.location.replace(await getContainingFolderUrl(fileId))
+    tab.location.replace(await getContainingFolderUrl(fileId, resourceKey))
   } catch (cause) {
     tab?.close()
     toast.error(

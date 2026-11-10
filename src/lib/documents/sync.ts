@@ -478,6 +478,7 @@ export class DocumentSync {
       this.info.drive!.fileId,
       this.abort.signal,
       initial,
+      this.info.drive!.resourceKey,
     )
     this.realtimeProvider?.sendCapabilities(
       capabilitiesFromDrive(remote.file.capabilities),
@@ -590,7 +591,11 @@ export class DocumentSync {
     if (checkRemote || !this.etag) {
       const current =
         this.etag && this.acknowledged
-          ? await getFileMetadata(this.info.drive!.fileId, this.abort.signal)
+          ? await getFileMetadata(
+              this.info.drive!.fileId,
+              this.abort.signal,
+              this.info.drive!.resourceKey,
+            )
           : undefined
       if (current)
         this.realtimeProvider?.sendCapabilities(
@@ -656,6 +661,7 @@ export class DocumentSync {
           this.etag!,
           filename,
           this.abort.signal,
+          this.info.drive!.resourceKey,
         )
         if (this.isStopped()) return
         this.etag = remote.etag
