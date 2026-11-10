@@ -35,6 +35,7 @@ vi.mock('#/lib/documents/drive/api', () => ({
   createConceptFile: mocks.create,
   listFolders: mocks.folders,
   getFileMetadata: mocks.metadata,
+  driveFileUrl: (id: string) => `https://drive.google.com/file/d/${id}/view`,
   DriveCreatedFileError: class extends Error {
     constructor(public readonly file: { id: string }) {
       super('File created but no ETag was returned.')

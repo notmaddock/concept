@@ -310,6 +310,7 @@ it('checks only metadata when focus returns to an unchanged clean document', asy
   expect(metadata).toHaveBeenCalledExactlyOnceWith(
     'drive-file',
     expect.any(AbortSignal),
+    undefined,
   )
   expect(read).not.toHaveBeenCalled()
   expect(write).not.toHaveBeenCalled()
@@ -349,6 +350,7 @@ it('reuses changed focus metadata while reconciling remote and local edits', asy
     'drive-file',
     expect.any(AbortSignal),
     changed,
+    undefined,
   )
   expect(write.mock.calls[0][3]).toBe(changed.etag)
   const saved = new Doc()

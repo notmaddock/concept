@@ -144,7 +144,11 @@ async function cache(drive = info.drive!) {
 
 it('registers a directly opened Drive identity without generating a local ID', async () => {
   const registered = await documentStorage.get(info.id)
-  expect(getFileMetadata).toHaveBeenCalledWith(info.drive!.fileId)
+  expect(getFileMetadata).toHaveBeenCalledWith(
+    info.drive!.fileId,
+    undefined,
+    undefined,
+  )
   expect(registered).toMatchObject({
     id: info.id,
     name: info.name,
@@ -334,7 +338,7 @@ it('refreshes Drive metadata without replacing a locally pending rename', async 
 it('trashes a Drive document before removing its local registration', async () => {
   await localDocumentStorage.put(info)
   await documentStorage.delete(info.id)
-  expect(trashConceptFile).toHaveBeenCalledWith(info.drive!.fileId)
+  expect(trashConceptFile).toHaveBeenCalledWith(info.drive!.fileId, undefined)
   expect(await localDocumentStorage.get(info.id)).toBeUndefined()
 })
 
