@@ -21,7 +21,7 @@
   max-width: 100%;
   min-height: var(--page-height, 1122.5197px);
   margin: 0 auto 24px;
-  background: var(--card);
+  background: var(--document-page-background, var(--card));
   color: var(--card-foreground);
   border-radius: 2px;
   box-shadow:

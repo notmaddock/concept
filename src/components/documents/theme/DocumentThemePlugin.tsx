@@ -63,10 +63,19 @@ export function DocumentThemePlugin({
           .getRootElement()
           ?.closest<HTMLElement>('[data-document-sheet]') ?? null
       if (sheet !== appliedSheet) {
-        if (appliedSheet) appliedSheet.style.background = ''
+        if (appliedSheet) {
+          appliedSheet.style.background = ''
+          appliedSheet.style.removeProperty('--document-page-background')
+        }
         appliedSheet = sheet
       }
-      if (sheet) sheet.style.background = sheetBackground ?? ''
+      if (sheet) {
+        sheet.style.background = sheetBackground ?? ''
+        sheet.style.setProperty(
+          '--document-page-background',
+          sheetBackground ?? '',
+        )
+      }
     }
 
     applyRef.current = apply
@@ -82,7 +91,10 @@ export function DocumentThemePlugin({
       for (const name of appliedVariables) root.style.setProperty(name, '')
       delete root.dataset.documentTheme
       root.style.colorScheme = appModeRef.current
-      if (appliedSheet) appliedSheet.style.background = ''
+      if (appliedSheet) {
+        appliedSheet.style.background = ''
+        appliedSheet.style.removeProperty('--document-page-background')
+      }
       clearDocumentTheme(documentId)
     }
   }, [editor, documentId])

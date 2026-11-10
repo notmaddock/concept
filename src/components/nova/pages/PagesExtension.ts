@@ -490,7 +490,15 @@ export const PagesExtension = defineExtension({
       return editor.registerRootListener((rootElement) => {
         if (!rootElement) return
         return effect(() => {
-          const rootObserver = createResizeObserver(updateZoom)
+          let zoomRafId: number | null = null
+          const scheduleZoom = () => {
+            if (zoomRafId !== null) return
+            zoomRafId = requestFrame(() => {
+              zoomRafId = null
+              updateZoom()
+            })
+          }
+          const rootObserver = createResizeObserver(scheduleZoom)
           rootObserver?.observe(rootElement)
 
           // Watches the focused page's content element for size changes
@@ -775,6 +783,10 @@ export const PagesExtension = defineExtension({
               if (rafId !== null) {
                 cancelFrame(rafId)
                 rafId = null
+              }
+              if (zoomRafId !== null) {
+                cancelFrame(zoomRafId)
+                zoomRafId = null
               }
               pageObserver?.disconnect()
               rootObserver?.disconnect()
