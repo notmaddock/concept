@@ -64,7 +64,8 @@ function NewDocumentRoute() {
       })
     } catch (cause) {
       setNeedsConnection(
-        !isGoogleDriveConnected() || isGoogleDriveAuthError(cause),
+        launch?.action === 'create' &&
+          (!isGoogleDriveConnected() || isGoogleDriveAuthError(cause)),
       )
       setError(describeCreateError(cause))
     }
