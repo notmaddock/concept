@@ -490,6 +490,7 @@ export const PagesExtension = defineExtension({
       return editor.registerRootListener((rootElement) => {
         if (!rootElement) return
         return effect(() => {
+          let disposed = false
           let zoomRafId: number | null = null
           const scheduleZoom = () => {
             if (zoomRafId !== null) return
@@ -775,11 +776,34 @@ export const PagesExtension = defineExtension({
 
           applyCurrentSetup()
 
+          // Web fonts can change line heights after the first reflow. Once
+          // they are ready, re-measure the current paper layout exactly once.
+          const fonts =
+            typeof FontFaceSet === 'undefined' ? undefined : document.fonts
+          if (fonts) {
+            void fonts.ready.then(() => {
+              if (disposed) return
+              if (
+                editor.getRootElement() !== rootElement ||
+                !rootElement.isConnected
+              ) {
+                return
+              }
+              if (
+                editor.getEditorState().read($getPageSetup).mode !== 'paper'
+              ) {
+                return
+              }
+              resizePages()
+            })
+          }
+
           return mergeRegister(
             // Placed first so mergeRegister's reverse (LIFO) teardown runs it
             // last, only after every listener and transform below has been
             // torn down.
             () => {
+              disposed = true
               if (rafId !== null) {
                 cancelFrame(rafId)
                 rafId = null
