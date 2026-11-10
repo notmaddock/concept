@@ -18,6 +18,7 @@ export interface DocumentInfo {
     savedRevision?: string
     remoteFilename?: string
     readOnly?: boolean
+    resourceKey?: string
   }
 }
 
@@ -33,7 +34,7 @@ export type DocumentChange =
 export interface DocumentStorage {
   subscribe: (listener: (change: DocumentChange) => void) => () => void
   list: () => Promise<Array<DocumentInfo>>
-  get: (id: string) => Promise<DocumentInfo | undefined>
+  get: (id: string, resourceKey?: string) => Promise<DocumentInfo | undefined>
   create: () => Promise<DocumentInfo>
   rename: (id: string, name: string) => Promise<DocumentInfo>
   delete: (id: string) => Promise<void>

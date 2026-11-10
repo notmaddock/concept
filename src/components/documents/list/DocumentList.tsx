@@ -114,6 +114,7 @@ export function DocumentList({
                   <DocumentContextMenu
                     id={item.id}
                     driveFileId={item.drive?.fileId}
+                    driveResourceKey={item.drive?.resourceKey}
                     offlineAvailable={item.drive?.offlineAvailable}
                     name={item.name}
                     onRename={

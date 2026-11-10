@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DIndexRouteImport } from './routes/d/index'
 import { Route as DIdRouteImport } from './routes/d/$id'
 import { Route as NewIndexRouteImport } from './routes/new/index'
+import { Route as OpenIndexRouteImport } from './routes/open/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiDriveSplatRouteImport } from './routes/api/drive/$'
 import { Route as ApiRealtimeSplatRouteImport } from './routes/api/realtime/$'
@@ -37,6 +38,11 @@ const NewIndexRoute = NewIndexRouteImport.update({
   path: '/new/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OpenIndexRoute = OpenIndexRouteImport.update({
+  id: '/open/',
+  path: '/open/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/d/$id': typeof DIdRoute
   '/d/': typeof DIndexRoute
   '/new/': typeof NewIndexRoute
+  '/open/': typeof OpenIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/drive/$': typeof ApiDriveSplatRoute
   '/api/realtime/$': typeof ApiRealtimeSplatRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/d/$id': typeof DIdRoute
   '/d': typeof DIndexRoute
   '/new': typeof NewIndexRoute
+  '/open': typeof OpenIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/drive/$': typeof ApiDriveSplatRoute
   '/api/realtime/$': typeof ApiRealtimeSplatRoute
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/d/$id': typeof DIdRoute
   '/d/': typeof DIndexRoute
   '/new/': typeof NewIndexRoute
+  '/open/': typeof OpenIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/drive/$': typeof ApiDriveSplatRoute
   '/api/realtime/$': typeof ApiRealtimeSplatRoute
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/d/$id'
     | '/d/'
     | '/new/'
+    | '/open/'
     | '/api/auth/$'
     | '/api/drive/$'
     | '/api/realtime/$'
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/d/$id'
     | '/d'
     | '/new'
+    | '/open'
     | '/api/auth/$'
     | '/api/drive/$'
     | '/api/realtime/$'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/d/$id'
     | '/d/'
     | '/new/'
+    | '/open/'
     | '/api/auth/$'
     | '/api/drive/$'
     | '/api/realtime/$'
@@ -116,6 +128,7 @@ export interface RootRouteChildren {
   DIdRoute: typeof DIdRoute
   DIndexRoute: typeof DIndexRoute
   NewIndexRoute: typeof NewIndexRoute
+  OpenIndexRoute: typeof OpenIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiDriveSplatRoute: typeof ApiDriveSplatRoute
   ApiRealtimeSplatRoute: typeof ApiRealtimeSplatRoute
@@ -151,6 +164,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NewIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/open/': {
+      id: '/open/'
+      path: '/open'
+      fullPath: '/open/'
+      preLoaderRoute: typeof OpenIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -180,6 +200,7 @@ const rootRouteChildren: RootRouteChildren = {
   DIdRoute: DIdRoute,
   DIndexRoute: DIndexRoute,
   NewIndexRoute: NewIndexRoute,
+  OpenIndexRoute: OpenIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiDriveSplatRoute: ApiDriveSplatRoute,
   ApiRealtimeSplatRoute: ApiRealtimeSplatRoute,

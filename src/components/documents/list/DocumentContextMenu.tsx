@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { RenameDocumentDialog } from '../dialogs/RenameDocumentDialog'
 import { documentHash } from '#/lib/documents/document-url'
+import { driveFileUrl } from '#/lib/documents/drive/api'
 import {
   ExternalLinkIcon,
   HardDriveDownloadIcon,
@@ -43,11 +44,13 @@ export function DocumentContextMenu({
   onRename,
   onDelete,
   driveFileId,
+  driveResourceKey,
   offlineAvailable = false,
 }: {
   id: string
   offlineAvailable?: boolean
   driveFileId?: string
+  driveResourceKey?: string
   onRename?: (name: string) => Promise<boolean>
   children: ReactNode
   name: string
@@ -88,6 +91,20 @@ export function DocumentContextMenu({
             <ExternalLinkIcon /> Open in new tab
           </ContextMenuItem>
           {driveFileId && (
+            <ContextMenuItem
+              className={documentMenuItemClassName}
+              render={
+                <a
+                  href={driveFileUrl(driveFileId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              }
+            >
+              <ExternalLinkIcon /> Open in Google Drive
+            </ContextMenuItem>
+          )}
+          {driveFileId && (
             <ContextMenuCheckboxItem
               className={documentMenuItemClassName}
               checked={offlineAvailable}
@@ -112,7 +129,9 @@ export function DocumentContextMenu({
           {driveFileId && (
             <ContextMenuItem
               className={documentMenuItemClassName}
-              onClick={() => void openContainingFolder(driveFileId)}
+              onClick={() =>
+                void openContainingFolder(driveFileId, driveResourceKey)
+              }
             >
               <FolderOpenIcon /> Open containing folder
             </ContextMenuItem>

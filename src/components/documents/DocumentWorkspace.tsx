@@ -204,7 +204,11 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                   provider={document.drive ? 'google-drive' : undefined}
                   onOpenContainingFolder={
                     document.drive
-                      ? () => void openContainingFolder(document.drive!.fileId)
+                      ? () =>
+                          void openContainingFolder(
+                            document.drive!.fileId,
+                            document.drive!.resourceKey,
+                          )
                       : undefined
                   }
                   onRetry={syncNow}

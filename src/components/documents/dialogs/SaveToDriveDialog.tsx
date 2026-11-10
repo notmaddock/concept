@@ -14,6 +14,7 @@ import {
 import {
   createConceptFile,
   DriveCreatedFileError,
+  driveFileUrl,
   getFileMetadata,
   listFolders,
 } from '#/lib/documents/drive/api'
@@ -294,7 +295,7 @@ export function SaveToDriveDialog({
         )}
         {createdFileId && (
           <a
-            href={`https://drive.google.com/file/d/${encodeURIComponent(createdFileId)}/view`}
+            href={driveFileUrl(createdFileId)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm underline underline-offset-4"

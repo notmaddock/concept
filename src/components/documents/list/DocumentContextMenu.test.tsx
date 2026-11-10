@@ -53,6 +53,12 @@ it('shows a checked offline menu item and toggles that document', async () => {
   expect(checkbox.textContent).toBe(' Available offline')
   expect(checkbox.querySelector('svg')).not.toBeNull()
   expect(document.body.textContent).toContain('Open containing folder')
+  const driveLink = [...document.querySelectorAll('a')].find((link) =>
+    link.textContent.includes('Open in Google Drive'),
+  )
+  expect(driveLink?.getAttribute('href')).toBe(
+    'https://drive.google.com/file/d/file/view',
+  )
   await act(() => checkbox.click())
   expect(setDocumentOfflineAvailable).toHaveBeenCalledWith('Gfile', false)
 })
@@ -61,6 +67,7 @@ it('omits Drive actions for local documents', async () => {
   await openMenu(false)
   expect(document.querySelector('[role="menuitemcheckbox"]')).toBeNull()
   expect(document.body.textContent).not.toContain('Open containing folder')
+  expect(document.body.textContent).not.toContain('Open in Google Drive')
 })
 
 it('shows an unchecked item when offline availability is off', async () => {

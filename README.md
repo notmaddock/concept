@@ -22,6 +22,7 @@ Concept is pre-alpha: the document format may change before 1.0, so export copie
 - Write with rich text, headings, lists, checklists, quotes, dividers, a slash menu, and formatting controls. Press Ctrl/⌘+K to search every menu action.
 - Insert images by file picker, paste, or drag and drop. Images are stored as content-addressed assets that survive reload, Drive sync, and `.concept` export/import.
 - Keep documents locally or sync them to Google Drive, including files shared with you and files in shared drives.
+- Open and create documents from Google Drive’s “Open with” and “New” menus.
 - Edit Drive documents together in real time: see other people's cursors and presence, and follow a collaborator to their caret. Live collaboration can be switched off per user; changes then sync through Drive and reconcile automatically.
 - Import Markdown, HTML (including embedded images), plain text, and native `.concept` files. Export to Markdown (images become alt text), HTML (images inlined), plain text, or `.concept`, and print or save as PDF through the browser.
 - Customize the editing experience with page setup, app appearance (light, dark, or system), and per-document themes — tonal color themes and scene backgrounds that travel with the document.
@@ -85,13 +86,25 @@ Set `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OAUTH_PRO
 
 Register `<your-origin>/api/auth/callback/google` as the Google OAuth redirect URI — for this deployment, `https://concept.maddock.world/api/auth/callback/google`. The callback is derived from the Better Auth base URL. [Better Auth OAuth Proxy](https://better-auth.com/docs/plugins/oauth-proxy) routes local and preview callbacks through the production origin. Adjust the origin and trusted origins if deploying your own instance.
 
-Concept requests the `drive.file` scope. Files shared with you, in shared drives, or not created by the app must be selected with Google Picker to grant access:
+Concept requests the `drive.file` and `drive.install` scopes. `drive.file` limits access to files the app created or the user selected; `drive.install` lets Concept appear in Drive’s “Open with” and “New” menus. Add both scopes to the OAuth consent screen configuration before deploying; Google rejects authorization requests for scopes that are not configured. Files shared with you, in shared drives, or not created by the app must be selected with Google Picker to grant access:
 
 1. Enable the Google Drive API and Google Picker API in the same Google Cloud project.
 2. Register JavaScript origins for local development and production in the OAuth client settings.
 3. Create an API key restricted to the Google Picker API. Add website restrictions for `http://localhost:3000/*`, your production origin, and `https://docs.google.com/*` for the Picker iframe.
 4. Set `VITE_GOOGLE_PICKER_API_KEY` and `VITE_GOOGLE_PICKER_APP_ID` to the API key and Google Cloud project number. The app ID may be omitted and is inferred from the numeric prefix of `VITE_GOOGLE_CLIENT_ID`.
 5. For GitHub Actions, configure the `VITE_GOOGLE_PICKER_API_KEY` repository secret and `VITE_GOOGLE_PICKER_APP_ID` repository variable. These are build-time values; a Worker runtime secret alone does not configure Picker.
+
+### Drive UI integration
+
+Concept handles Drive’s “Open with” and “New” menu entries at `/open` and `/new`. Configure them under **Google Drive API → Drive UI integration** in the same Google Cloud project:
+
+- **Open URL:** `https://<your-origin>/open`
+- **New URL:** `https://<your-origin>/new`
+- **Default MIME types:** `application/vnd.concept+zip`, `application/vnd.concept+json`
+- **Default file extension:** `concept`
+- Enable **Creating files** to show Concept in Drive’s “New” menu, and **Shared drives support** if the menus should be available there.
+
+Drive appends a URL-encoded JSON `state` parameter to both URLs. `/open` reads the file IDs and resource keys, checks Drive access, and opens the document. `/new` creates an empty `.concept` package in the selected folder. Drive requires a fully qualified domain name for these URLs, so test them on a deployed preview or production origin rather than `localhost`.
 
 Optional analytics can be enabled with `VITE_POSTHOG_KEY` and, for a different region or self-hosted instance, `VITE_POSTHOG_HOST`.
 
