@@ -16,7 +16,12 @@ import {
   $createHorizontalRuleNode,
   HorizontalRuleNode,
 } from '@lexical/extension'
-import { $createCodeNode, CodeNode } from '@lexical/code'
+import {
+  $createCodeHighlightNode,
+  $createCodeNode,
+  CodeHighlightNode,
+  CodeNode,
+} from '@lexical/code'
 import { $createLinkNode, LinkNode } from '@lexical/link'
 import { downloadExport, exportFilename, serializeExport } from './index'
 
@@ -90,6 +95,38 @@ describe('local export', () => {
     const file = await serializeExport(editor, 'Snippet', 'markdown')
     expect(file.content).toContain('```ts')
     expect(file.content).toContain('const answer = 42')
+  })
+  it('keeps only token and language classes in exported HTML', async () => {
+    const editor = createEditor({
+      namespace: 'export-class-test',
+      nodes: [CodeNode, CodeHighlightNode],
+      theme: {
+        paragraph: 'mb-2',
+        code: 'mb-2',
+        codeHighlight: { keyword: 'token keyword language-js' },
+      },
+      onError: (error) => {
+        throw error
+      },
+    })
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append($createTextNode('Text')),
+          $createCodeNode('js').append(
+            $createCodeHighlightNode('const', 'keyword'),
+          ),
+        )
+      },
+      { discrete: true },
+    )
+    const file = await serializeExport(editor, 'Code', 'html')
+    const document = new DOMParser().parseFromString(file.content, 'text/html')
+    expect(document.querySelector('p')?.hasAttribute('class')).toBe(false)
+    expect(document.querySelector('pre')?.className).toContain('language-js')
+    expect(document.querySelector('.token')?.className).toBe(
+      'token language-js',
+    )
   })
   it('exports links to Markdown and HTML with external attributes', async () => {
     const editor = createEditor({

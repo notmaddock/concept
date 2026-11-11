@@ -47,9 +47,26 @@ img,table { max-width: 100%; } img { height: auto; }
     if (attributes.target) anchor.setAttribute('target', attributes.target)
     if (attributes.rel) anchor.setAttribute('rel', attributes.rel)
   })
-  // Editor theme classes depend on app CSS; the exported document is standalone.
+  output.body
+    .querySelectorAll('code[data-language], pre[data-language]')
+    .forEach((element) => {
+      const language = element.getAttribute('data-language')
+      if (language) element.classList.add(`language-${language}`)
+    })
+  /*
+   * Export class policy: the exported document is standalone and its CSP is
+   * `default-src 'none'; style-src 'unsafe-inline'; img-src data:`, so app
+   * theme classes cannot resolve. Keep only classes that carry exported
+   * meaning: Prism's `token` and `language-*` markers. KaTeX/Mermaid classes
+   * should be added to this allowlist with their inline styles when those
+   * exporters land. Everything else is stripped.
+   */
   output.body.querySelectorAll('[class]').forEach((element) => {
-    element.removeAttribute('class')
+    const kept = [...element.classList].filter(
+      (className) => className === 'token' || className.startsWith('language-'),
+    )
+    if (kept.length) element.className = kept.join(' ')
+    else element.removeAttribute('class')
   })
   return `<!doctype html>\n${output.documentElement.outerHTML}`
 }
