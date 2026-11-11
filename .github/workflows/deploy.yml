@@ -3,13 +3,13 @@ name: Deploy
 on:
   workflow_call:
     inputs:
-      ref:
+      target:
         description: Git ref (tag, branch, or commit) to deploy
         required: false
         type: string
   workflow_dispatch:
     inputs:
-      ref:
+      target:
         description: Git ref (tag, branch, or commit) to deploy; defaults to the selected branch
         required: false
         type: string
@@ -29,7 +29,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.target || github.sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
