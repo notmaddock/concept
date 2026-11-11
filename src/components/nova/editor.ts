@@ -5,6 +5,7 @@ import {
   SelectBlockExtension,
   TabIndentationExtension,
 } from '@lexical/extension'
+import { CodeExtension, CodeIndentExtension } from '@lexical/code'
 import { HistoryExtension } from '@lexical/history'
 import { CheckListExtension, ListExtension } from '@lexical/list'
 import { RichTextExtension } from '@lexical/rich-text'
@@ -28,6 +29,8 @@ export const editorExtension = defineExtension({
     CheckListExtension,
     HorizontalRuleExtension,
     TabIndentationExtension,
+    CodeExtension,
+    CodeIndentExtension,
     ClickAfterLastBlockExtension,
     SelectBlockExtension,
     AutoFocusExtension,

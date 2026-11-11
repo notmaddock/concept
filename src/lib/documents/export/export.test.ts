@@ -16,12 +16,20 @@ import {
   $createHorizontalRuleNode,
   HorizontalRuleNode,
 } from '@lexical/extension'
+import { $createCodeNode, CodeNode } from '@lexical/code'
 import { downloadExport, exportFilename, serializeExport } from './index'
 
 function fixture() {
   const editor = createEditor({
     namespace: 'export-test',
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, HorizontalRuleNode],
+    nodes: [
+      HeadingNode,
+      QuoteNode,
+      ListNode,
+      ListItemNode,
+      HorizontalRuleNode,
+      CodeNode,
+    ],
     onError: (error) => {
       throw error
     },
@@ -60,6 +68,26 @@ describe('local export', () => {
     expect(file.content).toContain('**')
     expect(file.content).toContain('[x] Done')
     expect(file.content).toContain('---')
+  })
+  it('exports code nodes as fenced Markdown with their language', async () => {
+    const editor = createEditor({
+      namespace: 'export-code-test',
+      nodes: [CodeNode],
+      onError: (error) => {
+        throw error
+      },
+    })
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createCodeNode('ts').append($createTextNode('const answer = 42')),
+        )
+      },
+      { discrete: true },
+    )
+    const file = await serializeExport(editor, 'Snippet', 'markdown')
+    expect(file.content).toContain('```ts')
+    expect(file.content).toContain('const answer = 42')
   })
   it('creates standalone HTML with escaped content and title', async () => {
     const file = await serializeExport(

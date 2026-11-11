@@ -4,6 +4,7 @@ import { createEditor, $getRoot } from 'lexical'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { HorizontalRuleNode } from '@lexical/extension'
+import { CodeNode } from '@lexical/code'
 import { ImageNode } from '#/components/nova/nodes/ImageNode'
 import { createYjsBinding, syncYjsChangesToLexical } from '@lexical/yjs'
 import { convertImport } from './index'
@@ -28,6 +29,7 @@ async function converted(
       ListNode,
       ListItemNode,
       HorizontalRuleNode,
+      CodeNode,
       ImageNode,
     ],
     onError: (error) => {
@@ -174,4 +176,15 @@ it('normalizes RFC 2045 line-wrapped base64 images during HTML import', async ()
   } finally {
     globalThis.Image = originalImage
   }
+})
+
+it('imports fenced Markdown as a code node with its language', async () => {
+  const { state, text } = await converted(
+    '```ts\nconst answer = 42\n```',
+    'Snippet.md',
+    'markdown',
+  )
+  expect(state.root.children.map((node) => node.type)).toEqual(['code'])
+  expect(state.root.children[0]).toMatchObject({ language: 'ts' })
+  expect(text).toContain('const answer = 42')
 })

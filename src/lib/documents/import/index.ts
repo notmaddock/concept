@@ -15,6 +15,7 @@ import {
 } from 'lexical'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListItemNode, ListNode } from '@lexical/list'
+import { CodeHighlightNode, CodeNode } from '@lexical/code'
 import { HorizontalRuleNode } from '@lexical/extension'
 import { createYjsBinding, syncLexicalUpdateToYjs } from '@lexical/yjs'
 import { Doc } from 'yjs'
@@ -73,6 +74,8 @@ function createHeadlessImportSession() {
       ListNode,
       ListItemNode,
       HorizontalRuleNode,
+      CodeNode,
+      CodeHighlightNode,
       ImageNode,
     ],
     onError: (error) => {
