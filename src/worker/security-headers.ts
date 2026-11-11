@@ -5,6 +5,12 @@ const embedFrameSources = [
   'https://platform.twitter.com',
 ]
 
+const driveFrameSources = [
+  'https://docs.google.com',
+  'https://content.googleapis.com',
+  'https://accounts.google.com',
+]
+
 /*
  * `script-src` and `style-src` need `'unsafe-inline'`: TanStack Start inlines
  * its hydration bootstrap and the app uses React inline styles plus the
@@ -17,7 +23,8 @@ const directives: Record<string, string[]> = {
     "'self'",
     "'unsafe-inline'",
     'https://apis.google.com',
-    'https://us.i.posthog.com',
+    'https://*.posthog.com',
+    'https://*.i.posthog.com',
   ],
   'style-src': ["'self'", "'unsafe-inline'"],
   'img-src': [
@@ -31,12 +38,13 @@ const directives: Record<string, string[]> = {
   'font-src': ["'self'", 'data:'],
   'connect-src': [
     "'self'",
-    'https://www.googleapis.com',
-    'https://oauth2.googleapis.com',
-    'https://us.i.posthog.com',
+    'https://*.googleapis.com',
+    'https://*.google.com',
+    'https://*.posthog.com',
+    'https://*.i.posthog.com',
     'wss:',
   ],
-  'frame-src': embedFrameSources,
+  'frame-src': [...embedFrameSources, ...driveFrameSources],
   'worker-src': ["'self'", 'blob:'],
   'media-src': ["'self'", 'blob:', 'data:'],
   'object-src': ["'none'"],
