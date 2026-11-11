@@ -50,7 +50,7 @@ export function DocumentNavigationContent({
             })
           }}
           onMouseEnter={() => {
-            if (enabled || menu.label === 'File') {
+            if (enabled || menu.label === 'File' || menu.label === 'Help') {
               setMenuState((current) =>
                 current.label === null || current.label === menu.label
                   ? current
@@ -58,7 +58,7 @@ export function DocumentNavigationContent({
               )
             }
           }}
-          disabled={!enabled && menu.label !== 'File'}
+          disabled={!enabled && menu.label !== 'File' && menu.label !== 'Help'}
           {...menu}
         />
       ))}

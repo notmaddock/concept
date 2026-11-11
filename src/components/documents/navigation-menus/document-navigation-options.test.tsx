@@ -33,6 +33,7 @@ const workspace = vi.hoisted(() => ({
   copyDocument: vi.fn(),
   shareDocument: vi.fn(),
   showDetails: vi.fn(),
+  showChangelog: vi.fn(),
   downloadDocument: vi.fn(),
   saveToDrive: vi.fn(),
   exportDocument: vi.fn(),
@@ -83,6 +84,15 @@ function leaves(items: NavigationMenuItem[]): NavigationMenuItem[] {
     'children' in item ? leaves(item.children) : [item],
   )
 }
+
+it('opens the changelog from the Help menu', async () => {
+  await render()
+  const item = navigation.options.find((option) => option.id === 'whats-new')
+
+  await item?.onSelect()
+
+  expect(workspace.showChangelog).toHaveBeenCalledOnce()
+})
 
 it('exposes every menu action to search with the same state and handler', async () => {
   await render()

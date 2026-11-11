@@ -1,8 +1,10 @@
 import { defineConfig } from 'vitest/config'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { changelogPlugin } from './scripts/changelog-plugin.ts'
 
 const nodeTestPatterns = [
+  'scripts/*.test.ts',
   'src/**/*.server.test.ts',
   'src/lib/documents/drive/api.test.ts',
   'src/lib/documents/drive/create.test.ts',
@@ -23,6 +25,7 @@ const { version } = JSON.parse(
 ) as { version: string }
 
 export default defineConfig({
+  plugins: [changelogPlugin()],
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },

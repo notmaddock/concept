@@ -61,6 +61,7 @@ import {
 import type { RealtimeState } from '#/lib/documents/realtime/realtime'
 import { DocumentEditor } from './DocumentEditor'
 import { DriveIcon } from './icons/DriveIcon'
+import { ChangelogButton } from './ChangelogButton'
 import { APP_VERSION } from '#/version'
 import { AppToaster } from '#/components/app-toaster'
 
@@ -250,6 +251,9 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 <DocumentThemeButton />
               </div>
             )}
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              <ChangelogButton />
+            </div>
           </div>
           <DocumentNavigation />
         </header>

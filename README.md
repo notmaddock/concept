@@ -159,7 +159,7 @@ The release flow:
 
 To force a specific version, add a `Release-As: <version>` footer to a commit, for example `Release-As: 1.0.0`. While the project is pre-1.0, breaking changes bump the minor version instead of the major version.
 
-The built app reads `version` from `package.json` at build time and shows it in the workspace sidebar. To redeploy an existing release, run the **Deploy** workflow with a tag such as `v0.1.0`.
+The built app reads `version` from `package.json` at build time and shows it in the workspace sidebar. It also bundles the generated changelog and shows it from **Help → What's new**; a **What's new?** button appears in the workspace header when the running version differs from the last version the user acknowledged. To redeploy an existing release, run the **Deploy** workflow with a tag such as `v0.1.0`.
 
 release-please uses the repository `GITHUB_TOKEN` by default, which does not trigger CI on its own pull requests. Add a `RELEASE_PLEASE_TOKEN` secret containing a personal access token with `contents: write` and `pull-requests: write` if release pull requests should run the normal CI checks. The release is deployed by the same workflow, so the token is not required for deployment.
 

@@ -9,6 +9,7 @@ import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
 import { cloudflare } from '@cloudflare/vite-plugin'
+import { changelogPlugin } from './scripts/changelog-plugin.ts'
 
 const { version } = JSON.parse(
   readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
@@ -26,6 +27,7 @@ const config = defineConfig({
     },
   },
   plugins: [
+    changelogPlugin(),
     devtools(),
     tailwindcss(),
     tanstackStart(),
