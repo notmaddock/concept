@@ -1,5 +1,6 @@
 import { $generateHtmlFromNodes } from '@lexical/html'
 import type { LexicalEditor } from 'lexical'
+import { linkAttributes, normalizeLinkUrl } from '../link-policy'
 import { $getPageSetup, pageDimensions } from '../page-setup'
 
 export function exportHtml(editor: LexicalEditor, name: string) {
@@ -36,6 +37,16 @@ img,table { max-width: 100%; } img { height: auto; }
       list.setAttribute('data-lexical-list-type', 'check')
       list.removeAttribute('__lexicalListType')
     })
+  output.body.querySelectorAll('a[href]').forEach((anchor) => {
+    const href = anchor.getAttribute('href') ?? ''
+    if (!normalizeLinkUrl(href)) {
+      anchor.removeAttribute('href')
+      return
+    }
+    const attributes = linkAttributes(href)
+    if (attributes.target) anchor.setAttribute('target', attributes.target)
+    if (attributes.rel) anchor.setAttribute('rel', attributes.rel)
+  })
   // Editor theme classes depend on app CSS; the exported document is standalone.
   output.body.querySelectorAll('[class]').forEach((element) => {
     element.removeAttribute('class')
