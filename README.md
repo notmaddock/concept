@@ -149,13 +149,22 @@ pnpm run deploy
 
 ## Versioning and releases
 
-Versions follow [Semantic Versioning](https://semver.org/) and are derived from [Conventional Commits](https://www.conventionalcommits.org/) by [release-please](https://github.com/googleapis/release-please). `package.json` holds the current version; release-please updates it together with `CHANGELOG.md`, the `v<version>` Git tag, and the GitHub Release in a single release pull request. The first release starts from the commit recorded in `bootstrap-sha` in `release-please-config.json`.
+Versions follow [Semantic Versioning](https://semver.org/) and are derived from [Conventional Commits](https://www.conventionalcommits.org/) by [release-please](https://github.com/googleapis/release-please). `package.json` holds the current version; release-please updates it together with `CHANGELOG.md`, the `v<version>` Git tag, and the GitHub Release in a single release pull request. `v0.1.0` is the baseline; each next release is derived from commits since the latest tag.
 
 The release flow:
 
-1. Merge conventional commits (`feat:`, `fix:`, and so on) into `master`. CI validates them but does not deploy.
+1. Push conventional commits (`feat:`, `fix:`, and so on) to `master`. release-please runs on every master push, whether it is a merge commit, squash merge, or direct commit. CI validates the push but does not deploy.
 2. release-please opens or updates a release pull request that bumps the version and adds the changelog entries.
 3. Merge the release pull request. release-please creates the tag and GitHub Release, and the `Release` workflow deploys that tag to production.
+
+| Commit                                                                       | Release pull request | Version bump                |
+| ---------------------------------------------------------------------------- | -------------------- | --------------------------- |
+| `feat:`                                                                      | yes                  | minor                       |
+| `fix:`, `perf:`, `revert:`, `deps:`                                          | yes                  | patch                       |
+| `feat!:`, `BREAKING CHANGE:`                                                 | yes                  | major (minor while pre-1.0) |
+| `chore:`, `docs:`, `test:`, `ci:`, `style:`, `refactor:`, `build:`, `clean:` | no                   | none                        |
+
+With a merge commit, release-please parses each commit in the PR; with a squash merge, it parses only the PR title. Do not edit `package.json` `version`, `.release-please-manifest.json`, or `CHANGELOG.md` by hand — release-please owns them.
 
 To force a specific version, add a `Release-As: <version>` footer to a commit, for example `Release-As: 1.0.0`. While the project is pre-1.0, breaking changes bump the minor version instead of the major version.
 

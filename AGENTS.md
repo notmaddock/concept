@@ -58,5 +58,9 @@ This document outlines the operational rules and standards that all AI agents mu
 ## 5. Commit Messages
 
 - **Follow the repository's conventional commit style**: Use a lowercase type, optional lowercase scope, and concise lowercase summary in the format `<type>(<scope>): <summary>` (e.g., `feat(nova): add format popup plugin`, `clean(editor): remove debug border`, or `test: configure vitest environment`).
-- **Match the scope to the affected area** and choose a type that describes the change, such as `feat`, `fix`, `clean`, or `test`.
-- **Releases depend on this format**: release-please derives the version and `CHANGELOG.md` entries from these messages, so use a recognized type (`feat`, `fix`, `perf`, `refactor`, and so on) and mark breaking changes with `!` or a `BREAKING CHANGE:` footer.
+- **Match the scope to the affected area** and choose a type that describes the change, such as `feat`, `fix`, `refactor`, or `test`.
+- **Releases depend on this format**: release-please derives the version and `CHANGELOG.md` entries from commit headers on `master`.
+  - Release types: `feat` (minor), `fix`, `perf`, `revert`, `deps` (patch), and `!` or `BREAKING CHANGE:` (major; minor while pre-1.0).
+  - Non-release types: `chore`, `docs`, `test`, `ci`, `style`, `refactor`, `build`, and the repo's `clean`. Use these for internal changes.
+  - Keep the first line conventional. With merge commits, each PR commit is parsed; with squash merges, only the PR title is parsed.
+  - Do not edit `package.json` `version`, `.release-please-manifest.json`, or `CHANGELOG.md` by hand. release-please owns them; use a `Release-As: <version>` footer to force a version.
