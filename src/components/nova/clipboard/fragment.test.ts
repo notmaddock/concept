@@ -166,3 +166,20 @@ it('rejects non-object clipboard records with a format error', () => {
       'Invalid Concept clipboard format',
     )
 })
+
+it('strips iframes while exposing a known-host embed seam', async () => {
+  const { embedFrameSource, sanitizedHtml } = await import('./html')
+  const html = sanitizedHtml(
+    '<iframe src="https://www.youtube-nocookie.com/embed/abc"></iframe><iframe src="https://evil.example/embed/abc"></iframe>',
+  )
+  expect(html.querySelectorAll('iframe')).toHaveLength(0)
+  const parsed = new DOMParser().parseFromString(
+    '<iframe src="https://www.youtube-nocookie.com/embed/abc"></iframe><iframe src="https://evil.example/embed/abc"></iframe>',
+    'text/html',
+  )
+  const frames = parsed.querySelectorAll('iframe')
+  expect(embedFrameSource(frames[0])).toBe(
+    'https://www.youtube-nocookie.com/embed/abc',
+  )
+  expect(embedFrameSource(frames[1])).toBeNull()
+})
