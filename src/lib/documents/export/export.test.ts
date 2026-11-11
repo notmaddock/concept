@@ -17,6 +17,7 @@ import {
   HorizontalRuleNode,
 } from '@lexical/extension'
 import { $createCodeNode, CodeNode } from '@lexical/code'
+import { $createLinkNode, LinkNode } from '@lexical/link'
 import { downloadExport, exportFilename, serializeExport } from './index'
 
 function fixture() {
@@ -29,6 +30,7 @@ function fixture() {
       ListItemNode,
       HorizontalRuleNode,
       CodeNode,
+      LinkNode,
     ],
     onError: (error) => {
       throw error
@@ -89,6 +91,37 @@ describe('local export', () => {
     expect(file.content).toContain('```ts')
     expect(file.content).toContain('const answer = 42')
   })
+  it('exports links to Markdown and HTML with external attributes', async () => {
+    const editor = createEditor({
+      namespace: 'export-link-test',
+      nodes: [LinkNode],
+      onError: (error) => {
+        throw error
+      },
+    })
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append(
+            $createLinkNode('https://example.com', {
+              target: '_blank',
+              rel: 'noopener noreferrer nofollow',
+            }).append($createTextNode('Example')),
+          ),
+        )
+      },
+      { discrete: true },
+    )
+    const markdown = await serializeExport(editor, 'Links', 'markdown')
+    expect(markdown.content).toContain('[Example](https://example.com)')
+    const html = await serializeExport(editor, 'Links', 'html')
+    const document = new DOMParser().parseFromString(html.content, 'text/html')
+    const anchor = document.querySelector('a')
+    expect(anchor?.getAttribute('href')).toBe('https://example.com')
+    expect(anchor?.getAttribute('target')).toBe('_blank')
+    expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer nofollow')
+  })
+
   it('creates standalone HTML with escaped content and title', async () => {
     const file = await serializeExport(
       fixture(),

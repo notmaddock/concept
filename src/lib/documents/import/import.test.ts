@@ -5,6 +5,7 @@ import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { HorizontalRuleNode } from '@lexical/extension'
 import { CodeNode } from '@lexical/code'
+import { AutoLinkNode, LinkNode } from '@lexical/link'
 import { ImageNode } from '#/components/nova/nodes/ImageNode'
 import { createYjsBinding, syncYjsChangesToLexical } from '@lexical/yjs'
 import { convertImport } from './index'
@@ -30,6 +31,8 @@ async function converted(
       ListItemNode,
       HorizontalRuleNode,
       CodeNode,
+      LinkNode,
+      AutoLinkNode,
       ImageNode,
     ],
     onError: (error) => {
@@ -187,4 +190,48 @@ it('imports fenced Markdown as a code node with its language', async () => {
   expect(state.root.children.map((node) => node.type)).toEqual(['code'])
   expect(state.root.children[0]).toMatchObject({ language: 'ts' })
   expect(text).toContain('const answer = 42')
+})
+
+it('round-trips Markdown links through the collaboration format', async () => {
+  const { state, text } = await converted(
+    '# Links\n\n[Example](https://example.com)',
+    'Links.md',
+    'markdown',
+  )
+  expect(text).toContain('Example')
+  const paragraph = state.root.children[1] as unknown as {
+    children: Array<Record<string, unknown>>
+  }
+  expect(paragraph.children[0]).toMatchObject({
+    type: 'link',
+    url: 'https://example.com',
+    target: '_blank',
+    rel: 'noopener noreferrer nofollow',
+  })
+})
+
+it('imports HTML anchors and applies the external link policy', async () => {
+  const { state } = await converted(
+    '<p><a href="https://example.com">Example</a></p>',
+    'Links.html',
+    'html',
+  )
+  const paragraph = state.root.children[0] as unknown as {
+    children: Array<Record<string, unknown>>
+  }
+  expect(paragraph.children[0]).toMatchObject({
+    type: 'link',
+    url: 'https://example.com',
+    target: '_blank',
+  })
+})
+
+it('drops disallowed link protocols while preserving their text', async () => {
+  const { state, text } = await converted(
+    '[Bad](data:text/html;base64,PHNjcmlwdD4=)',
+    'Bad.md',
+    'markdown',
+  )
+  expect(text).toContain('Bad')
+  expect(JSON.stringify(state)).not.toContain('data:text/html')
 })

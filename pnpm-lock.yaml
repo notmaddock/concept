@@ -199,6 +199,9 @@ importers:
       '@lexical/html':
         specifier: 0.53.0
         version: 0.53.0(typescript@6.0.3)
+      '@lexical/link':
+        specifier: ^0.53.0
+        version: 0.53.0(typescript@6.0.3)
       '@lexical/list':
         specifier: ^0.53.0
         version: 0.53.0(typescript@6.0.3)

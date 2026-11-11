@@ -39,6 +39,8 @@ export const defaultEditorTheme: EditorThemeClasses = {
     variable: 'text-amber-700 dark:text-amber-400',
   },
 
+  link: 'text-primary underline underline-offset-2 cursor-pointer',
+
   hr: 'my-4 border-t border-border cursor-pointer',
   hrSelected: 'outline-2 outline-primary ring-2 ring-primary',
 

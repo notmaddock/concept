@@ -57,7 +57,7 @@ export function DocumentActionSearch({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      if ((event.metaKey || event.ctrlKey) && event.key === '/') {
         event.preventDefault()
         setOpen((previous) => !previous)
         setQuery('')
@@ -138,7 +138,7 @@ export function DocumentActionSearch({
             </TooltipTrigger>
             {!searchOpen && (
               <TooltipContent>
-                Search <Kbd>Ctrl</Kbd> <Kbd>K</Kbd>
+                Search <Kbd>Ctrl</Kbd> <Kbd>/</Kbd>
               </TooltipContent>
             )}
           </Tooltip>

@@ -10,6 +10,8 @@ import {
   createEditor,
 } from 'lexical'
 import type { LexicalEditor } from 'lexical'
+import { AutoLinkNode, LinkNode } from '@lexical/link'
+import { CodeNode } from '@lexical/code'
 import { $createImageNode } from './nodes/ImageNode'
 import type { AssetId } from '#/lib/documents/assets'
 import { Nova } from './Nova'
@@ -65,6 +67,16 @@ describe('Nova editor mode and read-only behavior', () => {
     expect(
       container.querySelector('[data-testid="floating-format-toolbar-plugin"]'),
     ).not.toBeNull()
+  })
+
+  it('registers link, autolink, and code nodes', async () => {
+    const editorRef = createRef<LexicalEditor>()
+    await act(async () => {
+      root.render(<Nova editorRef={editorRef} mode="edit" />)
+    })
+    expect(
+      editorRef.current?.hasNodes([LinkNode, AutoLinkNode, CodeNode]),
+    ).toBe(true)
   })
 
   it('triple-clicks a text block without including the image below it', async () => {

@@ -1,4 +1,5 @@
 import { INSERT_IMAGE_COMMAND } from '#/components/nova/images/commands'
+import { OPEN_LINK_DIALOG_COMMAND } from '#/components/nova/plugins/LinkPlugin/commands'
 import { INSERT_PAGE_BREAK } from '#/components/nova/pages/PageBreakExtension'
 import { exportFormats, importFormats } from '#/lib/documents/import/formats'
 import type { ImportFormat } from '#/lib/documents/import/formats'
@@ -37,6 +38,7 @@ import {
   FolderOpenIcon,
   InfoIcon,
   LetterTextIcon,
+  LinkIcon,
   MonitorIcon,
   MoonIcon,
   PaletteIcon,
@@ -85,6 +87,7 @@ type NavigationContext = {
   onSaveToDrive?: () => void | Promise<void>
   onExport: (format: ExportFormat) => Promise<void>
   onInsertImage?: () => void
+  onInsertLink?: () => void
   onInsertPageBreak: () => void
   onPageSetup: () => void
   onCreate: () => Promise<void>
@@ -369,6 +372,16 @@ export const documentNavigation: MenuDefinition[] = [
         disabled: (context) => Boolean(context.readOnly),
       },
       {
+        id: 'insert-link',
+        label: 'Link',
+        keywords: ['url', 'hyperlink'],
+        icon: LinkIcon,
+        shortcut: { keys: ['Ctrl', 'K'], macKeys: ['⌘', 'K'] },
+        focusAfterSelect: 'action',
+        onSelect: (context) => context.onInsertLink?.(),
+        disabled: (context) => Boolean(context.readOnly),
+      },
+      {
         id: 'insert-page-break',
         label: 'Page break',
         keywords: ['page', 'break', 'pagination'],
@@ -482,6 +495,12 @@ export function useDocumentNavigationOptions({
     onInsertImage: () => {
       workspace.editorRef.current?.dispatchCommand(
         INSERT_IMAGE_COMMAND,
+        undefined,
+      )
+    },
+    onInsertLink: () => {
+      workspace.editorRef.current?.dispatchCommand(
+        OPEN_LINK_DIALOG_COMMAND,
         undefined,
       )
     },

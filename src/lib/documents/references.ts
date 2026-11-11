@@ -41,6 +41,8 @@ const referenceFreeTypes = new Set([
   'listitem',
   'code',
   'code-highlight',
+  'link',
+  'autolink',
   'horizontalrule',
 ])
 
