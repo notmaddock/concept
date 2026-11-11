@@ -21,7 +21,7 @@ import {
   $applyLinkPolicyToNode,
   normalizeLinkUrl,
 } from '#/lib/documents/link-policy'
-import { ImageNode } from './nodes/ImageNode'
+import { documentNodes } from './node-registry'
 import { PagesExtension } from './pages'
 import { getInitialState } from './initial-state'
 import { defaultEditorTheme } from './theme'
@@ -29,7 +29,7 @@ import { paragraphDOM } from './paragraph-format'
 
 export const editorExtension = defineExtension({
   name: '[root]',
-  nodes: [ImageNode],
+  nodes: documentNodes,
   init(config) {
     config.dom = { ...config.dom, ...paragraphDOM }
   },

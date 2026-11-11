@@ -235,3 +235,21 @@ it('drops disallowed link protocols while preserving their text', async () => {
   expect(text).toContain('Bad')
   expect(JSON.stringify(state)).not.toContain('data:text/html')
 })
+
+it('imports every registry-backed markdown node type', async () => {
+  const { state } = await converted(
+    '# Heading\n\n> Quote\n\n- Item\n\n1. First\n\n- [x] Done\n\n---\n\n```ts\nconst answer = 42\n```\n\n[Example](https://example.com)',
+    'Everything.md',
+    'markdown',
+  )
+  expect(state.root.children.map((node) => node.type)).toEqual([
+    'heading',
+    'quote',
+    'list',
+    'list',
+    'list',
+    'horizontalrule',
+    'code',
+    'paragraph',
+  ])
+})

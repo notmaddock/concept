@@ -1,4 +1,4 @@
-import { ImageNode } from '#/components/nova/nodes/ImageNode'
+import { documentNodes } from '#/components/nova/node-registry'
 import {
   prepareHtmlImages,
   sanitizedHtml,
@@ -13,11 +13,6 @@ import {
   $getRoot,
   createEditor,
 } from 'lexical'
-import { HeadingNode, QuoteNode } from '@lexical/rich-text'
-import { ListItemNode, ListNode } from '@lexical/list'
-import { CodeHighlightNode, CodeNode } from '@lexical/code'
-import { AutoLinkNode, LinkNode } from '@lexical/link'
-import { HorizontalRuleNode } from '@lexical/extension'
 import { createYjsBinding, syncLexicalUpdateToYjs } from '@lexical/yjs'
 import { Doc } from 'yjs'
 import type { ImportFormat } from './formats'
@@ -69,18 +64,7 @@ async function prepareHtmlAssets(content: string) {
 function createHeadlessImportSession() {
   const editor = createEditor({
     namespace: 'document-import',
-    nodes: [
-      HeadingNode,
-      QuoteNode,
-      ListNode,
-      ListItemNode,
-      HorizontalRuleNode,
-      CodeNode,
-      CodeHighlightNode,
-      LinkNode,
-      AutoLinkNode,
-      ImageNode,
-    ],
+    nodes: documentNodes,
     onError: (error) => {
       throw error
     },
