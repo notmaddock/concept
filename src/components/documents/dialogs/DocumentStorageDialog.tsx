@@ -126,6 +126,14 @@ export function DocumentStorageDialog({
       if (request === revision.current) {
         setSelected(next)
         setName(next.file.name)
+        if (next.warnings?.length) {
+          const constructs = [
+            ...new Set(next.warnings.map((warning) => warning.construct)),
+          ]
+          toast.warning(
+            `Some content could not be imported: ${constructs.join(', ')}.`,
+          )
+        }
       }
     } catch (cause) {
       if (request === revision.current)
@@ -216,8 +224,10 @@ export function DocumentStorageDialog({
             onSelect={(file) => {
               void readDocument(async () => {
                 const { convertImport } = await import('#/lib/documents/import')
+                const result = await convertImport(file, format.id)
                 return {
-                  file: await convertImport(file, format.id),
+                  file: result,
+                  warnings: result.warnings,
                   size: file.size,
                   filename: file.name,
                   origin: storageLocations.device.label,

@@ -253,3 +253,24 @@ it('imports every registry-backed markdown node type', async () => {
     'paragraph',
   ])
 })
+
+it('returns warnings for unsupported Markdown constructs', async () => {
+  const { file } = await converted(
+    '| a | b |\n| --- | --- |\n\n![Alt](https://example.com/image.png)',
+    'Lossy.md',
+    'markdown',
+  )
+  expect(file.warnings.map((warning) => warning.construct)).toEqual([
+    'table',
+    'image',
+  ])
+})
+
+it('returns no warnings for supported Markdown', async () => {
+  const { file } = await converted(
+    '# Heading\n\n[Example](https://example.com)\n\n```ts\nconst answer = 42\n```',
+    'Clean.md',
+    'markdown',
+  )
+  expect(file.warnings).toEqual([])
+})

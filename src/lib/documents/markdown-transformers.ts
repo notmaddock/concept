@@ -120,12 +120,3 @@ export function markdownWarnings(
     )
     .map(({ construct, message }) => ({ construct, message }))
 }
-
-export function warnUnsupportedMarkdown(
-  content: string,
-  transformers: readonly Transformer[],
-): MarkdownWarning[] {
-  const warnings = markdownWarnings(content, transformers)
-  for (const warning of warnings) console.warn(warning.message)
-  return warnings
-}

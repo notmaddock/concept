@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import { storageLocations } from './storage-locations'
 import type { AssetId } from './assets'
 import type { NormalizedSnapshot } from './package'
+import type { MarkdownWarning } from './markdown-transformers'
 import { writePackage } from './package'
 import { captureSnapshot, IncompleteAssetsError } from './working'
 import type { DocumentInfo } from './storage'
@@ -17,6 +18,7 @@ export interface SelectedDocument {
   origin: string
   existingId?: string
   missingAssets?: AssetId[]
+  warnings?: MarkdownWarning[]
 }
 
 interface SourceInfo {
