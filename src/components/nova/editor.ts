@@ -12,11 +12,12 @@ import {
   autoLinkEmailMatcher,
   autoLinkUrlMatcher,
   AutoLinkExtension,
+  AutoLinkNode,
   LinkExtension,
   LinkNode,
 } from '@lexical/link'
 import { RichTextExtension } from '@lexical/rich-text'
-import { configExtension, defineExtension } from 'lexical'
+import { configExtension, defineExtension, mergeRegister } from 'lexical'
 import {
   $applyLinkPolicyToNode,
   normalizeLinkUrl,
@@ -34,7 +35,10 @@ export const editorExtension = defineExtension({
     config.dom = { ...config.dom, ...paragraphDOM }
   },
   register(editor) {
-    return editor.registerNodeTransform(LinkNode, $applyLinkPolicyToNode)
+    return mergeRegister(
+      editor.registerNodeTransform(LinkNode, $applyLinkPolicyToNode),
+      editor.registerNodeTransform(AutoLinkNode, $applyLinkPolicyToNode),
+    )
   },
   dependencies: [
     RichTextExtension,

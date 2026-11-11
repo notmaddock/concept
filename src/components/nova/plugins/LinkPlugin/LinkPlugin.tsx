@@ -1,5 +1,10 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { $createLinkNode, $isLinkNode, $toggleLink } from '@lexical/link'
+import {
+  $createLinkNode,
+  $isAutoLinkNode,
+  $isLinkNode,
+  $toggleLink,
+} from '@lexical/link'
 import type { LinkNode } from '@lexical/link'
 import { $findMatchingParent } from '@lexical/utils'
 import {
@@ -7,6 +12,7 @@ import {
   $getNodeByKey,
   $getSelection,
   $isRangeSelection,
+  $isTextNode,
   $setSelection,
   COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_HIGH,
@@ -47,6 +53,14 @@ function $removeLink(link: LinkNode) {
   link.remove()
 }
 
+function $setLinkText(link: LinkNode, text: string) {
+  if (text === link.getTextContent()) return
+  const first = link.getFirstChild()
+  if (link.getChildrenSize() === 1 && $isTextNode(first))
+    first.setTextContent(text)
+  else link.clear().append($createTextNode(text))
+}
+
 type FloatingState = {
   key: string
   url: string
@@ -65,10 +79,15 @@ export function LinkPlugin() {
   const [floating, setFloating] = useState<FloatingState | null>(null)
   const savedSelection = useRef<RangeSelection | null>(null)
   const dialogOpenRef = useRef(false)
+  const floatingRef = useRef<FloatingState | null>(null)
 
   useEffect(() => {
     dialogOpenRef.current = dialogOpen
   }, [dialogOpen])
+
+  useEffect(() => {
+    floatingRef.current = floating
+  }, [floating])
 
   const openDialog = useCallback(() => {
     editor.getEditorState().read(() => {
@@ -104,19 +123,26 @@ export function LinkPlugin() {
         }
         const attributes = linkAttributes(normalized)
         const link = $findLinkNode(selection)
+        if (link && $isAutoLinkNode(link)) {
+          const replacement = $createLinkNode(normalized, attributes).append(
+            $createTextNode(value.text || normalized),
+          )
+          $setSelection(null)
+          link.replace(replacement)
+          replacement.selectEnd()
+          return
+        }
         if (link) {
           link.setURL(normalized)
           link.setTarget(attributes.target ?? null)
           link.setRel(attributes.rel ?? null)
-          if (value.text && value.text !== link.getTextContent())
-            link.clear().append($createTextNode(value.text))
+          $setLinkText(link, value.text)
           return
         }
         if (!selection.isCollapsed()) {
           $toggleLink({ url: normalized, ...attributes })
           const created = $findLinkNode($getSelection())
-          if (created && value.text && value.text !== created.getTextContent())
-            created.clear().append($createTextNode(value.text))
+          if (created) $setLinkText(created, value.text)
           return
         }
         const node = $createLinkNode(normalized, attributes).append(
@@ -174,11 +200,19 @@ export function LinkPlugin() {
         const node = $getNodeByKey(key)
         if (!$isLinkNode(node)) return
         const attributes = linkAttributes(normalized)
+        if ($isAutoLinkNode(node)) {
+          const replacement = $createLinkNode(normalized, attributes).append(
+            $createTextNode(value.text || normalized),
+          )
+          $setSelection(null)
+          node.replace(replacement)
+          replacement.selectEnd()
+          return
+        }
         node.setURL(normalized)
         node.setTarget(attributes.target ?? null)
         node.setRel(attributes.rel ?? null)
-        if (value.text && value.text !== node.getTextContent())
-          node.clear().append($createTextNode(value.text))
+        $setLinkText(node, value.text)
       })
       return true
     },
@@ -224,7 +258,7 @@ export function LinkPlugin() {
       editor.registerCommand(
         KEY_ESCAPE_COMMAND,
         () => {
-          if (!floating) return false
+          if (!floatingRef.current) return false
           setFloating(null)
           return true
         },
@@ -248,7 +282,7 @@ export function LinkPlugin() {
         if (!root) setFloating(null)
       }),
     )
-  }, [editor, floating, openDialog, updateFloating])
+  }, [editor, openDialog, updateFloating])
 
   useEffect(() => {
     if (!floating) return
