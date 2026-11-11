@@ -59,3 +59,4 @@ This document outlines the operational rules and standards that all AI agents mu
 
 - **Follow the repository's conventional commit style**: Use a lowercase type, optional lowercase scope, and concise lowercase summary in the format `<type>(<scope>): <summary>` (e.g., `feat(nova): add format popup plugin`, `clean(editor): remove debug border`, or `test: configure vitest environment`).
 - **Match the scope to the affected area** and choose a type that describes the change, such as `feat`, `fix`, `clean`, or `test`.
+- **Releases depend on this format**: release-please derives the version and `CHANGELOG.md` entries from these messages, so use a recognized type (`feat`, `fix`, `perf`, `refactor`, and so on) and mark breaking changes with `!` or a `BREAKING CHANGE:` footer.

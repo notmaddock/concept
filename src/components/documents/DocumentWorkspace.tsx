@@ -61,6 +61,7 @@ import {
 import type { RealtimeState } from '#/lib/documents/realtime/realtime'
 import { DocumentEditor } from './DocumentEditor'
 import { DriveIcon } from './icons/DriveIcon'
+import { APP_VERSION } from '#/version'
 import { AppToaster } from '#/components/app-toaster'
 
 export function DocumentWorkspace({ id }: { id?: string }) {
@@ -174,6 +175,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
+          <p className="px-2 text-xs text-muted-foreground">v{APP_VERSION}</p>
         </SidebarFooter>
       </Sidebar>
       <ProvidersDialog
