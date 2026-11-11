@@ -1,18 +1,14 @@
-import {
-  $convertFromMarkdownString,
-  CHECK_LIST,
-  TRANSFORMERS,
-} from '@lexical/markdown'
+import { $convertFromMarkdownString } from '@lexical/markdown'
 import type { LexicalEditor } from 'lexical'
-import { horizontalRule } from '../export/markdown'
+import {
+  supportedTransformers,
+  warnUnsupportedMarkdown,
+} from '../markdown-transformers'
 import { $applyLinkPolicy } from '../link-policy'
 
 export function convertMarkdown(content: string, editor: LexicalEditor) {
-  const transformers = [horizontalRule, CHECK_LIST, ...TRANSFORMERS].filter(
-    (transformer) =>
-      !('dependencies' in transformer) ||
-      editor.hasNodes(transformer.dependencies),
-  )
+  const transformers = supportedTransformers(editor)
+  warnUnsupportedMarkdown(content, transformers)
   $convertFromMarkdownString(content, transformers)
   $applyLinkPolicy()
 }

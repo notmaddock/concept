@@ -30,7 +30,7 @@ const serializers: Record<
     const { exportMarkdown } = await import('./markdown')
     const state = editor.getEditorState()
     return state.read(() => ({
-      content: exportMarkdown(),
+      content: exportMarkdown(editor),
       notice: JSON.stringify(state.toJSON()).includes('"type":"image"')
         ? 'Markdown represents images as alt text. Use HTML or Concept to preserve images.'
         : undefined,
