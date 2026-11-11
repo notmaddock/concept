@@ -44,6 +44,9 @@ const referenceFreeTypes = new Set([
   'link',
   'autolink',
   'horizontalrule',
+  'page',
+  'page-content',
+  'page-break',
 ])
 
 export class UnsupportedNodeError extends Error {
