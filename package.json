@@ -17,6 +17,7 @@
     "check": "prettier --check .",
     "check:routes": "pnpm run generate-routes && git diff --exit-code src/routeTree.gen.ts",
     "check:types": "pnpm run cf-typegen && git diff --exit-code worker-configuration.d.ts",
+    "check:bundle": "node scripts/check-bundle-budget.mjs",
     "check:cf-typegen": "pnpm run check:types",
     "typecheck": "tsc --noEmit",
     "wrangler": "wrangler",
