@@ -149,22 +149,12 @@ pnpm run deploy
 
 ## Versioning and releases
 
-Versions follow [Semantic Versioning](https://semver.org/) and are derived from [Conventional Commits](https://www.conventionalcommits.org/) by [release-please](https://github.com/googleapis/release-please). `package.json` holds the current version; release-please updates it and the `v<version>` Git tag in a release pull request. `v0.1.0` is the baseline; each next release is derived from commits since the latest tag.
-
-The changelog is manual. `skip-changelog: true` keeps release-please from editing `CHANGELOG.md`, so the release pull request contains a focused, user-facing entry written by hand instead of every internal commit. Use an H2 version heading and H3 sections:
-
-```md
-## [0.2.0](https://github.com/notmaddock/concept/releases/tag/v0.2.0) (2026-11-11)
-
-### Features
-
-- **editor:** add page breaks
-```
+Versions follow [Semantic Versioning](https://semver.org/) and are derived from [Conventional Commits](https://www.conventionalcommits.org/) by [release-please](https://github.com/googleapis/release-please). `package.json` holds the current version; release-please updates it together with `CHANGELOG.md`, the `v<version>` Git tag, and the GitHub Release in a single release pull request. `v0.1.0` is the baseline; each next release is derived from commits since the latest tag.
 
 The release flow:
 
 1. Push conventional commits (`feat:`, `fix:`, and so on) to `master`. release-please runs on every master push, whether it is a merge commit, squash merge, or direct commit. CI validates the push but does not deploy.
-2. release-please opens or updates a release pull request that bumps the version. Add the focused `CHANGELOG.md` entry to that pull request.
+2. release-please opens or updates a release pull request that bumps the version and adds the changelog entries.
 3. Merge the release pull request. release-please creates the tag and GitHub Release, and the `Release` workflow deploys that tag to production.
 
 | Commit                                                                       | Release pull request | Version bump                |

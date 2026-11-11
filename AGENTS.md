@@ -57,18 +57,10 @@ This document outlines the operational rules and standards that all AI agents mu
 
 ## 5. Commit Messages
 
-- **Follow the repository's conventional commit style**: Use a lowercase type, optional lowercase scope, and concise lowercase summary in the format `<type>(<scope>): <summary>` (e.g., `feat(nova): add format popup plugin`, `refactor(editor): remove debug border`, or `test: configure vitest environment`).
+- **Follow the repository's conventional commit style**: Use a lowercase type, optional lowercase scope, and concise lowercase summary in the format `<type>(<scope>): <summary>` (e.g., `feat(nova): add format popup plugin`, `clean(editor): remove debug border`, or `test: configure vitest environment`).
 - **Match the scope to the affected area** and choose a type that describes the change, such as `feat`, `fix`, `refactor`, or `test`.
-- **Releases depend on this format**: release-please derives the version from commit headers on `master`.
+- **Releases depend on this format**: release-please derives the version and `CHANGELOG.md` entries from commit headers on `master`.
   - Release types: `feat` (minor), `fix`, `perf`, `revert`, `deps` (patch), and `!` or `BREAKING CHANGE:` (major; minor while pre-1.0).
   - Non-release types: `chore`, `docs`, `test`, `ci`, `style`, `refactor`, `build`, and the repo's `clean`. Use these for internal changes.
   - Keep the first line conventional. With merge commits, each PR commit is parsed; with squash merges, only the PR title is parsed.
-  - Do not edit `package.json` `version` or `.release-please-manifest.json` by hand. release-please owns them; use a `Release-As: <version>` footer to force a version.
-  - `CHANGELOG.md` is manual (`skip-changelog: true`). Add a focused user-facing entry to the release PR instead of listing every internal commit. Use an H2 version heading and H3 sections:
-    ```md
-    ## [0.2.0](https://github.com/notmaddock/concept/releases/tag/v0.2.0) (2026-11-11)
-
-    ### Features
-
-    - **editor:** add page breaks
-    ```
+  - Do not edit `package.json` `version`, `.release-please-manifest.json`, or `CHANGELOG.md` by hand. release-please owns them; use a `Release-As: <version>` footer to force a version.
