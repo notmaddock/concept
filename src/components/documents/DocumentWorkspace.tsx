@@ -61,6 +61,8 @@ import {
 import type { RealtimeState } from '#/lib/documents/realtime/realtime'
 import { DocumentEditor } from './DocumentEditor'
 import { DriveIcon } from './icons/DriveIcon'
+import { ChangelogButton } from './ChangelogButton'
+import { APP_VERSION } from '#/version'
 import { AppToaster } from '#/components/app-toaster'
 
 export function DocumentWorkspace({ id }: { id?: string }) {
@@ -174,6 +176,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
+          <p className="px-2 text-xs text-muted-foreground">v{APP_VERSION}</p>
         </SidebarFooter>
       </Sidebar>
       <ProvidersDialog
@@ -248,12 +251,15 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 <DocumentThemeButton />
               </div>
             )}
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              <ChangelogButton />
+            </div>
           </div>
           <DocumentNavigation />
         </header>
         <main
           aria-label="Document workspace"
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-4 [scrollbar-gutter:stable] md:px-6"
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 py-4 [scrollbar-gutter:stable] md:px-6"
         >
           {document ? (
             <div

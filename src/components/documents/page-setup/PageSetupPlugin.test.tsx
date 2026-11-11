@@ -72,10 +72,15 @@ it('leaves page geometry untouched during text edits and applies changed setting
       { discrete: true },
     ),
   )
-  expect(sheet.style.width).toBe('210mm')
-  expect(sheet.style.minHeight).toBe('297mm')
-  expect(sheet.style.getPropertyValue('--page-margin-top')).toBe('25.4mm')
-  expect(write).toHaveBeenCalledTimes(4)
+  expect(sheet.dataset.pageMode).toBe('paper')
+  expect(sheet.style.width).toBe('min(100%, 793.7008px)')
+  expect(sheet.style.maxWidth).toBe('none')
+  expect(sheet.style.minHeight).toBe('100%')
+  expect(sheet.style.getPropertyValue('--page-width')).toBe('793.7008px')
+  expect(sheet.style.getPropertyValue('--page-height')).toBe('1122.5197px')
+  expect(sheet.style.getPropertyValue('--page-margin-top')).toBe('96px')
+  expect(sheet.style.getPropertyValue('--document-content-padding')).toBe('0px')
+  expect(write).toHaveBeenCalledTimes(9)
   write.mockClear()
   await act(() =>
     editor.update(
@@ -99,10 +104,15 @@ it('applies the current settings when the editor root moves to a new sheet', asy
   document.body.append(replacementSheet)
   try {
     await act(() => editor.setRootElement(replacementRoot))
+    expect(replacementSheet.dataset.pageMode).toBe('pageless')
     expect(replacementSheet.style.width).toBe('100%')
+    expect(replacementSheet.style.maxWidth).toBe('960px')
     expect(replacementSheet.style.getPropertyValue('--page-margin-top')).toBe(
       '2rem',
     )
+    expect(
+      replacementSheet.style.getPropertyValue('--document-content-padding'),
+    ).toBe('2rem clamp(1.5rem, 6vw, 4rem)')
   } finally {
     replacementSheet.remove()
   }

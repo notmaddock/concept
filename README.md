@@ -15,6 +15,7 @@ Concept is pre-alpha: the document format may change before 1.0, so export copie
 - [Google Drive and authentication](#google-drive-and-authentication)
 - [Development](#development)
 - [Deployment](#deployment)
+- [Versioning and releases](#versioning-and-releases)
 - [Project structure](#project-structure)
 
 ## What you can do
@@ -25,7 +26,8 @@ Concept is pre-alpha: the document format may change before 1.0, so export copie
 - Open and create documents from Google Drive’s “Open with” and “New” menus.
 - Edit Drive documents together in real time: see other people's cursors and presence, and follow a collaborator to their caret. Live collaboration can be switched off per user; changes then sync through Drive and reconcile automatically.
 - Import Markdown, HTML (including embedded images), plain text, and native `.concept` files. Export to Markdown (images become alt text), HTML (images inlined), plain text, or `.concept`, and print or save as PDF through the browser.
-- Customize the editing experience with page setup, app appearance (light, dark, or system), and per-document themes — tonal color themes and scene backgrounds that travel with the document.
+- Switch between a continuous pageless canvas and paged paper layouts (A4, Letter, and more; portrait or landscape; custom sizes and margins). Pages split automatically, and you can insert manual page breaks. Page setup travels with the document through Yjs, so it syncs to Drive and collaborators and appears in File > Details.
+- Customize the editing experience with app appearance (light, dark, or system) and per-document themes — tonal color themes and scene backgrounds that travel with the document.
 - Mark Drive documents "Available offline" to keep their content and assets cached in the browser.
 
 The native `.concept` format is a versioned ZIP package: a manifest, a Yjs update, and content-addressed binary assets. Legacy single-update `.concept` files remain readable.
@@ -129,10 +131,10 @@ pnpm exec node scripts/generate-auth-migration.ts migrations/0002_auth.sql
 
 ## Deployment
 
-The [GitHub Actions pipeline](.github/workflows/ci.yml) runs on pull requests and pushes to `master`, and can also be started manually. It checks formatting, linting, generated routes and Worker types, TypeScript, tests, and the production build. It also audits dependencies, scans for secrets with Gitleaks, and runs CodeQL when the repository is public or the `ENABLE_CODEQL` repository variable is set. Deployments wait for the required checks and use the build artifact produced by CI. A separate workflow deletes the preview Worker when a pull request closes.
+The [GitHub Actions pipeline](.github/workflows/ci.yml) runs on pull requests and pushes to `master`, and can also be started manually. It checks formatting, linting, generated routes and Worker types, TypeScript, tests, and the production build. It also audits dependencies, scans for secrets with Gitleaks, and runs CodeQL when the repository is public or the `ENABLE_CODEQL` repository variable is set. Production deployments run from the [release workflow](.github/workflows/release.yml) instead of every `master` push. A separate workflow deletes the preview Worker when a pull request closes.
 
 - **Preview:** Eligible pull requests from the same repository, excluding Dependabot, deploy to a Cloudflare Workers preview. CI applies D1 migrations to the shared `concept-staging` database (via `wrangler.preview-migrations.jsonc`), deploys a `pr-<number>` Worker, and posts the preview URL on the PR. Preview URLs are public.
-- **Production:** A push to `master` applies D1 migrations to the `concept` database and deploys the built Worker with serialized production deployments.
+- **Production:** Publishing a release applies D1 migrations to the `concept` database and deploys the built Worker with serialized production deployments. Pushes to `master` only run CI; they do not deploy.
 
 Preview and production use separate D1 databases, while all previews share the staging database. Durable Object migrations are applied by `wrangler dev` and `wrangler deploy` from the `migrations` block in `wrangler.jsonc`. The OAuth proxy routes authentication callbacks through the production origin.
 
@@ -144,6 +146,22 @@ For a manual production deployment, configure the required Worker secrets (`BETT
 pnpm exec wrangler d1 migrations apply DB --remote
 pnpm run deploy
 ```
+
+## Versioning and releases
+
+Versions follow [Semantic Versioning](https://semver.org/) and are derived from [Conventional Commits](https://www.conventionalcommits.org/) by [release-please](https://github.com/googleapis/release-please). `package.json` holds the current version; release-please updates it together with `CHANGELOG.md`, the `v<version>` Git tag, and the GitHub Release in a single release pull request. The first release starts from the commit recorded in `bootstrap-sha` in `release-please-config.json`.
+
+The release flow:
+
+1. Merge conventional commits (`feat:`, `fix:`, and so on) into `master`. CI validates them but does not deploy.
+2. release-please opens or updates a release pull request that bumps the version and adds the changelog entries.
+3. Merge the release pull request. release-please creates the tag and GitHub Release, and the `Release` workflow deploys that tag to production.
+
+To force a specific version, add a `Release-As: <version>` footer to a commit, for example `Release-As: 1.0.0`. While the project is pre-1.0, breaking changes bump the minor version instead of the major version.
+
+The built app reads `version` from `package.json` at build time and shows it in the workspace sidebar. It also bundles the generated changelog and shows it from **Help → What's new**; a **What's new?** button appears in the workspace header when the running version differs from the last version the user acknowledged. To redeploy an existing release, run the **Deploy** workflow with a tag such as `v0.1.0`.
+
+release-please uses the repository `GITHUB_TOKEN` by default, which does not trigger CI on its own pull requests. Add a `RELEASE_PLEASE_TOKEN` secret containing a personal access token with `contents: write` and `pull-requests: write` if release pull requests should run the normal CI checks. The release is deployed by the same workflow, so the token is not required for deployment.
 
 ## Project structure
 

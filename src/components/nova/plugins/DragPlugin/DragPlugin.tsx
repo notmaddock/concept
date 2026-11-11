@@ -1,4 +1,4 @@
-import { DraggableBlockPlugin_EXPERIMENTAL } from '@lexical/react/LexicalDraggableBlockPlugin'
+import { DraggableBlockPlugin_EXPERIMENTAL } from './DraggableBlockPlugin'
 import { DragPluginMenuComponent } from './DragPluginMenuComponent'
 import { DragPluginTargetLineComponent } from './DragPluginTargetLineComponent'
 import { useRef } from 'react'
@@ -22,8 +22,7 @@ export function DragPlugin({ anchorElement }: DragPluginProps) {
       menuComponent={
         <DragPluginMenuComponent
           ref={menuComponentRef}
-          // Reserve the 32px handle, a 12px text gap, and Lexical's 4px translation.
-          className="absolute top-0 left-[calc(var(--page-margin-left,clamp(1.5rem,6vw,4rem))-3rem)]"
+          className="absolute top-0 left-0"
         />
       }
       targetLineRef={targetLineRef}

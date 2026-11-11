@@ -1,4 +1,5 @@
 import { INSERT_IMAGE_COMMAND } from '#/components/nova/images/commands'
+import { INSERT_PAGE_BREAK } from '#/components/nova/pages/PageBreakExtension'
 import { importFormats } from '#/lib/documents/import/formats'
 import type { ImportFormat } from '#/lib/documents/import/formats'
 import type { ExportFormat } from '#/lib/documents/export'
@@ -43,6 +44,7 @@ import {
   PrinterIcon,
   Settings2Icon,
   Share2Icon,
+  SparklesIcon,
   SunIcon,
 } from 'lucide-react'
 import { useTheme } from '#/components/theme-provider'
@@ -76,12 +78,14 @@ type NavigationContext = {
   onImport?: (format: ImportFormat) => void
   onOpen?: () => void
   onDetails?: () => void
+  onShowChangelog: () => void
   onShare: () => void
   onCopy?: () => void
   onDownload?: () => void | Promise<void>
   onSaveToDrive?: () => void | Promise<void>
   onExport: (format: ExportFormat) => Promise<void>
   onInsertImage?: () => void
+  onInsertPageBreak: () => void
   onPageSetup: () => void
   onCreate: () => Promise<void>
   creating: boolean
@@ -374,6 +378,15 @@ export const documentNavigation: MenuDefinition[] = [
         onSelect: (context) => context.onInsertImage?.(),
         disabled: (context) => Boolean(context.readOnly),
       },
+      {
+        id: 'insert-page-break',
+        label: 'Page break',
+        keywords: ['page', 'break', 'pagination'],
+        icon: ScissorsIcon,
+        focusAfterSelect: 'action',
+        onSelect: (context) => context.onInsertPageBreak(),
+        disabled: (context) => Boolean(context.readOnly),
+      },
     ],
   },
   {
@@ -399,7 +412,19 @@ export const documentNavigation: MenuDefinition[] = [
     })),
   },
   { label: 'Tools', items: [] },
-  { label: 'Help', items: [] },
+  {
+    label: 'Help',
+    items: [
+      {
+        id: 'whats-new',
+        label: "What's new",
+        keywords: ['changelog', 'release notes', 'updates', 'version'],
+        icon: SparklesIcon,
+        focusAfterSelect: 'action',
+        onSelect: (context) => context.onShowChangelog(),
+      },
+    ],
+  },
 ]
 
 export type NavigationOption = Omit<
@@ -459,6 +484,7 @@ export function useDocumentNavigationOptions({
     onCopy: workspace.copyDocument,
     onShare: workspace.shareDocument,
     onDetails: workspace.showDetails,
+    onShowChangelog: workspace.showChangelog,
     onDownload: workspace.downloadDocument,
     onSaveToDrive: workspace.saveToDrive,
     onExport: workspace.exportDocument,
@@ -468,6 +494,9 @@ export function useDocumentNavigationOptions({
         INSERT_IMAGE_COMMAND,
         undefined,
       )
+    },
+    onInsertPageBreak: () => {
+      workspace.editorRef.current?.dispatchCommand(INSERT_PAGE_BREAK, undefined)
     },
     onCreate: workspace.createDocument,
     documentTheme,
@@ -497,7 +526,9 @@ export function useDocumentNavigationOptions({
       disabled:
         item.disabled?.(context) ||
         (context.enabled === false &&
-          !['new-document', 'open', 'open-drive'].includes(item.id) &&
+          !['new-document', 'open', 'open-drive', 'whats-new'].includes(
+            item.id,
+          ) &&
           !item.id.startsWith('import-')),
       checked: item.checked?.(context),
     }

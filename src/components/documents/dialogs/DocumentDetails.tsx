@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { RefObject } from 'react'
-import { $getRoot } from 'lexical'
+import { $getRoot, RootNode } from 'lexical'
 import type { LexicalEditor } from 'lexical'
 import type { Doc } from 'yjs'
 import type { DocumentInfo } from '#/lib/documents/storage'
 import { encodeStateAsUpdate } from 'yjs'
 import { documentAssets } from '#/lib/documents/working'
 import { formatFileSize } from '#/lib/documents/format'
+import { $getPageSetup, pageDimensions } from '#/lib/documents/page-setup'
+import type { PageSetup } from '#/lib/documents/page-setup'
 import {
   Dialog,
   DialogContent,
@@ -21,6 +23,33 @@ import {
 
 export { StorageLocation }
 export { DocumentDetailsPopover } from '../list/DocumentDetailsPopover'
+
+function pageSetupRows(setup: PageSetup): Array<[string, string]> {
+  if (setup.mode !== 'paper') return [['Layout', 'Pageless']]
+  const { width, height } = pageDimensions(setup)
+  const [displayWidth, displayHeight] = [width, height].map((value) =>
+    Number(value.toFixed(2)).toLocaleString(),
+  )
+  const [top, right, bottom, left] = [
+    setup.margins.top,
+    setup.margins.right,
+    setup.margins.bottom,
+    setup.margins.left,
+  ].map((value) => Number(value.toFixed(2)).toLocaleString())
+  return [
+    ['Layout', 'Paged'],
+    [
+      'Paper size',
+      `${
+        setup.size === 'custom' ? 'Custom' : setup.size
+      } · ${setup.orientation === 'portrait' ? 'Portrait' : 'Landscape'} · ${displayWidth} × ${displayHeight} mm`,
+    ],
+    [
+      'Margins',
+      `Top ${top} mm · Right ${right} mm · Bottom ${bottom} mm · Left ${left} mm`,
+    ],
+  ]
+}
 
 export function DocumentDetailsDialog({
   document,
@@ -49,9 +78,10 @@ export function DocumentDetailsDialog({
       let disposed = false
       function refresh() {
         if (!editor || !doc) return
-        const text = editor
-          .getEditorState()
-          .read(() => $getRoot().getTextContent())
+        const { text, setup } = editor.getEditorState().read(() => ({
+          text: $getRoot().getTextContent(),
+          setup: $getPageSetup(),
+        }))
         let words = 0
         for (const part of segmenter.segment(text)) if (part.isWordLike) words++
         let characters = 0
@@ -62,6 +92,7 @@ export function DocumentDetailsDialog({
           ['Characters', characters.toLocaleString()],
           ['Document state', formatFileSize(bytes)],
           ['Format', 'Concept · Version 2'],
+          ...pageSetupRows(setup),
         ])
       }
       refresh()
@@ -79,9 +110,14 @@ export function DocumentDetailsDialog({
         },
       )
       doc.on('update', schedule)
+      const unsubscribeRoot = editor.registerMutationListener(
+        RootNode,
+        schedule,
+      )
       const unsubscribeAssets = documentAssets(doc)?.subscribe(schedule)
       detach = () => {
         disposed = true
+        unsubscribeRoot()
         unsubscribeAssets?.()
         doc.off('update', schedule)
       }

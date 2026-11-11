@@ -11,6 +11,10 @@ import {
   $setDocumentTheme,
   clearDocumentTheme,
 } from '#/lib/documents/document-theme'
+import {
+  getDocumentThemeById,
+  resolveTheme,
+} from '#/lib/documents/document-themes'
 import { DocumentThemePlugin } from './DocumentThemePlugin'
 
 let editor: ReturnType<typeof createEditor>
@@ -58,6 +62,9 @@ it('applies a scene to the page and sheet, then clears it on unmount', async () 
     'oklch(0.17 0.05 265)',
   )
   expect(html.style.colorScheme).toBe('dark')
+  expect(sheet.style.getPropertyValue('--document-page-background')).toBe(
+    resolveTheme(getDocumentThemeById('space'), 'light').sheetBackground,
+  )
 
   await act(() => {
     harness.root.unmount()
@@ -65,6 +72,7 @@ it('applies a scene to the page and sheet, then clears it on unmount', async () 
   expect(html.dataset.documentTheme).toBeUndefined()
   expect(html.style.getPropertyValue('--background')).toBe('')
   expect(sheet.style.background).toBe('')
+  expect(sheet.style.getPropertyValue('--document-page-background')).toBe('')
 })
 
 it('re-asserts a pinned color scheme after an external change', async () => {
@@ -99,4 +107,5 @@ it('returns to the app palette when the document chooses paper', async () => {
     '',
   )
   expect(sheet.style.background).toBe('')
+  expect(sheet.style.getPropertyValue('--document-page-background')).toBe('')
 })

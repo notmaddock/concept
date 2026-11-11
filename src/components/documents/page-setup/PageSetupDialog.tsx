@@ -101,14 +101,6 @@ function PageSetupForm({
         if (!error) onApply(draft)
       }}
     >
-      <p className="rounded-lg border border-amber-400/60 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-200">
-        <strong className="font-medium">Page setup is unfinished.</strong> Text
-        doesn’t split between pages yet. Automatic pagination requires complex
-        layout and editing behavior and is still being developed. I want to wait
-        until I have all planned nodes up and working before implementing this,
-        since they could break pagination. For now, I recommend sticking to
-        Pageless. Printing should paginate stuff somewhat decently.
-      </p>
       <PageSetupSelect
         label="Paper size"
         value={draft.mode === 'pageless' ? 'pageless' : draft.size}

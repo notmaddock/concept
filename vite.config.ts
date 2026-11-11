@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import { devtools } from '@tanstack/devtools-vite'
 
@@ -8,8 +9,16 @@ import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
 import { cloudflare } from '@cloudflare/vite-plugin'
+import { changelogPlugin } from './scripts/changelog-plugin.ts'
+
+const { version } = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+) as { version: string }
 
 const config = defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+  },
   resolve: { tsconfigPaths: true },
   build: {
     rolldownOptions: {
@@ -18,6 +27,7 @@ const config = defineConfig({
     },
   },
   plugins: [
+    changelogPlugin(),
     devtools(),
     tailwindcss(),
     tanstackStart(),

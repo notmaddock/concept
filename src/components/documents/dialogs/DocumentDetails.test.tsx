@@ -13,6 +13,7 @@ import {
   DocumentDetailsPopover,
 } from './DocumentDetails'
 import { localDocumentStorage } from '#/lib/documents/storage'
+import { $setPageSetup, DEFAULT_PAGE_SETUP } from '#/lib/documents/page-setup'
 import * as yjs from 'yjs'
 import type * as YjsModule from 'yjs'
 
@@ -92,6 +93,55 @@ it('shows metadata, live word counts, and the document state size', async () => 
     await Promise.resolve()
   })
   expect(value('Words')).toBe('3')
+})
+
+it('shows page setup details and refreshes when they change', async () => {
+  const editor = createEditor()
+  editor.update(
+    () => {
+      $setPageSetup({
+        ...DEFAULT_PAGE_SETUP,
+        mode: 'paper',
+        size: 'Legal',
+        orientation: 'landscape',
+      })
+    },
+    { discrete: true },
+  )
+  await act(() =>
+    harness.root.render(
+      <DocumentDetailsDialog
+        document={info}
+        documentRef={{ current: doc }}
+        editorRef={{ current: editor }}
+        onOpenChange={() => {}}
+      />,
+    ),
+  )
+  expect(value('Layout')).toBe('Paged')
+  expect(value('Paper size')).toBe('Legal · Landscape · 355.6 × 215.9 mm')
+  expect(value('Margins')).toBe(
+    'Top 25.4 mm · Right 25.4 mm · Bottom 25.4 mm · Left 25.4 mm',
+  )
+  await act(async () => {
+    editor.update(
+      () => {
+        $setPageSetup({
+          ...DEFAULT_PAGE_SETUP,
+          mode: 'paper',
+          size: 'A4',
+          orientation: 'portrait',
+          margins: { top: 10, right: 12.7, bottom: 10, left: 12.7 },
+        })
+      },
+      { discrete: true },
+    )
+    await Promise.resolve()
+  })
+  expect(value('Paper size')).toBe('A4 · Portrait · 210 × 297 mm')
+  expect(value('Margins')).toBe(
+    'Top 10 mm · Right 12.7 mm · Bottom 10 mm · Left 12.7 mm',
+  )
 })
 
 it('waits for the existing editor session instead of opening another document', async () => {

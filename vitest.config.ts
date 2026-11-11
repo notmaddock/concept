@@ -1,7 +1,10 @@
 import { defineConfig } from 'vitest/config'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { changelogPlugin } from './scripts/changelog-plugin.ts'
 
 const nodeTestPatterns = [
+  'scripts/*.test.ts',
   'src/**/*.server.test.ts',
   'src/lib/documents/drive/api.test.ts',
   'src/lib/documents/drive/create.test.ts',
@@ -17,7 +20,15 @@ const nodeTestPatterns = [
   'src/components/nova/plugins/FormatToolbarPlugin/color-contrast.test.ts',
 ]
 
+const { version } = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+) as { version: string }
+
 export default defineConfig({
+  plugins: [changelogPlugin()],
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+  },
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),

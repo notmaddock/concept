@@ -26,13 +26,14 @@ const workspace = vi.hoisted(() => ({
   document: undefined as
     | { id?: string; readOnly?: boolean; drive?: { readOnly?: boolean } }
     | undefined,
-  editorRef: { current: {} },
+  editorRef: { current: { dispatchCommand: vi.fn() } },
   createDocument: vi.fn<() => Promise<void>>(),
   openPageSetup: vi.fn(),
   openDocument: vi.fn(),
   copyDocument: vi.fn(),
   shareDocument: vi.fn(),
   showDetails: vi.fn(),
+  showChangelog: vi.fn(),
   downloadDocument: vi.fn(),
   saveToDrive: vi.fn(),
   exportDocument: vi.fn(),
@@ -84,6 +85,15 @@ function leaves(items: NavigationMenuItem[]): NavigationMenuItem[] {
   )
 }
 
+it('opens the changelog from the Help menu', async () => {
+  await render()
+  const item = navigation.options.find((option) => option.id === 'whats-new')
+
+  await item?.onSelect()
+
+  expect(workspace.showChangelog).toHaveBeenCalledOnce()
+})
+
 it('exposes every menu action to search with the same state and handler', async () => {
   await render()
   const menuActions = navigation.menus.flatMap((menu) => leaves(menu.items))
@@ -107,6 +117,10 @@ it('exposes every menu action to search with the same state and handler', async 
   await navigation.options
     .find((option) => option.id === 'page-setup')
     ?.onSelect()
+  await navigation.options
+    .find((option) => option.id === 'insert-page-break')
+    ?.onSelect()
+  expect(workspace.editorRef.current.dispatchCommand).toHaveBeenCalledOnce()
   await navigation.options
     .find((option) => option.id === 'theme-dark')
     ?.onSelect()

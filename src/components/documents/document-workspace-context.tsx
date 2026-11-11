@@ -39,6 +39,8 @@ import type { Doc } from 'yjs'
 import type { ImportFormat } from '#/lib/documents/import/formats'
 import type { ExportFormat } from '#/lib/documents/export'
 import { useDocuments } from '#/hooks/use-documents'
+import { getSeenChangelogVersion, markChangelogSeen } from '#/lib/changelog'
+import { APP_VERSION } from '#/version'
 import { DocumentLoading } from './status/DocumentLoading'
 
 export { useDocumentWorkspace } from './document-workspace-store'
@@ -67,6 +69,11 @@ const SaveToDriveDialog = lazy(() =>
     default: module.SaveToDriveDialog,
   })),
 )
+const ChangelogDialog = lazy(() =>
+  import('./dialogs/ChangelogDialog').then((module) => ({
+    default: module.ChangelogDialog,
+  })),
+)
 
 function useWorkspaceState(id?: string) {
   const navigate = useNavigate()
@@ -91,8 +98,18 @@ function useWorkspaceState(id?: string) {
   const [pageSetupOpen, setPageSetupOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [changelogOpen, setChangelogOpen] = useState(false)
+  const [changelogUnseen, setChangelogUnseen] = useState(false)
   const [saveToDriveOpen, setSaveToDriveOpen] = useState(false)
   const [driveLoading, setDriveLoading] = useState(false)
+  useEffect(() => {
+    const seen = getSeenChangelogVersion()
+    if (seen === null) {
+      markChangelogSeen(APP_VERSION)
+      return
+    }
+    setChangelogUnseen(seen !== APP_VERSION)
+  }, [])
   useEffect(() => {
     if (library.error)
       toast.error(library.error, { id: 'document-workspace-error' })
@@ -354,6 +371,11 @@ function useWorkspaceState(id?: string) {
   )
 
   const showDetails = useCallback(() => setDetailsOpen(true), [])
+  const showChangelog = useCallback(() => {
+    markChangelogSeen(APP_VERSION)
+    setChangelogUnseen(false)
+    setChangelogOpen(true)
+  }, [])
   const shareDocument = useCallback(() => setShareOpen(true), [])
   const openPageSetup = useCallback(() => setPageSetupOpen(true), [])
   const importDocument = useCallback((format: ImportFormat) => {
@@ -414,6 +436,10 @@ function useWorkspaceState(id?: string) {
       detailsOpen,
       onDetailsOpenChange: setDetailsOpen,
       showDetails,
+      changelogOpen,
+      onChangelogOpenChange: setChangelogOpen,
+      changelogUnseen,
+      showChangelog,
       shareOpen,
       onShareOpenChange: setShareOpen,
       shareDocument,
@@ -452,6 +478,9 @@ function useWorkspaceState(id?: string) {
       setOfflineAvailable,
       detailsOpen,
       showDetails,
+      changelogOpen,
+      changelogUnseen,
+      showChangelog,
       shareOpen,
       shareDocument,
       pageSetupOpen,
@@ -496,6 +525,12 @@ export function DocumentWorkspaceProvider({
             onSaved={(info) => {
               void workspace.onDriveSaved(info.id)
             }}
+          />
+        )}
+        {workspace.changelogOpen && (
+          <ChangelogDialog
+            open={workspace.changelogOpen}
+            onOpenChange={workspace.onChangelogOpenChange}
           />
         )}
         {workspace.detailsOpen && document && (

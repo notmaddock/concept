@@ -16,8 +16,11 @@ export function NovaContentEditable() {
     () => editor.isEditable(),
     () => true,
   )
-  const marginX = 'var(--page-margin-left, clamp(1.5rem, 6vw, 4rem))'
-  const marginY = 'var(--page-margin-top, 2rem)'
+  const contentPadding =
+    'var(--document-content-padding, 2rem clamp(1.5rem, 6vw, 4rem))'
+  const placeholderTop = 'var(--document-placeholder-top, 2rem)'
+  const placeholderLeft =
+    'var(--document-placeholder-left, clamp(1.5rem, 6vw, 4rem))'
 
   return (
     <ContentEditable
@@ -39,14 +42,14 @@ export function NovaContentEditable() {
       data-document-content
       className="min-h-full w-full outline-none"
       style={{
-        padding: `${marginY} var(--page-margin-right, clamp(1.5rem, 6vw, 4rem)) var(--page-margin-bottom, 2rem) ${marginX}`,
+        padding: contentPadding,
       }}
       aria-placeholder={isEditable ? placeholderText : ''}
       placeholder={(editable: boolean) =>
         editable && isEditable ? (
           <span
             className="absolute text-muted-foreground italic pointer-events-none"
-            style={{ top: `${marginY}`, left: `${marginX}` }}
+            style={{ top: placeholderTop, left: placeholderLeft }}
           >
             {placeholderText}
           </span>

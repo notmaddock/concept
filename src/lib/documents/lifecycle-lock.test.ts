@@ -28,7 +28,8 @@ afterEach(async () => {
   await session?.destroy()
   repositories.forEach((repository) => repository.close())
   doc.destroy()
-  expect(TestBroadcastChannel.channels.size).toBe(0)
+  // publishDocumentChange closes its temporary channel on a macrotask.
+  await vi.waitFor(() => expect(TestBroadcastChannel.channels.size).toBe(0))
   vi.unstubAllGlobals()
 })
 
