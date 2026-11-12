@@ -36,7 +36,7 @@ import {
 import type { ReactNode } from 'react'
 import type { LexicalEditor } from 'lexical'
 import type { Doc } from 'yjs'
-import type { ImportFormat } from '#/lib/documents/import/formats'
+import type { ImportFormat } from '#/lib/documents/formats'
 import type { ExportFormat } from '#/lib/documents/export'
 import { useDocuments } from '#/hooks/use-documents'
 import { getSeenChangelogVersion, markChangelogSeen } from '#/lib/changelog'

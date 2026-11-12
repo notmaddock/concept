@@ -4,7 +4,7 @@ import { createEditor, $getRoot } from 'lexical'
 import { documentNodes } from '#/components/nova/node-registry'
 import { createYjsBinding, syncYjsChangesToLexical } from '@lexical/yjs'
 import { convertImport } from './index'
-import type { ImportFormat } from './formats'
+import type { ImportFormat } from '../formats'
 import { LocalProvider } from '../local-provider'
 
 async function converted(

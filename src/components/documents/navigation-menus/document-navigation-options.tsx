@@ -1,8 +1,8 @@
 import { INSERT_IMAGE_COMMAND } from '#/components/nova/images/commands'
 import { OPEN_LINK_DIALOG_COMMAND } from '#/components/nova/plugins/LinkPlugin/commands'
 import { INSERT_PAGE_BREAK } from '#/components/nova/pages/PageBreakExtension'
-import { exportFormats, importFormats } from '#/lib/documents/import/formats'
-import type { ImportFormat } from '#/lib/documents/import/formats'
+import { exportFormats, importFormats } from '#/lib/documents/formats'
+import type { ImportFormat } from '#/lib/documents/formats'
 import type { ExportFormat } from '#/lib/documents/export'
 import {
   DEFAULT_DOCUMENT_THEME_ID,

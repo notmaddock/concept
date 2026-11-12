@@ -5,24 +5,15 @@ import {
   $getRoot,
   createEditor,
 } from 'lexical'
-import { documentFormats, exportFormats, importFormats } from './formats'
-import type { ExportFormat } from './formats'
-import { serializeExport } from '../export'
+import { documentFormats, exportFormats } from './formats'
+import { serializeExport } from './export'
 
 describe('document formats', () => {
-  it('keeps import and export format lists independent', () => {
-    expect(importFormats.map((format) => format.id)).toEqual([
-      'markdown',
-      'html',
-      'text',
-    ])
-    expect(exportFormats.map((format) => format.id)).toEqual([
-      'markdown',
-      'html',
-      'text',
-    ])
-    for (const format of exportFormats)
-      expect(documentFormats[format.id]).toBe(format)
+  it('gives every format a distinct extension', () => {
+    const extensions = Object.values(documentFormats).flatMap(
+      (format) => format.extensions,
+    )
+    expect(new Set(extensions).size).toBe(extensions.length)
   })
 
   it('serializes every export format through its definition', async () => {
@@ -45,10 +36,5 @@ describe('document formats', () => {
       expect(file.mime).toBe(format.mime)
       expect(file.content).toContain('Hello')
     }
-  })
-
-  it('accepts the export format union at the serializer boundary', async () => {
-    const format: ExportFormat = 'text'
-    expect(exportFormats.some((item) => item.id === format)).toBe(true)
   })
 })

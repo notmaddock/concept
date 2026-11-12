@@ -2,8 +2,8 @@ import { $getRoot } from 'lexical'
 import type { DocumentAssetResolver } from '../asset-session'
 import { imageElements, resolveImageData } from '../image-transfer'
 import type { LexicalEditor } from 'lexical'
-import type { ExportFormat } from '../import/formats'
-import { documentFormats } from '../import/formats'
+import type { ExportFormat } from '../formats'
+import { documentFormats } from '../formats'
 
 export type { ExportFormat }
 
