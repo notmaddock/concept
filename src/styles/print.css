@@ -151,6 +151,7 @@
     background: #f6f2ea !important;
     border-color: #dbd0ba !important;
     color: #111 !important;
+    max-height: none !important;
     overflow: visible !important;
     white-space: pre-wrap !important;
   }

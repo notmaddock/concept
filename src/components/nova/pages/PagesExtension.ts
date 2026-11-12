@@ -1,3 +1,5 @@
+import { $isCodeNode } from '@lexical/code'
+import type { CodeNode } from '@lexical/code'
 import { effect, namedSignals } from '@lexical/extension'
 import {
   $addUpdateTag,
@@ -125,6 +127,48 @@ export const PagesExtension = defineExtension({
         return height
       }
 
+      // A single code block is unbreakable at the block level. Cap it to the
+      // page's remaining height and let it scroll instead of stretching the
+      // sheet; print removes the cap so the code can flow across pages.
+      const clearCodeBlockPagination = (
+        codeNode: CodeNode | null | undefined,
+      ) => {
+        if (!$isCodeNode(codeNode)) return
+        const element = editor.getElementByKey(codeNode.getKey())
+        if (!element) return
+        element.style.removeProperty('max-height')
+        element.style.removeProperty('overflow-y')
+        element.removeAttribute('data-code-scroll')
+      }
+
+      const paginateCodeBlock = (
+        node: PageNode,
+        codeNode: CodeNode | null | undefined,
+      ) => {
+        const rootElement = editor.getRootElement()
+        const contentElement = node.getPageContentElement()
+        if (!rootElement || !contentElement || !$isCodeNode(codeNode)) return
+        const codeElement = editor.getElementByKey(codeNode.getKey())
+        if (!codeElement) return
+        const pageHeight = getPageHeight(rootElement)
+        if (!pageHeight) return
+        const contentStyle = getComputedStyle(contentElement)
+        const codeStyle = getComputedStyle(codeElement)
+        const contentRect = contentElement.getBoundingClientRect()
+        const codeRect = codeElement.getBoundingClientRect()
+        const contentPaddingBottom = parseFloat(contentStyle.paddingBottom) || 0
+        const codeMarginBottom = parseFloat(codeStyle.marginBottom) || 0
+        const available =
+          pageHeight -
+          (codeRect.top - contentRect.top) -
+          contentPaddingBottom -
+          codeMarginBottom
+        if (available <= 0) return
+        codeElement.style.maxHeight = `${available}px`
+        codeElement.style.overflowY = 'auto'
+        codeElement.setAttribute('data-code-scroll', '')
+      }
+
       // Determines which children from the next page can be pulled back into
       // this page without exceeding the page height. Returns the child nodes
       // that fit, using DOM cloning to simulate the layout.
@@ -249,6 +293,12 @@ export const PagesExtension = defineExtension({
         if (!rootElement) return
         const pageHeight = getPageHeight(rootElement)
         const fixedPageHeight = fixedPageHeights.get(node.getKey())
+        const contentNode = node.getContentNode()
+        const onlyChild =
+          contentNode.getChildrenSize() === 1
+            ? contentNode.getFirstChild()
+            : null
+        if ($isCodeNode(onlyChild)) clearCodeBlockPagination(onlyChild)
         const currentPageHeight = measureHeight(node)
         if (!pageHeight || !currentPageHeight) return
         if (currentPageHeight === fixedPageHeight) return
@@ -264,7 +314,11 @@ export const PagesExtension = defineExtension({
       const $fixOverflow = (node: PageNode) => {
         const contentNode = node.getContentNode()
         const childrenSize = contentNode.getChildrenSize()
-        if (childrenSize === 1) return
+        if (childrenSize === 1) {
+          const onlyChild = contentNode.getFirstChild()
+          if ($isCodeNode(onlyChild)) paginateCodeBlock(node, onlyChild)
+          return
+        }
         const overflowingChildren = $getOverflowingChildren(node)
         if (!overflowingChildren.length) return
         const nextSibling = node.getNextSibling()
@@ -467,6 +521,14 @@ export const PagesExtension = defineExtension({
       // Removes all PageNode wrappers, moving their content back to the root
       // as direct children. Used when paged mode is turned off.
       const destroyPageStructure = () => {
+        editor
+          .getRootElement()
+          ?.querySelectorAll<HTMLElement>('code.code-block')
+          .forEach((element) => {
+            element.style.removeProperty('max-height')
+            element.style.removeProperty('overflow-y')
+            element.removeAttribute('data-code-scroll')
+          })
         editor.update(
           () => {
             const root = $getRoot()
@@ -775,6 +837,22 @@ export const PagesExtension = defineExtension({
           }
 
           applyCurrentSetup()
+
+          // The first measurement can run before Lexical commits the page
+          // DOM (notably when a document reopens directly in paper mode).
+          // Re-measure once after the next frame so tall blocks are capped.
+          requestFrame(() => {
+            if (disposed) return
+            if (
+              editor.getRootElement() !== rootElement ||
+              !rootElement.isConnected
+            ) {
+              return
+            }
+            if (editor.getEditorState().read($getPageSetup).mode !== 'paper')
+              return
+            resizePages()
+          })
 
           // Web fonts can change line heights after the first reflow. Once
           // they are ready, re-measure the current paper layout exactly once.

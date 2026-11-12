@@ -110,6 +110,11 @@ li.editor-checklist-item-checked:not([role='checkbox'])::after {
   tab-size: 2;
 }
 
+[data-document-content] code.code-block[data-code-scroll] {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 [data-document-content] code.code-block[data-gutter]::before {
   content: attr(data-gutter);
   position: absolute;
