@@ -39,11 +39,13 @@ img,table { max-width: 100%; } img { height: auto; }
     })
   output.body.querySelectorAll('a[href]').forEach((anchor) => {
     const href = anchor.getAttribute('href') ?? ''
-    if (!normalizeLinkUrl(href)) {
+    const normalized = normalizeLinkUrl(href)
+    if (!normalized) {
       anchor.removeAttribute('href')
       return
     }
-    const attributes = linkAttributes(href)
+    anchor.setAttribute('href', normalized)
+    const attributes = linkAttributes(normalized)
     if (attributes.target) anchor.setAttribute('target', attributes.target)
     if (attributes.rel) anchor.setAttribute('rel', attributes.rel)
   })
@@ -62,8 +64,12 @@ img,table { max-width: 100%; } img { height: auto; }
    * exporters land. Everything else is stripped.
    */
   output.body.querySelectorAll('[class]').forEach((element) => {
+    const isToken = element.classList.contains('token')
     const kept = [...element.classList].filter(
-      (className) => className === 'token' || className.startsWith('language-'),
+      (className) =>
+        className === 'token' ||
+        className.startsWith('language-') ||
+        (isToken && /^[a-z-]+$/.test(className)),
     )
     if (kept.length) element.className = kept.join(' ')
     else element.removeAttribute('class')

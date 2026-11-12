@@ -125,7 +125,7 @@ describe('local export', () => {
     expect(document.querySelector('p')?.hasAttribute('class')).toBe(false)
     expect(document.querySelector('pre')?.className).toContain('language-js')
     expect(document.querySelector('.token')?.className).toBe(
-      'token language-js',
+      'token keyword language-js',
     )
   })
   it('exports links to Markdown and HTML with external attributes', async () => {
@@ -144,6 +144,7 @@ describe('local export', () => {
               target: '_blank',
               rel: 'noopener noreferrer nofollow',
             }).append($createTextNode('Example')),
+            $createLinkNode('example.com').append($createTextNode('Bare Link')),
           ),
         )
       },
@@ -153,10 +154,13 @@ describe('local export', () => {
     expect(markdown.content).toContain('[Example](https://example.com)')
     const html = await serializeExport(editor, 'Links', 'html')
     const document = new DOMParser().parseFromString(html.content, 'text/html')
-    const anchor = document.querySelector('a')
-    expect(anchor?.getAttribute('href')).toBe('https://example.com')
-    expect(anchor?.getAttribute('target')).toBe('_blank')
-    expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer nofollow')
+    const anchors = Array.from(document.querySelectorAll('a'))
+    expect(anchors[0]?.getAttribute('href')).toBe('https://example.com')
+    expect(anchors[0]?.getAttribute('target')).toBe('_blank')
+    expect(anchors[0]?.getAttribute('rel')).toBe('noopener noreferrer nofollow')
+    expect(anchors[1]?.getAttribute('href')).toBe('https://example.com')
+    expect(anchors[1]?.getAttribute('target')).toBe('_blank')
+    expect(anchors[1]?.getAttribute('rel')).toBe('noopener noreferrer nofollow')
   })
 
   it('creates standalone HTML with escaped content and title', async () => {

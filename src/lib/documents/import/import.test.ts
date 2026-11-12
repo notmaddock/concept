@@ -1,12 +1,7 @@
 import { expect, it } from 'vitest'
 import { applyUpdate, Doc, XmlText } from 'yjs'
 import { createEditor, $getRoot } from 'lexical'
-import { HeadingNode, QuoteNode } from '@lexical/rich-text'
-import { ListNode, ListItemNode } from '@lexical/list'
-import { HorizontalRuleNode } from '@lexical/extension'
-import { CodeNode } from '@lexical/code'
-import { AutoLinkNode, LinkNode } from '@lexical/link'
-import { ImageNode } from '#/components/nova/nodes/ImageNode'
+import { documentNodes } from '#/components/nova/node-registry'
 import { createYjsBinding, syncYjsChangesToLexical } from '@lexical/yjs'
 import { convertImport } from './index'
 import type { ImportFormat } from './formats'
@@ -24,17 +19,7 @@ async function converted(
   const doc = new Doc()
   const root = doc.get('root', XmlText)
   const editor = createEditor({
-    nodes: [
-      HeadingNode,
-      QuoteNode,
-      ListNode,
-      ListItemNode,
-      HorizontalRuleNode,
-      CodeNode,
-      LinkNode,
-      AutoLinkNode,
-      ImageNode,
-    ],
+    nodes: documentNodes,
     onError: (error) => {
       throw error
     },

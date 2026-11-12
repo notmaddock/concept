@@ -10,6 +10,7 @@ import { $findMatchingParent } from '@lexical/utils'
 import {
   $createTextNode,
   $getNodeByKey,
+  $getRoot,
   $getSelection,
   $isRangeSelection,
   $isTextNode,
@@ -49,16 +50,21 @@ function $findLinkNode(selection: BaseSelection | null) {
 }
 
 function $removeLink(link: LinkNode) {
+  if ($isAutoLinkNode(link)) {
+    link.setIsUnlinked(true)
+    return
+  }
   for (const child of link.getChildren()) link.insertBefore(child)
   link.remove()
 }
 
 function $setLinkText(link: LinkNode, text: string) {
-  if (text === link.getTextContent()) return
+  const content = text.trim() || link.getURL()
+  if (content === link.getTextContent()) return
   const first = link.getFirstChild()
   if (link.getChildrenSize() === 1 && $isTextNode(first))
-    first.setTextContent(text)
-  else link.clear().append($createTextNode(text))
+    first.setTextContent(content)
+  else link.clear().append($createTextNode(content))
 }
 
 type FloatingState = {
@@ -114,7 +120,12 @@ export function LinkPlugin() {
       editor.update(() => {
         if (savedSelection.current)
           $setSelection(savedSelection.current.clone())
-        const selection = $getSelection()
+        let selection = $getSelection()
+        if (!$isRangeSelection(selection)) {
+          const root = $getRoot()
+          root.selectEnd()
+          selection = $getSelection()
+        }
         if (!$isRangeSelection(selection)) return
         if (normalized === null) {
           const link = $findLinkNode(selection)
@@ -125,7 +136,7 @@ export function LinkPlugin() {
         const link = $findLinkNode(selection)
         if (link && $isAutoLinkNode(link)) {
           const replacement = $createLinkNode(normalized, attributes).append(
-            $createTextNode(value.text || normalized),
+            $createTextNode(value.text.trim() || normalized),
           )
           $setSelection(null)
           link.replace(replacement)
@@ -146,10 +157,12 @@ export function LinkPlugin() {
           return
         }
         const node = $createLinkNode(normalized, attributes).append(
-          $createTextNode(value.text || normalized),
+          $createTextNode(value.text.trim() || normalized),
         )
         selection.insertNodes([node])
+        node.selectEnd()
       })
+      editor.focus()
       return true
     },
     [editor],
@@ -202,7 +215,7 @@ export function LinkPlugin() {
         const attributes = linkAttributes(normalized)
         if ($isAutoLinkNode(node)) {
           const replacement = $createLinkNode(normalized, attributes).append(
-            $createTextNode(value.text || normalized),
+            $createTextNode(value.text.trim() || normalized),
           )
           $setSelection(null)
           node.replace(replacement)
@@ -305,6 +318,7 @@ export function LinkPlugin() {
             onOpenChange={(open) => {
               setDialogOpen(open)
               if (open) setFloating(null)
+              else editor.focus()
             }}
             onSubmit={submitDialog}
           />

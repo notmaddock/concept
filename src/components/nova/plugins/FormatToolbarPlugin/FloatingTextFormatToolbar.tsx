@@ -67,7 +67,7 @@ export interface FloatingTextFormatToolbarProps {
   editor: LexicalEditor
   isOpen: boolean
   rangeRect: PositionRect | null
-  formatState: FormatState
+  formatState: FormatState & { isLink?: boolean }
   onOpenChange: (open: boolean) => void
 }
 
@@ -161,6 +161,7 @@ export function FloatingTextFormatToolbar({
         label="Link"
         actionId="format-link"
         icon={LinkIcon}
+        active={formatState.isLink}
         onClick={() =>
           editor.dispatchCommand(OPEN_LINK_DIALOG_COMMAND, undefined)
         }

@@ -40,7 +40,13 @@ export function linkAttributes(url: string): { target?: string; rel?: string } {
 }
 
 export function $applyLinkPolicyToNode(node: LexicalNode) {
-  if (!$isLinkNode(node) || !isExternalLink(node.getURL())) return
+  if (!$isLinkNode(node)) return
+  const normalized = normalizeLinkUrl(node.getURL())
+  if (!normalized) return
+  if (node.getURL() !== normalized) {
+    node.setURL(normalized)
+  }
+  if (!isExternalLink(normalized)) return
   if (node.getTarget() !== '_blank') node.setTarget('_blank')
   const tokens = (node.getRel() ?? '').split(/\s+/).filter(Boolean)
   if (externalRel.every((token) => tokens.includes(token))) return

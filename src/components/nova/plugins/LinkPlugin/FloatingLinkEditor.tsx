@@ -57,7 +57,7 @@ export function FloatingLinkEditor({
       role="dialog"
       aria-label="Link editor"
       data-link-editor="true"
-      className="fixed z-50 w-80 max-w-[calc(100vw-1rem)] rounded-2xl border bg-popover p-2 text-popover-foreground shadow-lg"
+      className="fixed z-50 w-80 max-w-[calc(100vw-1rem)] rounded-3xl border bg-popover p-2.5 text-popover-foreground shadow-lg"
       style={{ top, left }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
@@ -105,6 +105,7 @@ export function FloatingLinkEditor({
               size="icon-sm"
               variant="ghost"
               aria-label="Cancel link edit"
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => setEditing(false)}
             >
               <XIcon />
@@ -114,6 +115,7 @@ export function FloatingLinkEditor({
               size="icon-sm"
               aria-label="Save link"
               disabled={!normalizeLinkUrl(draftUrl)}
+              onMouseDown={(event) => event.preventDefault()}
             >
               <CheckIcon />
             </Button>
@@ -123,18 +125,19 @@ export function FloatingLinkEditor({
         <div className="flex items-center gap-1">
           <a
             href={url}
-            target={attributes.target}
-            rel={attributes.rel}
-            className="min-w-0 flex-1 truncate text-sm text-primary underline underline-offset-2"
-            onClick={(event) => event.preventDefault()}
+            target={attributes.target ?? '_blank'}
+            rel={attributes.rel ?? 'noopener noreferrer'}
+            className="min-w-0 flex-1 truncate text-sm text-primary underline underline-offset-2 hover:underline"
+            onClick={(event) => event.stopPropagation()}
           >
-            {text || url}
+            {url}
           </a>
           <Button
             type="button"
             size="icon-sm"
             variant="ghost"
             aria-label="Edit link"
+            onMouseDown={(event) => event.preventDefault()}
             onClick={() => setEditing(true)}
           >
             <PencilIcon />
@@ -144,6 +147,7 @@ export function FloatingLinkEditor({
             size="icon-sm"
             variant="ghost"
             aria-label="Remove link"
+            onMouseDown={(event) => event.preventDefault()}
             onClick={onRemove}
           >
             <Trash2Icon />
