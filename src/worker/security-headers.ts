@@ -1,9 +1,6 @@
-const embedFrameSources = [
-  'https://www.youtube-nocookie.com',
-  'https://player.vimeo.com',
-  'https://www.figma.com',
-  'https://platform.twitter.com',
-]
+import { embedFrameHosts } from '../lib/documents/embed-hosts'
+
+const embedFrameSources = embedFrameHosts.map((host) => `https://${host}`)
 
 const driveFrameSources = [
   'https://docs.google.com',
@@ -42,7 +39,6 @@ const directives: Record<string, string[]> = {
     'https://*.google.com',
     'https://*.posthog.com',
     'https://*.i.posthog.com',
-    'wss:',
   ],
   'frame-src': [...embedFrameSources, ...driveFrameSources],
   'worker-src': ["'self'", 'blob:'],

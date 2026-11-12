@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify'
+import { isEmbedFrameHost } from '#/lib/documents/embed-hosts'
 import {
   imageDataBlob,
   imageTransferLimits,
@@ -11,19 +12,12 @@ import { prepareImage } from '../images/ingestion'
  * map a recognized host to a decorator node *before* `sanitizedHtml` runs.
  * Unknown hosts stay stripped.
  */
-export const embedFrameHosts: Record<string, true> = {
-  'www.youtube-nocookie.com': true,
-  'player.vimeo.com': true,
-  'www.figma.com': true,
-  'platform.twitter.com': true,
-}
-
 export function embedFrameSource(frame: HTMLIFrameElement): string | null {
   const source = frame.getAttribute('src')
   if (!source) return null
   try {
     const { hostname } = new URL(source)
-    return Object.hasOwn(embedFrameHosts, hostname) ? source : null
+    return isEmbedFrameHost(hostname) ? source : null
   } catch {
     return null
   }
