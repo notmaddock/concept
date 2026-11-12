@@ -1,7 +1,7 @@
 import { DriveIcon } from '../icons/DriveIcon'
 import { DocumentFilePicker } from './DocumentFilePicker'
-import { importFormats } from '#/lib/documents/import/formats'
-import type { ImportFormat } from '#/lib/documents/import/formats'
+import { importFormats } from '#/lib/documents/formats'
+import type { ImportFormat } from '#/lib/documents/formats'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { CheckIcon, FileTextIcon } from 'lucide-react'
@@ -126,6 +126,14 @@ export function DocumentStorageDialog({
       if (request === revision.current) {
         setSelected(next)
         setName(next.file.name)
+        if (next.warnings?.length) {
+          const constructs = [
+            ...new Set(next.warnings.map((warning) => warning.label)),
+          ]
+          toast.warning(
+            `Some content could not be imported: ${constructs.join(', ')}.`,
+          )
+        }
       }
     } catch (cause) {
       if (request === revision.current)
@@ -216,8 +224,13 @@ export function DocumentStorageDialog({
             onSelect={(file) => {
               void readDocument(async () => {
                 const { convertImport } = await import('#/lib/documents/import')
+                const { warnings, ...snapshot } = await convertImport(
+                  file,
+                  format.id,
+                )
                 return {
-                  file: await convertImport(file, format.id),
+                  file: snapshot,
+                  warnings,
                   size: file.size,
                   filename: file.name,
                   origin: storageLocations.device.label,

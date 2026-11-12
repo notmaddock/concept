@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react'
 import { DragPlugin } from './plugins/DragPlugin/DragPlugin'
 import { SlashMenuPlugin } from './plugins/SlashMenuPlugin/SlashMenuPlugin'
 import { FloatingTextFormatToolbarPlugin } from './plugins/FormatToolbarPlugin/FloatingTextFormatToolbarPlugin'
+import { LinkPlugin } from './plugins/LinkPlugin/LinkPlugin'
 import { ImagePlugin } from './images/ImagePlugin'
 import { ImageClipboardPlugin } from './clipboard/ImageClipboardPlugin'
 import type { EditorMode } from './mode'
@@ -106,6 +107,7 @@ export function Nova({
         )}
 
         {isEditable && <SlashMenuPlugin />}
+        {isEditable && <LinkPlugin />}
         {isEditable && anchorElement && (
           <DragPlugin anchorElement={anchorElement} />
         )}

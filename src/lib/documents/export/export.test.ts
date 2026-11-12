@@ -16,12 +16,27 @@ import {
   $createHorizontalRuleNode,
   HorizontalRuleNode,
 } from '@lexical/extension'
+import {
+  $createCodeHighlightNode,
+  $createCodeNode,
+  CodeHighlightNode,
+  CodeNode,
+} from '@lexical/code'
+import { $createLinkNode, LinkNode } from '@lexical/link'
 import { downloadExport, exportFilename, serializeExport } from './index'
 
 function fixture() {
   const editor = createEditor({
     namespace: 'export-test',
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, HorizontalRuleNode],
+    nodes: [
+      HeadingNode,
+      QuoteNode,
+      ListNode,
+      ListItemNode,
+      HorizontalRuleNode,
+      CodeNode,
+      LinkNode,
+    ],
     onError: (error) => {
       throw error
     },
@@ -61,6 +76,93 @@ describe('local export', () => {
     expect(file.content).toContain('[x] Done')
     expect(file.content).toContain('---')
   })
+  it('exports code nodes as fenced Markdown with their language', async () => {
+    const editor = createEditor({
+      namespace: 'export-code-test',
+      nodes: [CodeNode],
+      onError: (error) => {
+        throw error
+      },
+    })
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createCodeNode('ts').append($createTextNode('const answer = 42')),
+        )
+      },
+      { discrete: true },
+    )
+    const file = await serializeExport(editor, 'Snippet', 'markdown')
+    expect(file.content).toContain('```ts')
+    expect(file.content).toContain('const answer = 42')
+  })
+  it('keeps only token and language classes in exported HTML', async () => {
+    const editor = createEditor({
+      namespace: 'export-class-test',
+      nodes: [CodeNode, CodeHighlightNode],
+      theme: {
+        paragraph: 'mb-2',
+        code: 'mb-2',
+        codeHighlight: { keyword: 'token keyword language-js' },
+      },
+      onError: (error) => {
+        throw error
+      },
+    })
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append($createTextNode('Text')),
+          $createCodeNode('js').append(
+            $createCodeHighlightNode('const', 'keyword'),
+          ),
+        )
+      },
+      { discrete: true },
+    )
+    const file = await serializeExport(editor, 'Code', 'html')
+    const document = new DOMParser().parseFromString(file.content, 'text/html')
+    expect(document.querySelector('p')?.hasAttribute('class')).toBe(false)
+    expect(document.querySelector('pre')?.className).toContain('language-js')
+    expect(document.querySelector('.token')?.className).toBe(
+      'token keyword language-js',
+    )
+  })
+  it('exports links to Markdown and HTML with external attributes', async () => {
+    const editor = createEditor({
+      namespace: 'export-link-test',
+      nodes: [LinkNode],
+      onError: (error) => {
+        throw error
+      },
+    })
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append(
+            $createLinkNode('https://example.com', {
+              target: '_blank',
+              rel: 'noopener noreferrer nofollow',
+            }).append($createTextNode('Example')),
+            $createLinkNode('example.com').append($createTextNode('Bare Link')),
+          ),
+        )
+      },
+      { discrete: true },
+    )
+    const markdown = await serializeExport(editor, 'Links', 'markdown')
+    expect(markdown.content).toContain('[Example](https://example.com)')
+    const html = await serializeExport(editor, 'Links', 'html')
+    const document = new DOMParser().parseFromString(html.content, 'text/html')
+    const anchors = Array.from(document.querySelectorAll('a'))
+    expect(anchors[0]?.getAttribute('href')).toBe('https://example.com')
+    expect(anchors[0]?.getAttribute('target')).toBe('_blank')
+    expect(anchors[0]?.getAttribute('rel')).toBe('noopener noreferrer nofollow')
+    expect(anchors[1]?.getAttribute('href')).toBe('https://example.com')
+    expect(anchors[1]?.getAttribute('target')).toBe('_blank')
+    expect(anchors[1]?.getAttribute('rel')).toBe('noopener noreferrer nofollow')
+  })
+
   it('creates standalone HTML with escaped content and title', async () => {
     const file = await serializeExport(
       fixture(),

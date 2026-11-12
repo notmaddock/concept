@@ -1,4 +1,4 @@
-import { ImageNode } from '#/components/nova/nodes/ImageNode'
+import { documentNodes } from '#/components/nova/node-registry'
 import {
   prepareHtmlImages,
   sanitizedHtml,
@@ -13,21 +13,21 @@ import {
   $getRoot,
   createEditor,
 } from 'lexical'
-import { HeadingNode, QuoteNode } from '@lexical/rich-text'
-import { ListItemNode, ListNode } from '@lexical/list'
-import { HorizontalRuleNode } from '@lexical/extension'
 import { createYjsBinding, syncLexicalUpdateToYjs } from '@lexical/yjs'
 import { Doc } from 'yjs'
-import type { ImportFormat } from './formats'
-import { importFormats } from './formats'
+import type { ImportFormat } from '../formats'
+import { importFormats } from '../formats'
 import { captureSnapshot } from '../working'
 import { imageTransferLimits } from '../image-transfer'
 import { packageLimits } from '../limits'
 import { LocalProvider } from '../local-provider'
+import type { MarkdownWarning } from '../markdown-transformers'
 
 const converters: Record<
   ImportFormat,
-  () => Promise<(content: string, editor: LexicalEditor) => void>
+  () => Promise<
+    (content: string, editor: LexicalEditor) => MarkdownWarning[] | void
+  >
 > = {
   markdown: async () => {
     // Deferred import to avoid bundling Markdown transformers during initial load
@@ -67,14 +67,7 @@ async function prepareHtmlAssets(content: string) {
 function createHeadlessImportSession() {
   const editor = createEditor({
     namespace: 'document-import',
-    nodes: [
-      HeadingNode,
-      QuoteNode,
-      ListNode,
-      ListItemNode,
-      HorizontalRuleNode,
-      ImageNode,
-    ],
+    nodes: documentNodes,
     onError: (error) => {
       throw error
     },
@@ -148,10 +141,11 @@ export async function convertImport(file: File, format: ImportFormat) {
   const convert = await converters[format]()
   const session = createHeadlessImportSession()
   try {
+    let warnings: MarkdownWarning[] = []
     session.editor.update(
       () => {
         $getRoot().clear()
-        convert(content, session.editor)
+        warnings = convert(content, session.editor) ?? []
         if ($getRoot().isEmpty()) $getRoot().append($createParagraphNode())
       },
       { discrete: true },
@@ -163,9 +157,10 @@ export async function convertImport(file: File, format: ImportFormat) {
         update: captured.update,
         assets,
         requiredFeatures: [],
+        warnings,
       }
     }
-    return await captureSnapshot(name, session.doc)
+    return { ...(await captureSnapshot(name, session.doc)), warnings }
   } finally {
     session.cleanup()
   }

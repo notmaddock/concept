@@ -1,5 +1,6 @@
 import { $generateHtmlFromNodes } from '@lexical/html'
 import type { LexicalEditor } from 'lexical'
+import { linkAttributes, normalizeLinkUrl } from '../link-policy'
 import { $getPageSetup, pageDimensions } from '../page-setup'
 
 export function exportHtml(editor: LexicalEditor, name: string) {
@@ -36,9 +37,42 @@ img,table { max-width: 100%; } img { height: auto; }
       list.setAttribute('data-lexical-list-type', 'check')
       list.removeAttribute('__lexicalListType')
     })
-  // Editor theme classes depend on app CSS; the exported document is standalone.
+  output.body.querySelectorAll('a[href]').forEach((anchor) => {
+    const href = anchor.getAttribute('href') ?? ''
+    const normalized = normalizeLinkUrl(href)
+    if (!normalized) {
+      anchor.removeAttribute('href')
+      return
+    }
+    anchor.setAttribute('href', normalized)
+    const attributes = linkAttributes(normalized)
+    if (attributes.target) anchor.setAttribute('target', attributes.target)
+    if (attributes.rel) anchor.setAttribute('rel', attributes.rel)
+  })
+  output.body
+    .querySelectorAll('code[data-language], pre[data-language]')
+    .forEach((element) => {
+      const language = element.getAttribute('data-language')
+      if (language) element.classList.add(`language-${language}`)
+    })
+  /*
+   * Export class policy: the exported document is standalone and its CSP is
+   * `default-src 'none'; style-src 'unsafe-inline'; img-src data:`, so app
+   * theme classes cannot resolve. Keep only classes that carry exported
+   * meaning: Prism's `token` and `language-*` markers. KaTeX/Mermaid classes
+   * should be added to this allowlist with their inline styles when those
+   * exporters land. Everything else is stripped.
+   */
   output.body.querySelectorAll('[class]').forEach((element) => {
-    element.removeAttribute('class')
+    const isToken = element.classList.contains('token')
+    const kept = [...element.classList].filter(
+      (className) =>
+        className === 'token' ||
+        className.startsWith('language-') ||
+        (isToken && /^[a-z-]+$/.test(className)),
+    )
+    if (kept.length) element.className = kept.join(' ')
+    else element.removeAttribute('class')
   })
   return `<!doctype html>\n${output.documentElement.outerHTML}`
 }

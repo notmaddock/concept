@@ -1,7 +1,8 @@
 import { INSERT_IMAGE_COMMAND } from '#/components/nova/images/commands'
+import { OPEN_LINK_DIALOG_COMMAND } from '#/components/nova/plugins/LinkPlugin/commands'
 import { INSERT_PAGE_BREAK } from '#/components/nova/pages/PageBreakExtension'
-import { importFormats } from '#/lib/documents/import/formats'
-import type { ImportFormat } from '#/lib/documents/import/formats'
+import { exportFormats, importFormats } from '#/lib/documents/formats'
+import type { ImportFormat } from '#/lib/documents/formats'
 import type { ExportFormat } from '#/lib/documents/export'
 import {
   DEFAULT_DOCUMENT_THEME_ID,
@@ -37,6 +38,7 @@ import {
   FolderOpenIcon,
   InfoIcon,
   LetterTextIcon,
+  LinkIcon,
   MonitorIcon,
   MoonIcon,
   PaletteIcon,
@@ -85,6 +87,7 @@ type NavigationContext = {
   onSaveToDrive?: () => void | Promise<void>
   onExport: (format: ExportFormat) => Promise<void>
   onInsertImage?: () => void
+  onInsertLink?: () => void
   onInsertPageBreak: () => void
   onPageSetup: () => void
   onCreate: () => Promise<void>
@@ -236,33 +239,23 @@ export const documentNavigation: MenuDefinition[] = [
               onSelect: () => {},
               disabled: () => true,
             },
-            {
-              id: 'export-markdown',
-              label: 'Export as Markdown',
-              menuLabel: 'Markdown (.md)',
-              keywords: ['md'],
-              icon: LetterTextIcon,
+            ...exportFormats.map((format) => ({
+              id: `export-${format.id}`,
+              label:
+                format.id === 'text'
+                  ? 'Export as plain text'
+                  : `Export as ${format.label}`,
+              menuLabel: `${format.label} (.${format.extension})`,
+              keywords: format.extensions,
+              icon:
+                format.id === 'markdown'
+                  ? LetterTextIcon
+                  : format.id === 'html'
+                    ? FileTypeIcon
+                    : FileTextIcon,
               onSelect: (context: NavigationContext) =>
-                context.onExport('markdown'),
-            },
-            {
-              id: 'export-text',
-              label: 'Export as plain text',
-              menuLabel: 'Plain text (.txt)',
-              keywords: ['txt'],
-              icon: FileTextIcon,
-              onSelect: (context: NavigationContext) =>
-                context.onExport('text'),
-            },
-            {
-              id: 'export-html',
-              label: 'Export as HTML',
-              menuLabel: 'HTML (.html)',
-              keywords: ['web', 'download'],
-              icon: FileTypeIcon,
-              onSelect: (context: NavigationContext) =>
-                context.onExport('html'),
-            },
+                context.onExport(format.id),
+            })),
           ] satisfies Omit<ActionDefinition, 'focusAfterSelect'>[]
         ).map((item) => ({ ...item, focusAfterSelect: 'action' as const })),
       },
@@ -379,6 +372,16 @@ export const documentNavigation: MenuDefinition[] = [
         disabled: (context) => Boolean(context.readOnly),
       },
       {
+        id: 'insert-link',
+        label: 'Link',
+        keywords: ['url', 'hyperlink'],
+        icon: LinkIcon,
+        shortcut: { keys: ['Ctrl', 'K'], macKeys: ['⌘', 'K'] },
+        focusAfterSelect: 'action',
+        onSelect: (context) => context.onInsertLink?.(),
+        disabled: (context) => Boolean(context.readOnly),
+      },
+      {
         id: 'insert-page-break',
         label: 'Page break',
         keywords: ['page', 'break', 'pagination'],
@@ -492,6 +495,12 @@ export function useDocumentNavigationOptions({
     onInsertImage: () => {
       workspace.editorRef.current?.dispatchCommand(
         INSERT_IMAGE_COMMAND,
+        undefined,
+      )
+    },
+    onInsertLink: () => {
+      workspace.editorRef.current?.dispatchCommand(
+        OPEN_LINK_DIALOG_COMMAND,
         undefined,
       )
     },

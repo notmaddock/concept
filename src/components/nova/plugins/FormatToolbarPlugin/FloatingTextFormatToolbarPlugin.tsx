@@ -1,5 +1,7 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $isCodeNode } from '@lexical/code'
+import { $isLinkNode } from '@lexical/link'
+import { $findMatchingParent } from '@lexical/utils'
 import {
   $getSelection,
   $isElementNode,
@@ -32,6 +34,7 @@ const INITIAL_FORMAT_STATE: FormatState = {
   isCode: false,
   isSubscript: false,
   isSuperscript: false,
+  isLink: false,
 }
 
 function getNearestScrollContainer(node: Node | null): HTMLElement | null {
@@ -190,6 +193,9 @@ export function FloatingTextFormatToolbarPlugin() {
         isCode: selection.hasFormat('code'),
         isSubscript: selection.hasFormat('subscript'),
         isSuperscript: selection.hasFormat('superscript'),
+        isLink:
+          $isLinkNode(node) ||
+          $isLinkNode($findMatchingParent(node, $isLinkNode)),
       }
       setFormatState((current) =>
         (Object.keys(nextFormatState) as (keyof FormatState)[]).every(

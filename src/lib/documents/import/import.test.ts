@@ -1,13 +1,10 @@
 import { expect, it } from 'vitest'
 import { applyUpdate, Doc, XmlText } from 'yjs'
 import { createEditor, $getRoot } from 'lexical'
-import { HeadingNode, QuoteNode } from '@lexical/rich-text'
-import { ListNode, ListItemNode } from '@lexical/list'
-import { HorizontalRuleNode } from '@lexical/extension'
-import { ImageNode } from '#/components/nova/nodes/ImageNode'
+import { documentNodes } from '#/components/nova/node-registry'
 import { createYjsBinding, syncYjsChangesToLexical } from '@lexical/yjs'
 import { convertImport } from './index'
-import type { ImportFormat } from './formats'
+import type { ImportFormat } from '../formats'
 import { LocalProvider } from '../local-provider'
 
 async function converted(
@@ -22,14 +19,7 @@ async function converted(
   const doc = new Doc()
   const root = doc.get('root', XmlText)
   const editor = createEditor({
-    nodes: [
-      HeadingNode,
-      QuoteNode,
-      ListNode,
-      ListItemNode,
-      HorizontalRuleNode,
-      ImageNode,
-    ],
+    nodes: documentNodes,
     onError: (error) => {
       throw error
     },
@@ -174,4 +164,98 @@ it('normalizes RFC 2045 line-wrapped base64 images during HTML import', async ()
   } finally {
     globalThis.Image = originalImage
   }
+})
+
+it('imports fenced Markdown as a code node with its language', async () => {
+  const { state, text } = await converted(
+    '```ts\nconst answer = 42\n```',
+    'Snippet.md',
+    'markdown',
+  )
+  expect(state.root.children.map((node) => node.type)).toEqual(['code'])
+  expect(state.root.children[0]).toMatchObject({ language: 'ts' })
+  expect(text).toContain('const answer = 42')
+})
+
+it('round-trips Markdown links through the collaboration format', async () => {
+  const { state, text } = await converted(
+    '# Links\n\n[Example](https://example.com)',
+    'Links.md',
+    'markdown',
+  )
+  expect(text).toContain('Example')
+  const paragraph = state.root.children[1] as unknown as {
+    children: Array<Record<string, unknown>>
+  }
+  expect(paragraph.children[0]).toMatchObject({
+    type: 'link',
+    url: 'https://example.com',
+    target: '_blank',
+    rel: 'noopener noreferrer nofollow',
+  })
+})
+
+it('imports HTML anchors and applies the external link policy', async () => {
+  const { state } = await converted(
+    '<p><a href="https://example.com">Example</a></p>',
+    'Links.html',
+    'html',
+  )
+  const paragraph = state.root.children[0] as unknown as {
+    children: Array<Record<string, unknown>>
+  }
+  expect(paragraph.children[0]).toMatchObject({
+    type: 'link',
+    url: 'https://example.com',
+    target: '_blank',
+  })
+})
+
+it('drops disallowed link protocols while preserving their text', async () => {
+  const { state, text } = await converted(
+    '[Bad](data:text/html;base64,PHNjcmlwdD4=)',
+    'Bad.md',
+    'markdown',
+  )
+  expect(text).toContain('Bad')
+  expect(JSON.stringify(state)).not.toContain('data:text/html')
+})
+
+it('imports every registry-backed markdown node type', async () => {
+  const { state } = await converted(
+    '# Heading\n\n> Quote\n\n- Item\n\n1. First\n\n- [x] Done\n\n---\n\n```ts\nconst answer = 42\n```\n\n[Example](https://example.com)',
+    'Everything.md',
+    'markdown',
+  )
+  expect(state.root.children.map((node) => node.type)).toEqual([
+    'heading',
+    'quote',
+    'list',
+    'list',
+    'list',
+    'horizontalrule',
+    'code',
+    'paragraph',
+  ])
+})
+
+it('returns warnings for unsupported Markdown constructs', async () => {
+  const { file } = await converted(
+    '| a | b |\n| --- | --- |\n\n![Alt](https://example.com/image.png)',
+    'Lossy.md',
+    'markdown',
+  )
+  expect(file.warnings.map((warning) => warning.construct)).toEqual([
+    'table',
+    'image',
+  ])
+})
+
+it('returns no warnings for supported Markdown', async () => {
+  const { file } = await converted(
+    '# Heading\n\n[Example](https://example.com)\n\n```ts\nconst answer = 42\n```',
+    'Clean.md',
+    'markdown',
+  )
+  expect(file.warnings).toEqual([])
 })

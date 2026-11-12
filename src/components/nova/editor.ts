@@ -5,11 +5,24 @@ import {
   SelectBlockExtension,
   TabIndentationExtension,
 } from '@lexical/extension'
+import { CodeExtension, CodeIndentExtension, $isCodeNode } from '@lexical/code'
 import { HistoryExtension } from '@lexical/history'
 import { CheckListExtension, ListExtension } from '@lexical/list'
+import {
+  autoLinkEmailMatcher,
+  autoLinkUrlMatcher,
+  AutoLinkExtension,
+  AutoLinkNode,
+  LinkExtension,
+  LinkNode,
+} from '@lexical/link'
 import { RichTextExtension } from '@lexical/rich-text'
-import { defineExtension } from 'lexical'
-import { ImageNode } from './nodes/ImageNode'
+import { configExtension, defineExtension, mergeRegister } from 'lexical'
+import {
+  $applyLinkPolicyToNode,
+  normalizeLinkUrl,
+} from '#/lib/documents/link-policy'
+import { documentNodes } from './node-registry'
 import { PagesExtension } from './pages'
 import { getInitialState } from './initial-state'
 import { defaultEditorTheme } from './theme'
@@ -17,9 +30,15 @@ import { paragraphDOM } from './paragraph-format'
 
 export const editorExtension = defineExtension({
   name: '[root]',
-  nodes: [ImageNode],
+  nodes: documentNodes,
   init(config) {
     config.dom = { ...config.dom, ...paragraphDOM }
+  },
+  register(editor) {
+    return mergeRegister(
+      editor.registerNodeTransform(LinkNode, $applyLinkPolicyToNode),
+      editor.registerNodeTransform(AutoLinkNode, $applyLinkPolicyToNode),
+    )
   },
   dependencies: [
     RichTextExtension,
@@ -28,6 +47,15 @@ export const editorExtension = defineExtension({
     CheckListExtension,
     HorizontalRuleExtension,
     TabIndentationExtension,
+    CodeExtension,
+    CodeIndentExtension,
+    configExtension(LinkExtension, {
+      validateUrl: (url) => normalizeLinkUrl(url) !== null,
+    }),
+    configExtension(AutoLinkExtension, {
+      matchers: [autoLinkUrlMatcher, autoLinkEmailMatcher],
+      excludeParents: [$isCodeNode],
+    }),
     ClickAfterLastBlockExtension,
     SelectBlockExtension,
     AutoFocusExtension,

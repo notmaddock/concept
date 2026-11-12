@@ -22,6 +22,7 @@ import {
   DEFAULT_PAGE_SETUP,
 } from '#/lib/documents/page-setup'
 import { LocalProvider } from '#/lib/documents/local-provider'
+import { captureDocument } from '#/lib/documents/references'
 import { $isPageNode } from './PageNode'
 import { PagesExtension } from './PagesExtension'
 
@@ -91,6 +92,34 @@ function destroyEditor(mounted: MountedEditor) {
 }
 
 describe('PagesExtension with Yjs', () => {
+  it('captures paper-mode documents without unsupported node errors', async () => {
+    const doc = new Doc()
+    const mounted = mountEditor('pages-capture', doc, true)
+    try {
+      mounted.editor.update(
+        () => $setPageSetup({ ...DEFAULT_PAGE_SETUP, mode: 'paper' }),
+        { discrete: true },
+      )
+      await Promise.resolve()
+      mounted.editor.update(
+        () =>
+          $getRoot().append(
+            $createParagraphNode().append($createTextNode('paper')),
+          ),
+        { discrete: true },
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+
+      const captured = captureDocument(doc, 'Paper')
+      expect(captured.name).toBe('Paper')
+      expect([...captured.requiredAssets]).toEqual([])
+    } finally {
+      destroyEditor(mounted)
+      doc.destroy()
+    }
+  })
+
   it('round-trips paged structure and page setup through a Yjs document', async () => {
     const doc = new Doc()
     const first = mountEditor('pages-yjs', doc, true)

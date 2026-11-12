@@ -14,9 +14,11 @@ import {
   Subscript,
   Superscript,
   Ellipsis,
+  LinkIcon,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { OPEN_LINK_DIALOG_COMMAND } from '../LinkPlugin/commands'
 import {
   Popover,
   PopoverContent,
@@ -155,6 +157,15 @@ export function FloatingTextFormatToolbar({
           onClick={() => void run({ kind: 'text', value: format })}
         />
       ))}
+      <FormatIcon
+        label="Link"
+        actionId="format-link"
+        icon={LinkIcon}
+        active={formatState.isLink}
+        onClick={() =>
+          editor.dispatchCommand(OPEN_LINK_DIALOG_COMMAND, undefined)
+        }
+      />
       <FormatIcon
         label="Clear formatting"
         actionId="clear-formatting"

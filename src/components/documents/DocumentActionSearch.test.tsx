@@ -28,7 +28,7 @@ it('allows opening action search without an open document', async () => {
     expect(trigger.disabled).toBe(false)
     await act(() => {
       window.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }),
+        new KeyboardEvent('keydown', { key: '/', ctrlKey: true }),
       )
     })
     expect(

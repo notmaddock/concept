@@ -1,9 +1,27 @@
 import DOMPurify from 'dompurify'
+import { isEmbedFrameHost } from '#/lib/documents/embed-hosts'
 import {
   imageDataBlob,
   imageTransferLimits,
 } from '#/lib/documents/image-transfer'
 import { prepareImage } from '../images/ingestion'
+
+/*
+ * P2.6/P2.7 embed exception path. The paste sanitizer still destroys every
+ * iframe; embed plugins must call `embedFrameSource` on the untrusted DOM and
+ * map a recognized host to a decorator node *before* `sanitizedHtml` runs.
+ * Unknown hosts stay stripped.
+ */
+export function embedFrameSource(frame: HTMLIFrameElement): string | null {
+  const source = frame.getAttribute('src')
+  if (!source) return null
+  try {
+    const { hostname } = new URL(source)
+    return isEmbedFrameHost(hostname) ? source : null
+  } catch {
+    return null
+  }
+}
 
 export function sanitizedHtml(content: string) {
   if (content.length > imageTransferLimits.bytes * 3)

@@ -17,13 +17,14 @@
     "check": "prettier --check .",
     "check:routes": "pnpm run generate-routes && git diff --exit-code src/routeTree.gen.ts",
     "check:types": "pnpm run cf-typegen && git diff --exit-code worker-configuration.d.ts",
+    "check:bundle": "node scripts/check-bundle-budget.mjs",
     "check:cf-typegen": "pnpm run check:types",
     "typecheck": "tsc --noEmit",
     "wrangler": "wrangler",
     "deploy": "pnpm run build && wrangler deploy",
     "cf-typegen": "wrangler types --include-runtime=false",
     "test": "vitest run",
-    "validate": "pnpm run check && pnpm run check:routes && pnpm run check:types && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
+    "validate": "pnpm run check && pnpm run check:routes && pnpm run check:types && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run check:bundle"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -35,6 +36,7 @@
     "@lexical/extension": "^0.53.0",
     "@lexical/history": "^0.53.0",
     "@lexical/html": "0.53.0",
+    "@lexical/link": "^0.53.0",
     "@lexical/list": "^0.53.0",
     "@lexical/markdown": "0.53.0",
     "@lexical/react": "^0.53.0",

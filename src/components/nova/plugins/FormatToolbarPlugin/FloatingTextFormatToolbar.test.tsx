@@ -58,6 +58,7 @@ it('docks formatting above the keyboard and follows the visible viewport', async
             isCode: false,
             isSubscript: false,
             isSuperscript: false,
+            isLink: false,
           }}
           onOpenChange={vi.fn()}
         />,

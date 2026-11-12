@@ -1,6 +1,7 @@
 import { $generateNodesFromDOM } from '@lexical/html'
 import { $getRoot, $insertNodes } from 'lexical'
 import type { LexicalEditor } from 'lexical'
+import { $applyLinkPolicy } from '../link-policy'
 
 export function convertHtml(content: string, editor: LexicalEditor) {
   const html = new DOMParser().parseFromString(content, 'text/html')
@@ -17,4 +18,5 @@ export function convertHtml(content: string, editor: LexicalEditor) {
     })
   $getRoot().select()
   $insertNodes($generateNodesFromDOM(editor, html))
+  $applyLinkPolicy()
 }

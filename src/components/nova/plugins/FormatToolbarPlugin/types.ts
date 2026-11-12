@@ -13,4 +13,5 @@ export interface FormatState {
   isSubscript: boolean
   isSuperscript: boolean
   isCode: boolean
+  isLink: boolean
 }

@@ -115,6 +115,9 @@ jobs:
           VITE_GOOGLE_PICKER_APP_ID: ${{ vars.VITE_GOOGLE_PICKER_APP_ID }}
         run: pnpm run build
 
+      - name: Check bundle budget
+        run: pnpm run check:bundle
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:

@@ -2,8 +2,8 @@ import { $getRoot } from 'lexical'
 import type { DocumentAssetResolver } from '../asset-session'
 import { imageElements, resolveImageData } from '../image-transfer'
 import type { LexicalEditor } from 'lexical'
-import type { ExportFormat } from '../import/formats'
-import { documentFormats } from '../import/formats'
+import type { ExportFormat } from '../formats'
+import { documentFormats } from '../formats'
 
 export type { ExportFormat }
 
@@ -30,7 +30,7 @@ const serializers: Record<
     const { exportMarkdown } = await import('./markdown')
     const state = editor.getEditorState()
     return state.read(() => ({
-      content: exportMarkdown(),
+      content: exportMarkdown(editor),
       notice: JSON.stringify(state.toJSON()).includes('"type":"image"')
         ? 'Markdown represents images as alt text. Use HTML or Concept to preserve images.'
         : undefined,

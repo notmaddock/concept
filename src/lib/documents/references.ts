@@ -41,7 +41,12 @@ const referenceFreeTypes = new Set([
   'listitem',
   'code',
   'code-highlight',
+  'link',
+  'autolink',
   'horizontalrule',
+  'page',
+  'page-content',
+  'page-break',
 ])
 
 export class UnsupportedNodeError extends Error {

@@ -94,6 +94,12 @@
     --border: #888;
   }
 
+  [data-document-content] a[href] {
+    color: var(--primary, #0066cc) !important;
+    text-decoration: underline !important;
+    cursor: pointer !important;
+  }
+
   [data-document-content] :is(p, li, blockquote) {
     orphans: 3;
     widows: 3;
