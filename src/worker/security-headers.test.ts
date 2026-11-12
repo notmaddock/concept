@@ -12,10 +12,10 @@ describe('security headers', () => {
     expect(policy).toContain("form-action 'self'")
     expect(policy).toContain("default-src 'self'")
     expect(policy).toContain(
-      "connect-src 'self' https://*.googleapis.com https://*.google.com https://*.posthog.com https://*.i.posthog.com",
+      "connect-src 'self' https://*.googleapis.com https://*.google.com https://cloudflareinsights.com https://*.posthog.com https://*.i.posthog.com",
     )
     expect(policy).toContain(
-      "script-src 'self' 'unsafe-inline' https://apis.google.com https://*.posthog.com https://*.i.posthog.com",
+      "script-src 'self' 'unsafe-inline' https://apis.google.com https://static.cloudflareinsights.com https://*.posthog.com https://*.i.posthog.com",
     )
     expect(policy).toContain("img-src 'self' data: blob:")
   })
