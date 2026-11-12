@@ -21,7 +21,7 @@ export function exportHtml(editor: LexicalEditor, name: string) {
 body { max-width: 72ch; margin: 3rem auto; padding: 0 1.5rem; color: #111; background: white; font: 12pt/1.5 Georgia, serif; overflow-wrap: anywhere; }
 h1,h2,h3,h4,h5,h6 { break-after: avoid; }
 blockquote { border-left: 3px solid #aaa; margin-left: 0; padding-left: 1rem; }
-pre { white-space: pre-wrap; overflow-x: auto; background: #f6f2ea; border: 1px solid #dbd0ba; border-radius: 0.875rem; padding: 0.75rem 1rem; }
+pre { white-space: pre-wrap; overflow-x: auto; background: #f6f2ea; border: 1px solid #dbd0ba; border-radius: 1.375rem; padding: 0.75rem 1rem; }
 code,pre { font-family: monospace; }
 ${syntaxHighlightCss()}
 ul { list-style: disc; } ul ul { list-style: circle; }
