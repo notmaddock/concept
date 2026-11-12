@@ -24,7 +24,7 @@
     "deploy": "pnpm run build && wrangler deploy",
     "cf-typegen": "wrangler types --include-runtime=false",
     "test": "vitest run",
-    "validate": "pnpm run check && pnpm run check:routes && pnpm run check:types && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
+    "validate": "pnpm run check && pnpm run check:routes && pnpm run check:types && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run check:bundle"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
