@@ -96,8 +96,12 @@ export function LinkPlugin() {
   }, [floating])
 
   const openDialog = useCallback(() => {
-    editor.getEditorState().read(() => {
-      const selection = $getSelection()
+    editor.update(() => {
+      let selection = $getSelection()
+      if (!$isRangeSelection(selection)) {
+        $getRoot().selectEnd()
+        selection = $getSelection()
+      }
       if (!$isRangeSelection(selection)) return
       savedSelection.current = selection.clone()
       const link = $findLinkNode(selection)
