@@ -100,10 +100,6 @@
     cursor: pointer !important;
   }
 
-  [data-document-content] {
-    -webkit-user-modify: read-only !important;
-  }
-
   [data-document-content] :is(p, li, blockquote) {
     orphans: 3;
     widows: 3;
