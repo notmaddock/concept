@@ -22,6 +22,7 @@ describe('link policy', () => {
       'mailto:user@example.com',
     )
     expect(normalizeLinkUrl('tel:+15551234')).toBe('tel:+15551234')
+    expect(normalizeLinkUrl('tel:+1 555 1234')).toBe('tel:+15551234')
     expect(normalizeLinkUrl('javascript:alert(1)')).toBeNull()
     expect(normalizeLinkUrl('data:text/html,<script>')).toBeNull()
     expect(normalizeLinkUrl('not a url')).toBeNull()

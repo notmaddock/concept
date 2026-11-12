@@ -12,7 +12,9 @@ const schemePattern = /^[a-z][a-z0-9+.-]*:/i
 const externalRel = ['noopener', 'noreferrer', 'nofollow']
 
 export function normalizeLinkUrl(input: string): string | null {
-  const value = input.trim()
+  const trimmed = input.trim()
+  // Phone numbers are commonly written with spaces; other schemes reject them.
+  const value = /^tel:/i.test(trimmed) ? trimmed.replace(/\s+/g, '') : trimmed
   if (!value || /\s/.test(value)) return null
   const candidate = schemePattern.test(value) ? value : `https://${value}`
   let parsed: URL
