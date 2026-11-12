@@ -10,6 +10,7 @@ import { $setBlocksType } from '@lexical/selection'
 import { $createParagraphNode, $getSelection, $isRangeSelection } from 'lexical'
 import type { LexicalEditor } from 'lexical'
 import {
+  CodeIcon,
   Heading1Icon,
   ImageIcon,
   Heading2Icon,
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react'
 import type { JSX } from 'react'
 import { INSERT_IMAGE_COMMAND } from '../../images/commands'
+import { $insertCodeBlock } from '../CodePlugin/commands'
 
 interface BlockOptionConfig {
   title: string
@@ -164,6 +166,13 @@ export function getBlockOptions(
             $setBlocksType(selection, () => $createQuoteNode())
           }
         }),
+    }),
+    new BlockOption('code', {
+      title: 'Code block',
+      icon: <CodeIcon />,
+      category: categories.BASIC_BLOCKS,
+      keywords: ['code', 'codeblock', 'snippet', 'fence', 'pre'],
+      onSelect: () => $insertCodeBlock(),
     }),
     new BlockOption('horizontal-rule', {
       title: 'Divider',
