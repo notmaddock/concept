@@ -6,7 +6,6 @@ import {
   $toggleLink,
 } from '@lexical/link'
 import type { LinkNode } from '@lexical/link'
-import { $findMatchingParent } from '@lexical/utils'
 import {
   $createTextNode,
   $getNodeByKey,
@@ -23,12 +22,12 @@ import {
   mergeRegister,
   SELECTION_CHANGE_COMMAND,
 } from 'lexical'
-import type { BaseSelection, RangeSelection } from 'lexical'
+import type { RangeSelection } from 'lexical'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { getSelectedNode } from '../../utils'
 import { linkAttributes, normalizeLinkUrl } from '#/lib/documents/link-policy'
 import { OPEN_LINK_DIALOG_COMMAND } from './commands'
+import { $findLinkNode } from './link-selection'
 import type { LinkDialogValue } from './LinkDialog'
 import type { FloatingLinkRect } from './FloatingLinkEditor'
 
@@ -40,14 +39,6 @@ const FloatingLinkEditor = lazy(() =>
     default: module.FloatingLinkEditor,
   })),
 )
-
-function $findLinkNode(selection: BaseSelection | null) {
-  if (!$isRangeSelection(selection)) return null
-  const node = getSelectedNode(selection)
-  if ($isLinkNode(node)) return node
-  const parent = $findMatchingParent(node, $isLinkNode)
-  return $isLinkNode(parent) ? parent : null
-}
 
 function $removeLink(link: LinkNode) {
   if ($isAutoLinkNode(link)) {
