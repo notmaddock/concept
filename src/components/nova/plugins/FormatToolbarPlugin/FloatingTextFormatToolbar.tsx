@@ -67,7 +67,7 @@ export interface FloatingTextFormatToolbarProps {
   editor: LexicalEditor
   isOpen: boolean
   rangeRect: PositionRect | null
-  formatState: FormatState & { isLink?: boolean }
+  formatState: FormatState
   onOpenChange: (open: boolean) => void
 }
 
