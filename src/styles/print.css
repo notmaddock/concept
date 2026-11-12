@@ -136,3 +136,28 @@
     box-shadow: none !important;
   }
 }
+
+@media print {
+  [data-document-content] {
+    --syntax-purple: #9333ea;
+    --syntax-amber: #b45309;
+    --syntax-emerald: #047857;
+    --syntax-red: #dc2626;
+    --syntax-blue: #1d4ed8;
+    --syntax-muted: #7d6b56;
+  }
+
+  [data-document-content] code.code-block {
+    background: #f6f2ea !important;
+    border-color: #dbd0ba !important;
+    color: #111 !important;
+    overflow: visible !important;
+    white-space: pre-wrap !important;
+  }
+
+  [data-document-content] code.code-block[data-gutter]::before {
+    border-color: #dbd0ba !important;
+    background: #ece5d8;
+    color: #7d6b56 !important;
+  }
+}

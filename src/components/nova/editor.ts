@@ -5,7 +5,8 @@ import {
   SelectBlockExtension,
   TabIndentationExtension,
 } from '@lexical/extension'
-import { CodeExtension, CodeIndentExtension, $isCodeNode } from '@lexical/code'
+import { CodeIndentExtension, $isCodeNode } from '@lexical/code'
+import { CodePrismExtension, PrismTokenizer } from '@lexical/code-prism'
 import { HistoryExtension } from '@lexical/history'
 import { CheckListExtension, ListExtension } from '@lexical/list'
 import {
@@ -47,8 +48,13 @@ export const editorExtension = defineExtension({
     CheckListExtension,
     HorizontalRuleExtension,
     TabIndentationExtension,
-    CodeExtension,
-    CodeIndentExtension,
+    configExtension(CodePrismExtension, {
+      tokenizer: { ...PrismTokenizer, defaultLanguage: null },
+    }),
+    configExtension(CodeIndentExtension, {
+      escapeWithArrows: true,
+      tabSize: 2,
+    }),
     configExtension(LinkExtension, {
       validateUrl: (url) => normalizeLinkUrl(url) !== null,
     }),

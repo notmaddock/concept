@@ -2,6 +2,7 @@ import { $generateHtmlFromNodes } from '@lexical/html'
 import type { LexicalEditor } from 'lexical'
 import { linkAttributes, normalizeLinkUrl } from '../link-policy'
 import { $getPageSetup, pageDimensions } from '../page-setup'
+import { syntaxHighlightCss } from '../syntax-highlight'
 
 export function exportHtml(editor: LexicalEditor, name: string) {
   const output = document.implementation.createHTMLDocument(name)
@@ -20,7 +21,9 @@ export function exportHtml(editor: LexicalEditor, name: string) {
 body { max-width: 72ch; margin: 3rem auto; padding: 0 1.5rem; color: #111; background: white; font: 12pt/1.5 Georgia, serif; overflow-wrap: anywhere; }
 h1,h2,h3,h4,h5,h6 { break-after: avoid; }
 blockquote { border-left: 3px solid #aaa; margin-left: 0; padding-left: 1rem; }
-pre { white-space: pre-wrap; } code,pre { font-family: monospace; }
+pre { white-space: pre-wrap; overflow-x: auto; background: #f6f2ea; border: 1px solid #dbd0ba; border-radius: 0.5rem; padding: 0.75rem 1rem; }
+code,pre { font-family: monospace; }
+${syntaxHighlightCss()}
 ul { list-style: disc; } ul ul { list-style: circle; }
 ul[data-lexical-list-type="check"] { list-style: none; padding-left: 1rem; }
 li[aria-checked="true"]::before { content: '☑ '; }

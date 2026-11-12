@@ -128,6 +128,35 @@ describe('local export', () => {
       'token keyword language-js',
     )
   })
+  it('exports Prism token classes with inline token styles', async () => {
+    const { defaultEditorTheme } = await import('#/components/nova/theme')
+    const editor = createEditor({
+      namespace: 'export-token-test',
+      nodes: [CodeNode, CodeHighlightNode],
+      theme: defaultEditorTheme,
+      onError: (error) => {
+        throw error
+      },
+    })
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createCodeNode('ts').append(
+            $createCodeHighlightNode('const', 'keyword'),
+            $createCodeHighlightNode(' answer = 42', 'plain'),
+          ),
+        )
+      },
+      { discrete: true },
+    )
+    const file = await serializeExport(editor, 'Code', 'html')
+    const document = new DOMParser().parseFromString(file.content, 'text/html')
+    expect(document.querySelector('pre')?.className).toContain('language-ts')
+    expect(document.querySelector('.token.keyword')?.textContent).toBe('const')
+    expect(document.querySelector('style')?.textContent).toContain(
+      '.token.keyword',
+    )
+  })
   it('exports links to Markdown and HTML with external attributes', async () => {
     const editor = createEditor({
       namespace: 'export-link-test',

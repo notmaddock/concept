@@ -103,3 +103,94 @@ li.editor-checklist-item-checked:not([role='checkbox'])::after {
   content: none !important;
   display: none !important;
 }
+
+/* Code blocks */
+[data-document-content] code.code-block {
+  position: relative;
+  tab-size: 2;
+}
+
+[data-document-content] code.code-block[data-gutter]::before {
+  content: attr(data-gutter);
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 2.75rem;
+  padding: 0.75rem 0.625rem;
+  border-inline-end: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: pre;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Prism tokens: keep the token names semantic so HTML export can inline them. */
+:root {
+  --syntax-purple: #9333ea;
+  --syntax-amber: #b45309;
+  --syntax-emerald: #047857;
+  --syntax-red: #dc2626;
+  --syntax-blue: #1d4ed8;
+  --syntax-muted: #7d6b56;
+}
+
+.dark {
+  --syntax-purple: #c084fc;
+  --syntax-amber: #fbbf24;
+  --syntax-emerald: #34d399;
+  --syntax-red: #f87171;
+  --syntax-blue: #60a5fa;
+  --syntax-muted: #c5bcac;
+}
+
+.token.atrule,
+.token.boolean,
+.token.constant,
+.token.keyword {
+  color: var(--syntax-purple);
+}
+
+.token.attr,
+.token.number,
+.token.symbol,
+.token.variable {
+  color: var(--syntax-amber);
+}
+
+.token.character,
+.token.inserted,
+.token.selector,
+.token.string {
+  color: var(--syntax-emerald);
+}
+
+.token.deleted,
+.token.important,
+.token.tag {
+  color: var(--syntax-red);
+}
+
+.token.function,
+.token.property,
+.token.url {
+  color: var(--syntax-blue);
+}
+
+.token.comment,
+.token.operator {
+  color: var(--syntax-muted);
+}
+
+.token.comment {
+  font-style: italic;
+}
+
+.token.important {
+  font-weight: 600;
+}
+
+.token.url {
+  text-decoration: underline;
+}

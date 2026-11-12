@@ -190,6 +190,9 @@ importers:
       '@lexical/code':
         specifier: ^0.53.0
         version: 0.53.0(typescript@6.0.3)
+      '@lexical/code-prism':
+        specifier: ^0.53.0
+        version: 0.53.0(typescript@6.0.3)
       '@lexical/extension':
         specifier: ^0.53.0
         version: 0.53.0(typescript@6.0.3)
@@ -1164,6 +1167,14 @@ packages:
 
   '@lexical/code-core@0.53.0':
     resolution: {integrity: sha512-u684OEtS6lb5IQKeFFAPlNfWhdcnKi2ZctOEgK5o2rHd01FF0pG/J57gbTzcpwnyfw98s6c5SnBuxTAXA7EWsA==}
+    peerDependencies:
+      typescript: '>=5.2'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
+  '@lexical/code-prism@0.53.0':
+    resolution: {integrity: sha512-avnEKuFNdO8GGH3txAnO78hgIeVMCgzBx9vu2ZSCKHu3t2JYAKi8ztC4YplxDdqAJA8DV7sJBrqnwrxysA5fFA==}
     peerDependencies:
       typescript: '>=5.2'
     peerDependenciesMeta:
@@ -3383,6 +3394,10 @@ packages:
     engines: {node: '>=14'}
     hasBin: true
 
+  prismjs@1.30.0:
+    resolution: {integrity: sha512-DEvV2ZF2r2/63V+tK8hQvrR2ZGn10srHbXviTlcv7Kpzw8jWiNTqbVgjO3IY8RxrrOUF8VPMQQFysYYYv0YZxw==}
+    engines: {node: '>=6'}
+
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
@@ -4595,6 +4610,15 @@ snapshots:
       '@lexical/internal': 0.53.0(typescript@6.0.3)
       '@lexical/utils': 0.53.0(typescript@6.0.3)
       lexical: 0.53.0(typescript@6.0.3)
+    optionalDependencies:
+      typescript: 6.0.3
+
+  '@lexical/code-prism@0.53.0(typescript@6.0.3)':
+    dependencies:
+      '@lexical/code-core': 0.53.0(typescript@6.0.3)
+      '@lexical/extension': 0.53.0(typescript@6.0.3)
+      lexical: 0.53.0(typescript@6.0.3)
+      prismjs: 1.30.0
     optionalDependencies:
       typescript: 6.0.3
 
@@ -6731,6 +6755,8 @@ snapshots:
   prelude-ls@1.2.1: {}
 
   prettier@3.9.10: {}
+
+  prismjs@1.30.0: {}
 
   punycode@2.3.1: {}
 
