@@ -128,7 +128,7 @@ export function DocumentStorageDialog({
         setName(next.file.name)
         if (next.warnings?.length) {
           const constructs = [
-            ...new Set(next.warnings.map((warning) => warning.construct)),
+            ...new Set(next.warnings.map((warning) => warning.label)),
           ]
           toast.warning(
             `Some content could not be imported: ${constructs.join(', ')}.`,
@@ -224,10 +224,13 @@ export function DocumentStorageDialog({
             onSelect={(file) => {
               void readDocument(async () => {
                 const { convertImport } = await import('#/lib/documents/import')
-                const result = await convertImport(file, format.id)
+                const { warnings, ...snapshot } = await convertImport(
+                  file,
+                  format.id,
+                )
                 return {
-                  file: result,
-                  warnings: result.warnings,
+                  file: snapshot,
+                  warnings,
                   size: file.size,
                   filename: file.name,
                   origin: storageLocations.device.label,

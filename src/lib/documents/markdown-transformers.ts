@@ -43,6 +43,7 @@ export function supportedTransformers(editor: LexicalEditor): Transformer[] {
 
 export type MarkdownWarning = {
   construct: 'code' | 'link' | 'table' | 'image'
+  label: string
   message: string
 }
 
@@ -79,30 +80,35 @@ const tableDivider =
 
 const constructs: Array<{
   construct: MarkdownWarning['construct']
+  label: string
   pattern: RegExp
   supported: (transformers: readonly Transformer[]) => boolean
   message: string
 }> = [
   {
     construct: 'code',
+    label: 'code blocks',
     pattern: /^[ \t]*```/m,
     supported: (transformers) => hasTransformerFor(transformers, 'code'),
     message: 'Fenced code blocks are not supported by this import.',
   },
   {
     construct: 'link',
+    label: 'links',
     pattern: /\[[^\]]*\]\([^)]*\)/,
     supported: (transformers) => hasTransformerFor(transformers, 'link'),
     message: 'Links are not supported by this import.',
   },
   {
     construct: 'table',
+    label: 'tables',
     pattern: tableDivider,
     supported: (transformers) => hasTransformerFor(transformers, 'table'),
     message: 'Markdown tables are not supported by this import.',
   },
   {
     construct: 'image',
+    label: 'images',
     pattern: /!\[[^\]]*\]\([^)]*\)/,
     supported: (transformers) => hasImportTransformerFor(transformers, 'image'),
     message: 'Markdown images are not supported by this import.',
@@ -118,5 +124,5 @@ export function markdownWarnings(
       ({ pattern, supported }) =>
         pattern.test(content) && !supported(transformers),
     )
-    .map(({ construct, message }) => ({ construct, message }))
+    .map(({ construct, label, message }) => ({ construct, label, message }))
 }
