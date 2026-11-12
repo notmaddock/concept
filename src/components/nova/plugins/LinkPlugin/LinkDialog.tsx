@@ -3,6 +3,7 @@ import { Button } from '#/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -43,6 +44,9 @@ export function LinkDialog({
           <DialogTitle>
             {value.hasLink ? 'Edit link' : 'Insert link'}
           </DialogTitle>
+          <DialogDescription>
+            Only http, https, mailto, and tel links are allowed.
+          </DialogDescription>
         </DialogHeader>
         <form
           className="grid gap-4"
