@@ -1,9 +1,13 @@
 import { filterDocumentAction } from './filter-document-action'
-import { ActionShortcut } from './navigation-menus/ActionShortcut'
+import { ActionShortcut, isMac } from './navigation-menus/ActionShortcut'
 import { useDocumentWorkspace } from './document-workspace-context'
 import { useEffect, useRef, useState } from 'react'
 import { SearchIcon, XIcon } from 'lucide-react'
 import type { NavigationOption } from './navigation-menus/document-navigation-options'
+import {
+  getEditorActionShortcut,
+  matchEditorShortcut,
+} from '#/components/nova/editor-shortcuts'
 import { Button } from '#/components/ui/button'
 import {
   Command,
@@ -13,7 +17,6 @@ import {
   CommandItem,
   CommandList,
 } from '#/components/ui/command'
-import { Kbd } from '#/components/ui/kbd'
 import {
   Tooltip,
   TooltipContent,
@@ -57,7 +60,18 @@ export function DocumentActionSearch({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key === '/') {
+      const target = event.target
+      if (
+        target instanceof Element &&
+        (target.closest('[role="dialog"]') ||
+          (target.closest(
+            'input, textarea, select, [contenteditable="true"]',
+          ) &&
+            !containerRef.current?.contains(target) &&
+            !target.closest('[data-lexical-editor="true"]')))
+      )
+        return
+      if (matchEditorShortcut(event, isMac())?.id === 'search-actions') {
         event.preventDefault()
         setOpen((previous) => !previous)
         setQuery('')
@@ -138,7 +152,10 @@ export function DocumentActionSearch({
             </TooltipTrigger>
             {!searchOpen && (
               <TooltipContent>
-                Search <Kbd>Ctrl</Kbd> <Kbd>/</Kbd>
+                Search{' '}
+                <ActionShortcut
+                  shortcut={getEditorActionShortcut('search-actions')}
+                />
               </TooltipContent>
             )}
           </Tooltip>

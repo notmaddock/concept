@@ -1,6 +1,7 @@
 import { INSERT_IMAGE_COMMAND } from '#/components/nova/images/commands'
 import { OPEN_LINK_DIALOG_COMMAND } from '#/components/nova/plugins/LinkPlugin/commands'
 import { insertCodeBlock } from '#/components/nova/plugins/CodePlugin/commands'
+import { getEditorActionShortcut } from '#/components/nova/editor-shortcuts'
 import { INSERT_PAGE_BREAK } from '#/components/nova/pages/PageBreakExtension'
 import { exportFormats, importFormats } from '#/lib/documents/formats'
 import type { ImportFormat } from '#/lib/documents/formats'
@@ -40,6 +41,7 @@ import {
   FolderOpenIcon,
   InfoIcon,
   LetterTextIcon,
+  KeyboardIcon,
   LinkIcon,
   MonitorIcon,
   MoonIcon,
@@ -60,18 +62,6 @@ export type ActionShortcut = {
   macKeys?: string[]
 }
 
-const editShortcuts: Record<EditAction, ActionShortcut> = {
-  undo: { keys: ['Ctrl', 'Z'], macKeys: ['⌘', 'Z'] },
-  redo: { keys: ['Ctrl', 'Y'], macKeys: ['⌘', 'Shift', 'Z'] },
-  cut: { keys: ['Ctrl', 'X'], macKeys: ['⌘', 'X'] },
-  copy: { keys: ['Ctrl', 'C'], macKeys: ['⌘', 'C'] },
-  paste: { keys: ['Ctrl', 'V'], macKeys: ['⌘', 'V'] },
-  'paste-plain': { keys: ['Ctrl', 'Shift', 'V'], macKeys: ['⌘', 'Shift', 'V'] },
-  'select-all': { keys: ['Ctrl', 'A'], macKeys: ['⌘', 'A'] },
-  'delete-selection': { keys: ['Delete'], macKeys: ['⌫'] },
-  'clear-formatting': { keys: ['Ctrl', '\\'], macKeys: ['⌘', '\\'] },
-}
-
 type NavigationContext = {
   format: ReturnType<typeof useFormatActions>
   edit: ReturnType<typeof useEditActions>
@@ -83,6 +73,7 @@ type NavigationContext = {
   onOpen?: () => void
   onDetails?: () => void
   onShowChangelog: () => void
+  onShowKeyboardShortcuts?: () => void
   onShare: () => void
   onCopy?: () => void
   onDownload?: () => void | Promise<void>
@@ -138,7 +129,7 @@ function editOption(
 ): ActionDefinition {
   return {
     id,
-    shortcut: editShortcuts[id],
+    shortcut: getEditorActionShortcut(id),
     label,
     icon,
     keywords: id === 'paste-plain' ? ['plain text', 'clipboard'] : ['edit', id],
@@ -283,6 +274,7 @@ export const documentNavigation: MenuDefinition[] = [
       {
         id: 'print',
         label: 'Print',
+        shortcut: getEditorActionShortcut('print'),
         keywords: [],
         icon: PrinterIcon,
         focusAfterSelect: 'action',
@@ -379,7 +371,7 @@ export const documentNavigation: MenuDefinition[] = [
         label: 'Link',
         keywords: ['url', 'hyperlink'],
         icon: LinkIcon,
-        shortcut: { keys: ['Ctrl', 'K'], macKeys: ['⌘', 'K'] },
+        shortcut: getEditorActionShortcut('insert-link'),
         focusAfterSelect: 'action',
         onSelect: (context) => context.onInsertLink?.(),
         disabled: (context) => Boolean(context.readOnly),
@@ -387,6 +379,7 @@ export const documentNavigation: MenuDefinition[] = [
       {
         id: 'insert-code-block',
         label: 'Code block',
+        shortcut: getEditorActionShortcut('insert-code-block'),
         keywords: ['code', 'codeblock', 'snippet', 'fence', 'pre'],
         icon: CodeIcon,
         focusAfterSelect: 'editor',
@@ -396,6 +389,7 @@ export const documentNavigation: MenuDefinition[] = [
       {
         id: 'insert-page-break',
         label: 'Page break',
+        shortcut: getEditorActionShortcut('insert-page-break'),
         keywords: ['page', 'break', 'pagination'],
         icon: ScissorsIcon,
         focusAfterSelect: 'action',
@@ -430,6 +424,14 @@ export const documentNavigation: MenuDefinition[] = [
   {
     label: 'Help',
     items: [
+      {
+        id: 'keyboard-shortcuts',
+        label: 'Keyboard shortcuts',
+        keywords: ['keyboard', 'hotkeys', 'key bindings', 'help'],
+        icon: KeyboardIcon,
+        focusAfterSelect: 'action',
+        onSelect: (context) => context.onShowKeyboardShortcuts?.(),
+      },
       {
         id: 'whats-new',
         label: "What's new",
@@ -466,10 +468,12 @@ const disabledActions: NavigationActions = {
   format: { run: async () => {}, disabled: true, checked: () => undefined },
 }
 
-export function useDocumentNavigationOptions({
-  edit,
-  format,
-}: NavigationActions = disabledActions) {
+export function useDocumentNavigationOptions(
+  { edit, format }: NavigationActions = disabledActions,
+  {
+    onShowKeyboardShortcuts,
+  }: Pick<NavigationContext, 'onShowKeyboardShortcuts'> = {},
+) {
   const workspace = useDocumentWorkspace()
   const readOnly = Boolean(
     workspace.document?.readOnly || workspace.document?.drive?.readOnly,
@@ -500,6 +504,7 @@ export function useDocumentNavigationOptions({
     onShare: workspace.shareDocument,
     onDetails: workspace.showDetails,
     onShowChangelog: workspace.showChangelog,
+    onShowKeyboardShortcuts,
     onDownload: workspace.downloadDocument,
     onSaveToDrive: workspace.saveToDrive,
     onExport: workspace.exportDocument,
@@ -551,9 +556,13 @@ export function useDocumentNavigationOptions({
       disabled:
         item.disabled?.(context) ||
         (context.enabled === false &&
-          !['new-document', 'open', 'open-drive', 'whats-new'].includes(
-            item.id,
-          ) &&
+          ![
+            'new-document',
+            'open',
+            'open-drive',
+            'whats-new',
+            'keyboard-shortcuts',
+          ].includes(item.id) &&
           !item.id.startsWith('import-')),
       checked: item.checked?.(context),
     }

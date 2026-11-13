@@ -8,7 +8,6 @@ import {
   CAN_UNDO_COMMAND,
   COMMAND_PRIORITY_LOW,
   HISTORY_PUSH_TAG,
-  KEY_DOWN_COMMAND,
   PASTE_COMMAND,
   REDO_COMMAND,
   UNDO_COMMAND,
@@ -86,23 +85,6 @@ export function useEditActions(
       }
       update()
       cleanups = [
-        editor.registerCommand(
-          KEY_DOWN_COMMAND,
-          (event) => {
-            if (
-              !editor.isEditable() ||
-              !(event.ctrlKey || event.metaKey) ||
-              event.altKey ||
-              event.shiftKey ||
-              event.key !== '\\'
-            )
-              return false
-            event.preventDefault()
-            $clearSelectionFormatting()
-            return true
-          },
-          COMMAND_PRIORITY_LOW,
-        ),
         editor.registerUpdateListener(update),
         editor.registerEditableListener(update),
         editor.registerCommand(

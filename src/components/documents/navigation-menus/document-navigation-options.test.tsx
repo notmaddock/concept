@@ -94,6 +94,32 @@ it('opens the changelog from the Help menu', async () => {
   expect(workspace.showChangelog).toHaveBeenCalledOnce()
 })
 
+it('keeps keyboard help available without a document and in read-only mode', async () => {
+  const showKeyboardShortcuts = vi.fn()
+  function Harness() {
+    navigation = useDocumentNavigationOptions(undefined, {
+      onShowKeyboardShortcuts: showKeyboardShortcuts,
+    })
+    return null
+  }
+  workspace.enabled = false
+  await act(() => root.render(<Harness />))
+  const option = navigation.options.find(
+    (item) => item.id === 'keyboard-shortcuts',
+  )!
+  expect(option.group).toBe('Help')
+  expect(option.disabled).toBe(false)
+  await option.onSelect()
+  expect(showKeyboardShortcuts).toHaveBeenCalledOnce()
+  workspace.document = { id: 'readonly', readOnly: true }
+  workspace.enabled = true
+  await act(() => root.render(<Harness />))
+  expect(
+    navigation.options.find((item) => item.id === 'keyboard-shortcuts')
+      ?.disabled,
+  ).toBe(false)
+})
+
 it('exposes every menu action to search with the same state and handler', async () => {
   await render()
   const menuActions = navigation.menus.flatMap((menu) => leaves(menu.items))
@@ -245,6 +271,32 @@ it('shares edit shortcuts with menus and action search', async () => {
   expect(
     navigation.options.find((option) => option.id === 'redo')?.shortcut,
   ).toEqual({ keys: ['Ctrl', 'Y'], macKeys: ['⌘', 'Shift', 'Z'] })
+})
+
+it('advertises headings, lists, alignment and insertion shortcuts from the shared registry', async () => {
+  await render()
+  for (const id of [
+    'format-h1',
+    'format-h6',
+    'format-paragraph',
+    'format-strikethrough',
+    'format-code',
+    'format-subscript',
+    'format-superscript',
+    'format-list-bullet',
+    'format-list-number',
+    'format-list-check',
+    'format-align-center',
+    'format-quote',
+    'insert-link',
+    'insert-code-block',
+    'insert-page-break',
+    'print',
+  ]) {
+    expect(
+      navigation.options.find((option) => option.id === id)?.shortcut,
+    ).toBeDefined()
+  }
 })
 
 it('connects export actions and disables unsupported Word export', async () => {

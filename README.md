@@ -21,6 +21,7 @@ Concept is pre-alpha: the document format may change before 1.0, so export copie
 ## What you can do
 
 - Write with rich text, headings, lists, checklists, quotes, dividers, a slash menu, and formatting controls. Press Ctrl/Cmd+/ to search every menu action.
+- Use Ctrl/Cmd+Alt+1–6 for headings and Ctrl/Cmd+Alt+0 for normal text. Open **Help → Keyboard shortcuts** for the complete, platform-aware shortcut reference.
 - Insert images by file picker, paste, or drag and drop. Images are stored as content-addressed assets that survive reload, Drive sync, and `.concept` export/import.
 - Keep documents locally or sync them to Google Drive, including files shared with you and files in shared drives.
 - Open and create documents from Google Drive’s “Open with” and “New” menus.

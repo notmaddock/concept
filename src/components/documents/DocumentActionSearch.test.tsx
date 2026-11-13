@@ -26,6 +26,39 @@ it('allows opening action search without an open document', async () => {
       'button[aria-label="Search menus and actions"]',
     )!
     expect(trigger.disabled).toBe(false)
+    for (const modifiers of [
+      { altKey: true },
+      { shiftKey: true },
+      { isComposing: true },
+    ]) {
+      await act(() => {
+        window.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: '/',
+            ctrlKey: true,
+            ...modifiers,
+          }),
+        )
+      })
+      expect(
+        container.querySelector('input[aria-label="Search menus and actions"]'),
+      ).toBeNull()
+    }
+    const unrelatedInput = document.createElement('input')
+    document.body.append(unrelatedInput)
+    await act(() => {
+      unrelatedInput.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: '/',
+          ctrlKey: true,
+          bubbles: true,
+        }),
+      )
+    })
+    unrelatedInput.remove()
+    expect(
+      container.querySelector('input[aria-label="Search menus and actions"]'),
+    ).toBeNull()
     await act(() => {
       window.dispatchEvent(
         new KeyboardEvent('keydown', { key: '/', ctrlKey: true }),
