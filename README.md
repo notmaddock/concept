@@ -27,6 +27,7 @@ Concept is pre-alpha: the document format may change before 1.0, so export copie
 - Edit Drive documents together in real time: see other people's cursors and presence, and follow a collaborator to their caret. Live collaboration can be switched off per user; changes then sync through Drive and reconcile automatically.
 - Import Markdown, HTML (including embedded images), plain text, and native `.concept` files. Export to Markdown (images become alt text), HTML (images inlined), plain text, or `.concept`, and print or save as PDF through the browser.
 - Switch between a continuous pageless canvas and paged paper layouts (A4, Letter, and more; portrait or landscape; custom sizes and margins). Pages split automatically, and you can insert manual page breaks. Page setup travels with the document through Yjs, so it syncs to Drive and collaborators and appears in File > Details.
+- Long code blocks scroll within the usable paper height instead of enlarging sheets. Pageless mode and printing show the full code; printed pagination can differ from the editing viewport.
 - Customize the editing experience with app appearance (light, dark, or system) and per-document themes — tonal color themes and scene backgrounds that travel with the document.
 - Mark Drive documents "Available offline" to keep their content and assets cached in the browser.
 

@@ -42,6 +42,20 @@
   outline: none;
 }
 
+/* Keep the whole code node movable without mixing zoomed DOM measurements. */
+.concept-page-content > code.code-block {
+  --code-block-margin: calc(var(--spacing, 0.25rem) * 3);
+  box-sizing: border-box;
+  margin-block: var(--code-block-margin);
+  max-height: calc(
+    var(--page-height) - var(--page-margin-top) - var(--page-margin-bottom) -
+      var(--code-block-margin) * 2
+  );
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 hr[data-lexical-page-break] {
   position: relative;
   display: block;
