@@ -133,11 +133,13 @@ pnpm exec node scripts/generate-auth-migration.ts migrations/0002_auth.sql
 
 ## Deployment
 
-The [GitHub Actions pipeline](.github/workflows/ci.yml) runs on pull requests and pushes to `master`, and can also be started manually. It checks formatting, linting, generated routes and Worker types, TypeScript, tests, and the production build. It also audits dependencies, scans for secrets with Gitleaks, and runs CodeQL when the repository is public or the `ENABLE_CODEQL` repository variable is set. Production deployments run from the [release workflow](.github/workflows/release.yml) instead of every `master` push. A separate workflow deletes the preview Worker when a pull request closes.
+Deployment has separate GitHub Actions entry points: [Preview](.github/workflows/preview.yml) runs on pull requests targeting `master`, and [Staging](.github/workflows/staging.yml) runs on pushes to `master` or manually. Each calls the shared [CI checks](.github/workflows/ci.yml) exactly once, then deploys only after those checks succeed, reusing the build artifact from the same run. Their workflow graphs contain only their respective deployment job. CI itself has no automatic triggers; running it manually performs checks only.
 
-- **Preview:** Eligible pull requests from the same repository, excluding Dependabot, deploy to a Cloudflare Workers preview. CI applies D1 migrations to the shared `concept-staging` database (via `wrangler.preview-migrations.jsonc`), deploys a `pr-<number>` Worker, and posts the preview URL on the PR. Preview URLs are public.
-- **Staging:** Successful CI runs on `master` deploy the build artifact to the persistent `staging` Preview at <https://staging.concept.maddock.world>. CI applies migrations to the separate `concept-trunk` database via `wrangler.staging-migrations.json` and uses that same binding for deployment. Manual CI runs on `master` also deploy staging. Existing Cloudflare Access protection applies.
-- **Production:** Publishing a release applies D1 migrations to the `concept` database and deploys the built Worker with serialized production deployments.
+The shared checks cover formatting, linting, generated routes and Worker types, TypeScript, tests, the production build and bundle budget, dependency audits, and Gitleaks secret scanning. Dependency review on PRs and CodeQL (when the repository is public or `ENABLE_CODEQL` is set) remain advisory.
+
+- **Preview:** All PRs targeting `master` run the checks, but only same-repository PRs excluding Dependabot can deploy. The Preview workflow applies D1 migrations to the shared `concept-staging` database (via `wrangler.preview-migrations.jsonc`), deploys a `pr-<number>` Worker, and posts the preview URL on the PR. Preview URLs are public. [Preview Cleanup](.github/workflows/preview-cleanup.yml) deletes that Worker when the PR closes.
+- **Staging:** The Staging workflow deploys the build artifact on `master` to the persistent `staging` Preview at <https://staging.concept.maddock.world>. It applies migrations to the separate `concept-trunk` database via `wrangler.staging-migrations.json` and uses that same binding for deployment. To deploy staging manually, run **Staging** with `master` selected; selecting another branch runs checks without deploying. Existing Cloudflare Access protection applies, and staging deployments remain serialized.
+- **Production:** The [Release workflow](.github/workflows/release.yml) calls [Deploy](.github/workflows/deploy.yml) for a published release tag, applying D1 migrations to the `concept` database and deploying the built Worker with serialized production deployments. Preview, Staging, and manual CI runs never deploy production.
 
 PR previews, trunk staging, and production use separate D1 databases; only PR previews share a database. Each Preview has its own Durable Object namespace. Staging inherits the Preview base secrets and uses the existing production OAuth proxy. PR cleanup deletes only `pr-<number>` Previews, not staging.
 
@@ -156,9 +158,9 @@ Versions follow [Semantic Versioning](https://semver.org/) and are derived from 
 
 The release flow:
 
-1. Push conventional commits (`feat:`, `fix:`, and so on) to `master`. release-please runs on every master push, whether it is a merge commit, squash merge, or direct commit. Successful CI deploys trunk staging, not production.
+1. Push conventional commits (`feat:`, `fix:`, and so on) to `master`. release-please runs on every master push, whether it is a merge commit, squash merge, or direct commit. The [Staging workflow](.github/workflows/staging.yml) runs the shared CI checks and deploys trunk staging on success, not production.
 2. release-please opens or updates a release pull request that bumps the version and adds the changelog entries.
-3. Merge the release pull request. release-please creates the tag and GitHub Release, and the `Release` workflow deploys that tag to production.
+3. Merge the release pull request. release-please creates the tag and GitHub Release, and the [Release workflow](.github/workflows/release.yml) calls [Deploy](.github/workflows/deploy.yml) to deploy that tag to production.
 
 | Commit                                                                       | Release pull request | Version bump                |
 | ---------------------------------------------------------------------------- | -------------------- | --------------------------- |
@@ -171,9 +173,9 @@ With a merge commit, release-please parses each commit in the PR; with a squash 
 
 To force a specific version, add a `Release-As: <version>` footer to a commit, for example `Release-As: 1.0.0`. While the project is pre-1.0, breaking changes bump the minor version instead of the major version.
 
-The built app reads `version` from `package.json` at build time and shows it in the workspace sidebar. It also bundles the generated changelog and shows it from **Help → What's new**; a **What's new?** button appears in the workspace header when the running version differs from the last version the user acknowledged. To redeploy an existing release, run the **Deploy** workflow with a tag such as `v0.1.0`.
+The built app reads `version` from `package.json` at build time and shows it in the workspace sidebar. It also bundles the generated changelog and shows it from **Help → What's new**; a **What's new?** button appears in the workspace header when the running version differs from the last version the user acknowledged. To redeploy an existing release, run the [Deploy workflow](.github/workflows/deploy.yml) with a tag such as `v0.1.0`.
 
-release-please uses the repository `GITHUB_TOKEN` by default, which does not trigger CI on its own pull requests. Add a `RELEASE_PLEASE_TOKEN` secret containing a personal access token with `contents: write` and `pull-requests: write` if release pull requests should run the normal CI checks. The release is deployed by the same workflow, so the token is not required for deployment.
+release-please uses the repository `GITHUB_TOKEN` by default, which does not trigger the Preview workflow on its own pull requests. Add a `RELEASE_PLEASE_TOKEN` secret containing a personal access token with `contents: write` and `pull-requests: write` if release pull requests should run Preview and its shared CI checks. The release is deployed by the Release workflow, so the token is not required for deployment.
 
 ## Project structure
 
