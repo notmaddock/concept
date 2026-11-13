@@ -1,14 +1,8 @@
 import type { MenuRenderFn } from '@lexical/react/LexicalTypeaheadMenuPlugin'
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import type { BlockOption } from './options'
 import { createPortal } from 'react-dom'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-} from '#/components/ui/command'
-import { useMemo } from 'react'
+import { Fragment, useLayoutEffect } from 'react'
 
 type SlashMenuRenderArgs = Parameters<MenuRenderFn<BlockOption>>
 
@@ -22,6 +16,7 @@ export function SlashMenuPluginMenu({
   anchorElementRef,
   itemProps,
 }: SlashMenuPluginMenuProps) {
+  const [editor] = useLexicalComposerContext()
   const {
     selectedIndex,
     selectOptionAndCleanUp,
@@ -29,54 +24,59 @@ export function SlashMenuPluginMenu({
     options,
   } = itemProps
 
-  const groups = useMemo(() => {
-    const map = new Map<string, BlockOption[]>()
-    for (const option of options) {
-      const bucket = map.get(option.category)
-      if (bucket) {
-        bucket.push(option)
-      } else {
-        map.set(option.category, [option])
-      }
-    }
-    return Array.from(map.entries())
-  }, [options])
+  useLayoutEffect(() => {
+    const root = editor.getRootElement()
+    if (!root) return
 
-  const selectedValue =
-    selectedIndex !== null ? options[selectedIndex]?.key : undefined
+    // Lexical updates this on arrow keys, but not on hover or a query reset.
+    if (selectedIndex !== null && options[selectedIndex]) {
+      root.setAttribute(
+        'aria-activedescendant',
+        `typeahead-item-${selectedIndex}`,
+      )
+    } else {
+      root.removeAttribute('aria-activedescendant')
+    }
+  }, [editor, options, selectedIndex])
 
   if (!anchorElementRef.current) return null
 
   return createPortal(
-    <Command
-      shouldFilter={false}
-      value={selectedValue}
-      onValueChange={(value) => {
-        const index = options.findIndex((o) => o.key === value)
-        if (index !== -1) setHighlightedIndex(index)
-      }}
-      className="min-w-64 min-h-48 max-h-128 border bg-popover shadow-sm animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+    // Lexical owns keyboard navigation and selection; cmdk would add a second owner.
+    <div
+      role="presentation"
+      className="min-w-64 max-h-72 overflow-y-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-sm animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+      onMouseDown={(event) => event.preventDefault()}
     >
-      <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-
-        {groups.map(([category, groupOptions]) => (
-          <CommandGroup key={category} heading={category}>
-            {groupOptions.map((option) => (
-              <CommandItem
-                key={option.key}
-                ref={option.setRefElement}
-                value={option.key}
-                onSelect={() => selectOptionAndCleanUp(option)}
-              >
-                {option.icon}
-                {option.title}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        ))}
-      </CommandList>
-    </Command>,
+      {options.length === 0 && (
+        <div className="py-6 text-center text-sm">No results found.</div>
+      )}
+      {options.map((option, index) => (
+        <Fragment key={option.key}>
+          {option.category !== options[index - 1]?.category && (
+            <div
+              role="presentation"
+              className="px-2 py-1.5 text-xs font-medium text-muted-foreground"
+            >
+              {option.category}
+            </div>
+          )}
+          <div
+            id={`typeahead-item-${index}`}
+            ref={option.setRefElement}
+            role="option"
+            aria-selected={selectedIndex === index}
+            tabIndex={-1}
+            onMouseEnter={() => setHighlightedIndex(index)}
+            onClick={() => selectOptionAndCleanUp(option)}
+            className="relative flex min-h-7 cursor-default items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-hidden select-none aria-selected:bg-muted aria-selected:text-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
+          >
+            {option.icon}
+            {option.title}
+          </div>
+        </Fragment>
+      ))}
+    </div>,
     anchorElementRef.current,
   )
 }

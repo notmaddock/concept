@@ -55,8 +55,10 @@ export class BlockOption extends MenuOption {
 }
 
 const categories = {
-  BASIC_BLOCKS: 'Basic blocks',
-  OTHER: 'Other',
+  TEXT: 'Text',
+  LISTS: 'Lists',
+  BLOCKS: 'Rich blocks',
+  MEDIA: 'Media',
 }
 
 export function getBlockOptions(
@@ -64,23 +66,10 @@ export function getBlockOptions(
   imagesEnabled = false,
 ): BlockOption[] {
   return [
-    ...(imagesEnabled
-      ? [
-          new BlockOption('image', {
-            title: 'Image',
-            category: categories.OTHER,
-            icon: <ImageIcon />,
-            keywords: ['image', 'photo', 'picture'],
-            onSelect: () => {
-              editor.dispatchCommand(INSERT_IMAGE_COMMAND, undefined)
-            },
-          }),
-        ]
-      : []),
     new BlockOption('text', {
       title: 'Text',
       icon: <PilcrowIcon />,
-      category: categories.BASIC_BLOCKS,
+      category: categories.TEXT,
       keywords: ['paragraph', 'text', 'p', 'normal'],
       onSelect: () =>
         editor.update(() => {
@@ -92,7 +81,7 @@ export function getBlockOptions(
     }),
     new BlockOption('heading-1', {
       title: 'Heading 1',
-      category: categories.BASIC_BLOCKS,
+      category: categories.TEXT,
       icon: <Heading1Icon />,
       keywords: ['heading', 'title', 'h1'],
       onSelect: () =>
@@ -106,7 +95,7 @@ export function getBlockOptions(
     new BlockOption('heading-2', {
       title: 'Heading 2',
       icon: <Heading2Icon />,
-      category: categories.BASIC_BLOCKS,
+      category: categories.TEXT,
       keywords: ['heading', 'subtitle', 'h2'],
       onSelect: () =>
         editor.update(() => {
@@ -119,7 +108,7 @@ export function getBlockOptions(
     new BlockOption('heading-3', {
       title: 'Heading 3',
       icon: <Heading3Icon />,
-      category: categories.BASIC_BLOCKS,
+      category: categories.TEXT,
       keywords: ['heading', 'h3'],
       onSelect: () =>
         editor.update(() => {
@@ -132,7 +121,7 @@ export function getBlockOptions(
     new BlockOption('list-bullet', {
       title: 'Bulleted list',
       icon: <ListIcon />,
-      category: categories.BASIC_BLOCKS,
+      category: categories.LISTS,
       keywords: ['bulleted list', 'unordered list', 'ul'],
       onSelect: () =>
         editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined),
@@ -140,7 +129,7 @@ export function getBlockOptions(
     new BlockOption('list-numbered', {
       title: 'Numbered list',
       icon: <ListOrderedIcon />,
-      category: categories.BASIC_BLOCKS,
+      category: categories.LISTS,
       keywords: ['numbered list', 'ordered list', 'ol'],
       onSelect: () =>
         editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
@@ -148,7 +137,7 @@ export function getBlockOptions(
     new BlockOption('list-checked', {
       title: 'Check list',
       icon: <ListTodoIcon />,
-      category: categories.BASIC_BLOCKS,
+      category: categories.LISTS,
       keywords: ['check list', 'checked list', 'todo'],
       onSelect: () => {
         editor.dispatchCommand(INSERT_CHECK_LIST_COMMAND, undefined)
@@ -157,7 +146,7 @@ export function getBlockOptions(
     new BlockOption('quote', {
       title: 'Quote',
       icon: <QuoteIcon />,
-      category: categories.OTHER,
+      category: categories.BLOCKS,
       keywords: ['quote', 'blockquote'],
       onSelect: () =>
         editor.update(() => {
@@ -170,17 +159,30 @@ export function getBlockOptions(
     new BlockOption('code', {
       title: 'Code block',
       icon: <CodeIcon />,
-      category: categories.BASIC_BLOCKS,
+      category: categories.BLOCKS,
       keywords: ['code', 'codeblock', 'snippet', 'fence', 'pre'],
       onSelect: () => $insertCodeBlock(),
     }),
     new BlockOption('horizontal-rule', {
       title: 'Divider',
       icon: <MinusIcon />,
-      category: categories.OTHER,
+      category: categories.BLOCKS,
       keywords: ['hr', 'divider', 'horizontal rule', 'line', 'break'],
       onSelect: () =>
         editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
     }),
+    ...(imagesEnabled
+      ? [
+          new BlockOption('image', {
+            title: 'Image',
+            category: categories.MEDIA,
+            icon: <ImageIcon />,
+            keywords: ['image', 'photo', 'picture'],
+            onSelect: () => {
+              editor.dispatchCommand(INSERT_IMAGE_COMMAND, undefined)
+            },
+          }),
+        ]
+      : []),
   ]
 }
