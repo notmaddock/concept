@@ -45,7 +45,7 @@ export function SlashMenuPluginMenu({
     // Lexical owns keyboard navigation and selection; cmdk would add a second owner.
     <div
       role="presentation"
-      className="min-w-64 max-h-72 overflow-y-auto rounded-xl border bg-popover p-1 text-popover-foreground shadow-sm animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+      className="min-w-64 max-h-72 overflow-y-auto rounded-2xl border bg-popover p-1 text-popover-foreground shadow-sm animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
       onMouseDown={(event) => event.preventDefault()}
     >
       {options.length === 0 && (
@@ -69,7 +69,7 @@ export function SlashMenuPluginMenu({
             tabIndex={-1}
             onMouseEnter={() => setHighlightedIndex(index)}
             onClick={() => selectOptionAndCleanUp(option)}
-            className="relative flex min-h-7 cursor-default items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-hidden select-none aria-selected:bg-muted aria-selected:text-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
+            className="relative flex min-h-7 cursor-default items-center gap-2 rounded-xl px-2 py-1.5 text-sm outline-hidden select-none aria-selected:bg-muted aria-selected:text-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
           >
             {option.icon}
             {option.title}
