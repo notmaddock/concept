@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.0](https://github.com/notmaddock/concept/compare/v0.2.0...v0.3.0) (2026-11-13)
+
+
+### Features
+
+* **editor:** add shared shortcuts and help reference ([a437949](https://github.com/notmaddock/concept/commit/a4379492056fd08a23225762a9dafc0f6dfaeb3c))
+* **editor:** fix slash navigation and add keyboard shortcuts ([#30](https://github.com/notmaddock/concept/issues/30)) ([9102df8](https://github.com/notmaddock/concept/commit/9102df8f6cbcf7b6f1056e63d354a0c2a087f731))
+* **editor:** warn about paper layout export differences ([b1c35dd](https://github.com/notmaddock/concept/commit/b1c35dd9feb0c5c3b665659a6ffae15d9a7c2121))
+* **nova:** add code blocks with prism highlighting ([#28](https://github.com/notmaddock/concept/issues/28)) ([8521117](https://github.com/notmaddock/concept/commit/85211172d139ee3daa6715cbf65f53ba156005a6))
+
+
+### Bug Fixes
+
+* **editor:** make slash menu navigation sequential ([3b00f43](https://github.com/notmaddock/concept/commit/3b00f438bd2f6b4147d7ad970ed2c1ab5f932f07))
+* **editor:** match slash menu rounding to menu bar ([7cea3a4](https://github.com/notmaddock/concept/commit/7cea3a4a8a5db276be1e191c5adfc79b2568d63a))
+* **nova:** match code block radius to inset controls ([8bdf339](https://github.com/notmaddock/concept/commit/8bdf33957c21c85fe277393f7ed94c7d35379a4c))
+* **nova:** reduce code action toolbar inset ([44ae81c](https://github.com/notmaddock/concept/commit/44ae81c5cc1b2506b49099ba759d305f599fd45b))
+* **nova:** restore natural code action control rounding ([26e06f2](https://github.com/notmaddock/concept/commit/26e06f2bdf7d90da7cee8d49c152eb9b8a2798be))
+* organize deployments and refine code block controls ([4ea5454](https://github.com/notmaddock/concept/commit/4ea545401987050996bfcce2520461843d3d6634))
+
 ## [0.2.0](https://github.com/notmaddock/concept/compare/v0.1.0...v0.2.0) (2026-11-12)
 
 
