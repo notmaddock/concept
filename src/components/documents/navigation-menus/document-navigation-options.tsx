@@ -1,5 +1,6 @@
 import { INSERT_IMAGE_COMMAND } from '#/components/nova/images/commands'
 import { OPEN_LINK_DIALOG_COMMAND } from '#/components/nova/plugins/LinkPlugin/commands'
+import { insertCodeBlock } from '#/components/nova/plugins/CodePlugin/commands'
 import { INSERT_PAGE_BREAK } from '#/components/nova/pages/PageBreakExtension'
 import { exportFormats, importFormats } from '#/lib/documents/formats'
 import type { ImportFormat } from '#/lib/documents/formats'
@@ -21,6 +22,7 @@ import type { EditAction, useEditActions } from './use-edit-actions'
 import { useDocumentWorkspace } from '../document-workspace-context'
 import { DriveIcon } from '../icons/DriveIcon'
 import {
+  CodeIcon,
   CopyIcon,
   ImageIcon,
   Undo2Icon,
@@ -88,6 +90,7 @@ type NavigationContext = {
   onExport: (format: ExportFormat) => Promise<void>
   onInsertImage?: () => void
   onInsertLink?: () => void
+  onInsertCodeBlock?: () => void
   onInsertPageBreak: () => void
   onPageSetup: () => void
   onCreate: () => Promise<void>
@@ -382,6 +385,15 @@ export const documentNavigation: MenuDefinition[] = [
         disabled: (context) => Boolean(context.readOnly),
       },
       {
+        id: 'insert-code-block',
+        label: 'Code block',
+        keywords: ['code', 'codeblock', 'snippet', 'fence', 'pre'],
+        icon: CodeIcon,
+        focusAfterSelect: 'editor',
+        onSelect: (context) => context.onInsertCodeBlock?.(),
+        disabled: (context) => Boolean(context.readOnly),
+      },
+      {
         id: 'insert-page-break',
         label: 'Page break',
         keywords: ['page', 'break', 'pagination'],
@@ -503,6 +515,10 @@ export function useDocumentNavigationOptions({
         OPEN_LINK_DIALOG_COMMAND,
         undefined,
       )
+    },
+    onInsertCodeBlock: () => {
+      const editor = workspace.editorRef.current
+      if (editor) insertCodeBlock(editor)
     },
     onInsertPageBreak: () => {
       workspace.editorRef.current?.dispatchCommand(INSERT_PAGE_BREAK, undefined)

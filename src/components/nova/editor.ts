@@ -5,7 +5,8 @@ import {
   SelectBlockExtension,
   TabIndentationExtension,
 } from '@lexical/extension'
-import { CodeExtension, CodeIndentExtension, $isCodeNode } from '@lexical/code'
+import { CodeIndentExtension, $isCodeNode } from '@lexical/code'
+import { CodePrismExtension, PrismTokenizer } from '@lexical/code-prism'
 import { HistoryExtension } from '@lexical/history'
 import { CheckListExtension, ListExtension } from '@lexical/list'
 import {
@@ -17,7 +18,13 @@ import {
   LinkNode,
 } from '@lexical/link'
 import { RichTextExtension } from '@lexical/rich-text'
-import { configExtension, defineExtension, mergeRegister } from 'lexical'
+import {
+  COMMAND_PRIORITY_HIGH,
+  configExtension,
+  defineExtension,
+  KEY_ENTER_COMMAND,
+  mergeRegister,
+} from 'lexical'
 import {
   $applyLinkPolicyToNode,
   normalizeLinkUrl,
@@ -27,6 +34,7 @@ import { PagesExtension } from './pages'
 import { getInitialState } from './initial-state'
 import { defaultEditorTheme } from './theme'
 import { paragraphDOM } from './paragraph-format'
+import { $exitCodeBlockOnEnter } from './plugins/CodePlugin/commands'
 
 export const editorExtension = defineExtension({
   name: '[root]',
@@ -38,6 +46,15 @@ export const editorExtension = defineExtension({
     return mergeRegister(
       editor.registerNodeTransform(LinkNode, $applyLinkPolicyToNode),
       editor.registerNodeTransform(AutoLinkNode, $applyLinkPolicyToNode),
+      editor.registerCommand(
+        KEY_ENTER_COMMAND,
+        (event) => {
+          if (!$exitCodeBlockOnEnter()) return false
+          event?.preventDefault()
+          return true
+        },
+        COMMAND_PRIORITY_HIGH,
+      ),
     )
   },
   dependencies: [
@@ -47,8 +64,13 @@ export const editorExtension = defineExtension({
     CheckListExtension,
     HorizontalRuleExtension,
     TabIndentationExtension,
-    CodeExtension,
-    CodeIndentExtension,
+    configExtension(CodePrismExtension, {
+      tokenizer: { ...PrismTokenizer, defaultLanguage: null },
+    }),
+    configExtension(CodeIndentExtension, {
+      escapeWithArrows: true,
+      tabSize: 2,
+    }),
     configExtension(LinkExtension, {
       validateUrl: (url) => normalizeLinkUrl(url) !== null,
     }),

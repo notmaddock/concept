@@ -11,8 +11,10 @@ const driveFrameSources = [
 /*
  * `script-src` and `style-src` need `'unsafe-inline'`: TanStack Start inlines
  * its hydration bootstrap and the app uses React inline styles plus the
- * PostHog snippet. Everything else is restricted to the origins the app
- * actually calls (Google Drive/Picker, PostHog, same-origin realtime sockets).
+ * PostHog snippet. Cloudflare Web Analytics injects its beacon from
+ * `static.cloudflareinsights.com` and reports to `cloudflareinsights.com`.
+ * Everything else is restricted to the origins the app actually calls
+ * (Google Drive/Picker, PostHog, same-origin realtime sockets).
  */
 const directives: Record<string, string[]> = {
   'default-src': ["'self'"],
@@ -20,6 +22,7 @@ const directives: Record<string, string[]> = {
     "'self'",
     "'unsafe-inline'",
     'https://apis.google.com',
+    'https://static.cloudflareinsights.com',
     'https://*.posthog.com',
     'https://*.i.posthog.com',
   ],
@@ -37,6 +40,7 @@ const directives: Record<string, string[]> = {
     "'self'",
     'https://*.googleapis.com',
     'https://*.google.com',
+    'https://cloudflareinsights.com',
     'https://*.posthog.com',
     'https://*.i.posthog.com',
   ],

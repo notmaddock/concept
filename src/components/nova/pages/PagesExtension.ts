@@ -776,6 +776,22 @@ export const PagesExtension = defineExtension({
 
           applyCurrentSetup()
 
+          // The first measurement can run before Lexical commits the page
+          // DOM (notably when a document reopens directly in paper mode).
+          // Re-measure once after the next frame so mounted content reflows.
+          requestFrame(() => {
+            if (disposed) return
+            if (
+              editor.getRootElement() !== rootElement ||
+              !rootElement.isConnected
+            ) {
+              return
+            }
+            if (editor.getEditorState().read($getPageSetup).mode !== 'paper')
+              return
+            resizePages()
+          })
+
           // Web fonts can change line heights after the first reflow. Once
           // they are ready, re-measure the current paper layout exactly once.
           const fonts =
