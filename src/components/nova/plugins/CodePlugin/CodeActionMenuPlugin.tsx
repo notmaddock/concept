@@ -280,7 +280,7 @@ export function CodeActionMenuPlugin({
       role="toolbar"
       aria-label="Code block actions"
       data-code-action-menu
-      className="absolute z-20 flex items-center gap-1 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/5"
+      className="absolute z-20 flex items-center gap-1 rounded-2xl border bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/5"
       style={{ top: active.top, right: active.right }}
       onPointerDown={(event) => event.stopPropagation()}
     >
@@ -294,7 +294,7 @@ export function CodeActionMenuPlugin({
         <SelectTrigger
           size="sm"
           aria-label="Code language"
-          className="h-7 w-36 rounded-sm border-0 bg-transparent px-2 text-xs shadow-none hover:bg-muted focus-visible:ring-2"
+          className="h-7 w-36 border-0 bg-transparent px-2 text-xs shadow-none hover:bg-muted focus-visible:ring-2"
         >
           <SelectValue>
             {(value) => {
@@ -317,7 +317,6 @@ export function CodeActionMenuPlugin({
         type="button"
         size="icon-sm"
         variant="ghost"
-        className="rounded-sm"
         aria-label={copied ? 'Code copied' : 'Copy code'}
         title={copied ? 'Copied' : 'Copy code'}
         onMouseDown={(event) => event.preventDefault()}
