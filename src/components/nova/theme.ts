@@ -15,7 +15,7 @@ export const defaultEditorTheme: EditorThemeClasses = {
 
   quote: 'border-l-2 border-primary/60 pl-4 italic text-muted-foreground my-3',
 
-  code: 'code-block my-3 block overflow-x-auto rounded-2xl border bg-muted/50 py-3 pr-4 pl-14 font-mono text-sm leading-relaxed whitespace-pre [tab-size:2]',
+  code: 'code-block my-3 block overflow-x-auto rounded-[22px] border bg-muted/50 py-3 pr-4 pl-14 font-mono text-sm leading-relaxed whitespace-pre [tab-size:2]',
 
   codeHighlight: codeHighlightTheme,
 
