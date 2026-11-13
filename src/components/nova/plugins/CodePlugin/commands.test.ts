@@ -1,12 +1,15 @@
 import { $createCodeNode, CodeNode } from '@lexical/code'
 import {
   $createLineBreakNode,
+  $createParagraphNode,
+  $createRangeSelection,
   $createTextNode,
   $getRoot,
+  $setSelection,
   createEditor,
 } from 'lexical'
 import { describe, expect, it } from 'vitest'
-import { $exitCodeBlockOnEnter } from './commands'
+import { $exitCodeBlockOnEnter, $insertCodeBlock } from './commands'
 
 function editorWithCode(lineBreaks: number) {
   const editor = createEditor({
@@ -63,5 +66,37 @@ describe('code block commands', () => {
           .map((node) => node.getType()),
       ),
     ).toEqual(['code'])
+  })
+
+  it('merges a multi-paragraph selection into one code block', () => {
+    const editor = createEditor({
+      namespace: 'code-insert-test',
+      nodes: [CodeNode],
+      onError: (error) => {
+        throw error
+      },
+    })
+    editor.update(
+      () => {
+        const first = $createParagraphNode().append($createTextNode('first'))
+        const second = $createParagraphNode().append($createTextNode('second'))
+        $getRoot().append(first, second)
+        const selection = $createRangeSelection()
+        selection.anchor.set(first.getKey(), 0, 'element')
+        selection.focus.set(
+          second.getKey(),
+          second.getChildrenSize(),
+          'element',
+        )
+        $setSelection(selection)
+        $insertCodeBlock()
+      },
+      { discrete: true },
+    )
+    editor.getEditorState().read(() => {
+      const [code] = $getRoot().getChildren()
+      expect(code.getType()).toBe('code')
+      expect(code.getTextContent()).toBe('first\nsecond')
+    })
   })
 })

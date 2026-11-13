@@ -80,7 +80,6 @@ export function CodeActionMenuPlugin({
     () => editor.isEditable(),
     () => true,
   )
-  const menuRef = useRef<HTMLDivElement>(null)
   const activeElementRef = useRef<HTMLElement | null>(null)
   const activeKeyRef = useRef<NodeKey | null>(null)
   const frameRef = useRef<number | null>(null)
@@ -262,10 +261,22 @@ export function CodeActionMenuPlugin({
   )
     ? normalizedLanguage
     : NO_LANGUAGE
+  // Languages outside the bundled Prism subset (e.g. imported from Markdown)
+  // stay selectable so changing the picker is a deliberate overwrite.
+  const options = languageOptions.some(
+    (option) => option.value === selectedLanguage,
+  )
+    ? languageOptions
+    : [
+        ...languageOptions,
+        {
+          value: selectedLanguage,
+          label: getLanguageFriendlyName(selectedLanguage),
+        },
+      ]
 
   return createPortal(
     <div
-      ref={menuRef}
       role="toolbar"
       aria-label="Code block actions"
       data-code-action-menu
@@ -295,7 +306,7 @@ export function CodeActionMenuPlugin({
           </SelectValue>
         </SelectTrigger>
         <SelectContent align="end" className="max-h-72">
-          {languageOptions.map((option) => (
+          {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
             </SelectItem>
