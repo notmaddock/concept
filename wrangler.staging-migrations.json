@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "concept-trunk",
+      "database_id": "aa335db0-a57c-4bd9-ae31-f8220d9aa6a3",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
