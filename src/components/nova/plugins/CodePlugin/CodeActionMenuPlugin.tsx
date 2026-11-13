@@ -55,8 +55,8 @@ function positionFor(element: HTMLElement, anchorElement: HTMLElement) {
   const anchorRect = anchorElement.getBoundingClientRect()
   const rect = element.getBoundingClientRect()
   return {
-    top: Math.max(4, rect.top - anchorRect.top + 8),
-    right: Math.max(4, anchorRect.right - rect.right + 8),
+    top: Math.max(4, rect.top - anchorRect.top + 4),
+    right: Math.max(4, anchorRect.right - rect.right + 4),
   }
 }
 
