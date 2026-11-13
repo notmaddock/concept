@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import { TriangleAlertIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import {
@@ -130,6 +131,20 @@ function PageSetupForm({
         </p>
       ) : (
         <>
+          <div
+            role="note"
+            className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300"
+          >
+            <TriangleAlertIcon
+              aria-label="Warning"
+              className="mt-0.5 size-4 shrink-0"
+            />
+            <p>
+              Documents with complex elements, such as code blocks, may look
+              different when exported. These layout differences will be fixed
+              once all nodes and elements have been added.
+            </p>
+          </div>
           <fieldset className="grid gap-2">
             <legend className="mb-2">Orientation</legend>
             <div className="flex gap-2">
