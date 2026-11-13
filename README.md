@@ -136,9 +136,10 @@ pnpm exec node scripts/generate-auth-migration.ts migrations/0002_auth.sql
 The [GitHub Actions pipeline](.github/workflows/ci.yml) runs on pull requests and pushes to `master`, and can also be started manually. It checks formatting, linting, generated routes and Worker types, TypeScript, tests, and the production build. It also audits dependencies, scans for secrets with Gitleaks, and runs CodeQL when the repository is public or the `ENABLE_CODEQL` repository variable is set. Production deployments run from the [release workflow](.github/workflows/release.yml) instead of every `master` push. A separate workflow deletes the preview Worker when a pull request closes.
 
 - **Preview:** Eligible pull requests from the same repository, excluding Dependabot, deploy to a Cloudflare Workers preview. CI applies D1 migrations to the shared `concept-staging` database (via `wrangler.preview-migrations.jsonc`), deploys a `pr-<number>` Worker, and posts the preview URL on the PR. Preview URLs are public.
-- **Production:** Publishing a release applies D1 migrations to the `concept` database and deploys the built Worker with serialized production deployments. Pushes to `master` only run CI; they do not deploy.
+- **Staging:** Successful CI runs on `master` deploy the build artifact to the persistent `staging` Preview at <https://staging.concept.maddock.world>. CI applies migrations to the separate `concept-trunk` database via `wrangler.staging-migrations.json` and uses that same binding for deployment. Manual CI runs on `master` also deploy staging. Existing Cloudflare Access protection applies.
+- **Production:** Publishing a release applies D1 migrations to the `concept` database and deploys the built Worker with serialized production deployments.
 
-Preview and production use separate D1 databases, while all previews share the staging database. Durable Object migrations are applied by `wrangler dev` and `wrangler deploy` from the `migrations` block in `wrangler.jsonc`. The OAuth proxy routes authentication callbacks through the production origin.
+PR previews, trunk staging, and production use separate D1 databases; only PR previews share a database. Each Preview has its own Durable Object namespace. Staging inherits the Preview base secrets and uses the existing production OAuth proxy. PR cleanup deletes only `pr-<number>` Previews, not staging.
 
 To disable live collaboration deployment-wide, set the Worker variable `REALTIME_ENABLED` to `false`. The ticket endpoint then refuses issuance and clients fall back to Drive-only sync.
 
@@ -155,7 +156,7 @@ Versions follow [Semantic Versioning](https://semver.org/) and are derived from 
 
 The release flow:
 
-1. Push conventional commits (`feat:`, `fix:`, and so on) to `master`. release-please runs on every master push, whether it is a merge commit, squash merge, or direct commit. CI validates the push but does not deploy.
+1. Push conventional commits (`feat:`, `fix:`, and so on) to `master`. release-please runs on every master push, whether it is a merge commit, squash merge, or direct commit. Successful CI deploys trunk staging, not production.
 2. release-please opens or updates a release pull request that bumps the version and adds the changelog entries.
 3. Merge the release pull request. release-please creates the tag and GitHub Release, and the `Release` workflow deploys that tag to production.
 
