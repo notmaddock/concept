@@ -16,6 +16,7 @@ import { CodeActionMenuPlugin } from './plugins/CodePlugin/CodeActionMenuPlugin'
 import { ImagePlugin } from './images/ImagePlugin'
 import { ImageClipboardPlugin } from './clipboard/ImageClipboardPlugin'
 import type { EditorMode } from './mode'
+import { EditorShortcutsPlugin } from './editor-shortcuts'
 
 export type { EditorMode } from './mode'
 
@@ -86,6 +87,7 @@ export function Nova({
       contentEditable={null}
     >
       <EditorModePlugin mode={mode} />
+      <EditorShortcutsPlugin />
       <ImagePlugin />
       <ImageClipboardPlugin />
       {editorRef && <EditorRefPlugin editorRef={editorRef} />}

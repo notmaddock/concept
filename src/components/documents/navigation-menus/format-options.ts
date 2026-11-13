@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import type { ActionShortcut } from './document-navigation-options'
 import type { ElementFormatType, TextFormatType } from 'lexical'
+import { getEditorActionShortcut } from '#/components/nova/editor-shortcuts'
 
 export type FormatAction =
   | { kind: 'text'; value: TextFormatType }
@@ -36,17 +37,14 @@ const choice = (
   id: string,
   label: string,
   action: FormatAction,
-): FormatChoice => ({ id: `format-${id}`, label, action })
-const text = (value: TextFormatType, label: string): FormatChoice => ({
-  ...choice(value, label, { kind: 'text', value }),
-  shortcut:
-    value === 'bold' || value === 'italic' || value === 'underline'
-      ? {
-          keys: ['Ctrl', value[0].toUpperCase()],
-          macKeys: ['⌘', value[0].toUpperCase()],
-        }
-      : undefined,
+): FormatChoice => ({
+  id: `format-${id}`,
+  label,
+  action,
+  shortcut: getEditorActionShortcut(`format-${id}`),
 })
+const text = (value: TextFormatType, label: string): FormatChoice =>
+  choice(value, label, { kind: 'text', value })
 const styles = (property: string, values: [string, string][]) =>
   values.map(([label, value]) =>
     choice(`${property}-${value || 'default'}`, label, {

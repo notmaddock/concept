@@ -15,9 +15,7 @@ import {
   $isTextNode,
   $setSelection,
   COMMAND_PRIORITY_EDITOR,
-  COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
-  KEY_DOWN_COMMAND,
   KEY_ESCAPE_COMMAND,
   mergeRegister,
   SELECTION_CHANGE_COMMAND,
@@ -247,21 +245,6 @@ export function LinkPlugin() {
           return true
         },
         COMMAND_PRIORITY_EDITOR,
-      ),
-      editor.registerCommand(
-        KEY_DOWN_COMMAND,
-        (event) => {
-          if (
-            (event.metaKey || event.ctrlKey) &&
-            event.key.toLowerCase() === 'k'
-          ) {
-            event.preventDefault()
-            openDialog()
-            return true
-          }
-          return false
-        },
-        COMMAND_PRIORITY_HIGH,
       ),
       editor.registerCommand(
         KEY_ESCAPE_COMMAND,
