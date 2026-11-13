@@ -26,7 +26,9 @@ const originalScrollIntoView = Object.getOwnPropertyDescriptor(
   'scrollIntoView',
 )
 const rangeLayoutMethods = ['getBoundingClientRect', 'getClientRects'] as const
-const originalRangeLayout = Object.getOwnPropertyDescriptors(Range.prototype)
+const originalRangeLayout: Partial<
+  Record<(typeof rangeLayoutMethods)[number], PropertyDescriptor>
+> = Object.getOwnPropertyDescriptors(Range.prototype)
 let editor: LexicalEditor
 let editable: HTMLDivElement
 
@@ -64,7 +66,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
-  vi.unstubAllGlobals()
   for (const method of rangeLayoutMethods) {
     const descriptor = originalRangeLayout[method]
     if (descriptor) {
