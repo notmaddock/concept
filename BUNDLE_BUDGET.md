@@ -6,7 +6,7 @@ after a build and fails when either budget is exceeded:
 
 - **Entry chunk** (`index-*.js`): **400 KiB**.
 - **Initial graph**: the entry plus every chunk it references through Vite's
-  dependency table and static imports: **1700 KiB**. TanStack Start emits the
+  dependency table and static imports: **1750 KiB**. TanStack Start emits the
   route and its dependencies as sibling chunks that the browser fetches before
   the app renders, so measuring only the entry would miss them.
 
