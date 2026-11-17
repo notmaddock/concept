@@ -40,9 +40,22 @@ export default defineConfig({
     },
   },
   test: {
+    testTimeout: 15_000,
     reporters: process.env.GITHUB_ACTIONS
       ? ['default', 'github-actions']
       : ['default'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      reportsDirectory: 'coverage',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/routeTree.gen.ts',
+        'src/components/ui/**',
+        'src/test/**',
+      ],
+    },
     projects: [
       {
         test: {

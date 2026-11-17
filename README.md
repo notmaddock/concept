@@ -73,7 +73,7 @@ Better Auth keeps sessions and encrypted Google tokens in D1. An HttpOnly sessio
 
 ## Getting started
 
-Prerequisites: Node.js (CI uses Node 24), [pnpm](https://pnpm.io/), and a Google Cloud OAuth client plus Drive/Picker API key for Drive features. The pinned pnpm version is in `package.json`; see `mise.toml` for the project's runtime versions. Durable Object migrations are applied automatically by `wrangler dev` and `wrangler deploy`; only D1 migrations need an explicit command.
+Prerequisites: Node.js 26 (CI uses Node 26), [pnpm](https://pnpm.io/), and a Google Cloud OAuth client plus Drive/Picker API key for Drive features. The pinned pnpm version is in `package.json`; see `mise.toml` for the project's runtime versions. Durable Object migrations are applied automatically by `wrangler dev` and `wrangler deploy`; only D1 migrations need an explicit command.
 
 ```bash
 pnpm install
@@ -119,6 +119,8 @@ pnpm run check       # formatting
 pnpm run lint        # linting
 pnpm run typecheck   # TypeScript
 pnpm run test        # tests
+pnpm run test:coverage  # tests with a coverage report in coverage/
+pnpm run test:e2e    # Playwright smoke test against a running app
 pnpm run build       # production build
 pnpm run validate    # full validation, including generated files
 ```
