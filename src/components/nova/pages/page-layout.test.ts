@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { cssPx } from '#/test/css'
 import { DEFAULT_PAGE_SETUP } from '#/lib/documents/page-setup'
 import type { PageSetup } from '#/lib/documents/page-setup'
 import {
@@ -53,7 +54,7 @@ describe('applyPageLayout', () => {
     applyPageLayout(sheet, paper())
 
     expect(sheet.dataset.pageMode).toBe('paper')
-    expect(sheet.style.width).toBe('min(100%, 793.7008px)')
+    expect(cssPx(sheet.style.width)).toBeCloseTo(793.7008, 2)
     expect(sheet.style.maxWidth).toBe('none')
     expect(sheet.style.minHeight).toBe('100%')
     expect(sheet.style.getPropertyValue('--page-width')).toBe('793.7008px')
