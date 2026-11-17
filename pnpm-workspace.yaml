@@ -7,7 +7,23 @@ allowBuilds:
   unrs-resolver: true
   workerd: true
 
+# Wait a day before installing freshly published versions.
+minimumReleaseAge: 1440
+
 minimumReleaseAgeExclude:
   - better-auth@1.7.25
   - better-call@1.4.5
   - '@cloudflare/workers-types@5.20261116.1'
+
+update:
+  ignoreDeps:
+    # typescript-eslint 8.x rejects TypeScript 7; revisit when it supports 7.1.
+    - typescript
+
+permissions:
+  '@tanstack/devtools-vite':
+    skills: false
+  '@tanstack/react-router':
+    skills: false
+  '@tanstack/react-start':
+    skills: false
