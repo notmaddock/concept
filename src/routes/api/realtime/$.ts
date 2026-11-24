@@ -27,6 +27,9 @@ export async function handleGet({ request }: { request: Request }) {
       return new Response('Expected a WebSocket upgrade request.', {
         status: 400,
       })
+    const origin = request.headers.get('Origin')
+    if (origin && origin !== url.origin)
+      return new Response('Invalid request origin.', { status: 403 })
     const fileId = url.searchParams.get('fileId')
     if (!fileId) return new Response('Missing fileId.', { status: 400 })
     if (!url.searchParams.has('ticket') || !url.searchParams.get('ticket'))
