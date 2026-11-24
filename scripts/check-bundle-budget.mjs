@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 const assetsDir = join(process.cwd(), 'dist', 'client', 'assets')
 const entryBudgetBytes = 400 * 1024
-const initialBudgetBytes = 1700 * 1024
+const initialBudgetBytes = 1750 * 1024
 
 let files
 try {

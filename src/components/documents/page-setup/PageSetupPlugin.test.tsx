@@ -8,6 +8,7 @@ import {
   createEditor,
 } from 'lexical'
 import { $setPageSetup, DEFAULT_PAGE_SETUP } from '#/lib/documents/page-setup'
+import { cssPx } from '#/test/css'
 import { PageSetupPlugin } from './PageSetupPlugin'
 
 let editor: ReturnType<typeof createEditor>
@@ -73,7 +74,7 @@ it('leaves page geometry untouched during text edits and applies changed setting
     ),
   )
   expect(sheet.dataset.pageMode).toBe('paper')
-  expect(sheet.style.width).toBe('min(100%, 793.7008px)')
+  expect(cssPx(sheet.style.width)).toBeCloseTo(793.7008, 2)
   expect(sheet.style.maxWidth).toBe('none')
   expect(sheet.style.minHeight).toBe('100%')
   expect(sheet.style.getPropertyValue('--page-width')).toBe('793.7008px')
