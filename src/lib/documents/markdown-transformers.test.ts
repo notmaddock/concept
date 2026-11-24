@@ -99,6 +99,43 @@ describe('markdown transformer registry', () => {
     )
   })
 
+  it('imports a single-column GFM table with an unpiped heading', () => {
+    const editor = createTestEditor(documentNodes)
+    editor.update(
+      () => {
+        const source = 'Header\n| --- |\n| Value |'
+        expect(convertMarkdown(source, editor)).toEqual([])
+        expect($isTableNode($getRoot().getFirstChild())).toBe(true)
+        expect(exportMarkdown(editor)).toBe('| Header |\n| --- |\n| Value |')
+      },
+      { discrete: true },
+    )
+    expect(markdownWarnings('Header\n| --- |\n| Value |', [])).toMatchObject([
+      { construct: 'table' },
+    ])
+  })
+
+  it('preserves all cells and literal backslashes before pipes in Markdown', () => {
+    const editor = createTestEditor(documentNodes)
+    editor.update(
+      () => {
+        convertHtml(
+          '<table><tr><th>A</th></tr><tr><td>x \\| y</td><td>Extra</td></tr></table>',
+          editor,
+        )
+        const markdown = exportMarkdown(editor)
+        expect(markdown).toContain('Extra')
+        convertMarkdown(markdown, editor)
+        const table = $getRoot().getFirstChild()
+        expect(
+          $isTableNode(table) && table.getLastChild()?.getTextContent(),
+        ).toContain('x \\| y')
+        expect(table?.getTextContent()).toContain('Extra')
+      },
+      { discrete: true },
+    )
+  })
+
   it('round-trips every registered node type through one transformer set', () => {
     const editor = createTestEditor()
     const source = [

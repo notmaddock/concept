@@ -30,7 +30,7 @@ export function createTableMarkdown(
   return {
     type: 'multiline-element',
     dependencies: [TableNode, TableRowNode, TableCellNode],
-    regExpStart: /^ {0,3}\S.*\||^ {0,3}\|/,
+    regExpStart: /^ {0,3}\S/,
     replace: () => false,
     handleImportAfterStartMatch({ lines, rootNode, startLineIndex }) {
       const divider = lines.at(startLineIndex + 1)
@@ -71,22 +71,24 @@ export function createTableMarkdown(
     export(node) {
       if (!$isTableNode(node)) return null
       const [map] = $computeTableMapSkipCellCheck(node, null, null)
-      const firstRow = map.at(0)
-      if (!firstRow?.length) return null
+      const width = map.reduce((max, row) => Math.max(max, row.length), 0)
+      if (!width) return null
       const rows = map.map((entries, row) => {
-        const cells = Array.from({ length: firstRow.length }, (_, column) => {
+        const cells = Array.from({ length: width }, (_, column) => {
           const entry = entries.at(column)
           if (!entry || entry.startRow !== row || entry.startColumn !== column)
             return ''
           return $convertToMarkdownString(getTransformers(), entry.cell)
             .trim()
             .replace(/\s*\n\s*/g, ' ')
-            .replace(/(?<!\\)\|/g, '\\|')
+            .replace(/(\\*)\|/g, (pipe, backslashes: string) =>
+              backslashes.length % 2 ? pipe : `\\${pipe}`,
+            )
         })
         return `| ${cells.join(' | ')} |`
       })
-      const alignments = firstRow.map(({ cell }) => {
-        const child = cell.getFirstChild()
+      const alignments = Array.from({ length: width }, (_, column) => {
+        const child = map[0][column]?.cell.getFirstChild()
         const format = $isElementNode(child) && child.getFormatType()
         if (format === 'left') return ':---'
         if (format === 'center') return ':---:'

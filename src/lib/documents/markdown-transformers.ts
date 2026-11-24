@@ -10,6 +10,7 @@ import {
 } from '@lexical/markdown'
 import type { ElementTransformer, Transformer } from '@lexical/markdown'
 import type { LexicalEditor } from 'lexical'
+import { marked } from 'marked'
 import { ImageNode, $isImageNode } from '#/components/nova/nodes/ImageNode'
 import { createTableMarkdown } from './table-markdown'
 import { tableOfContentsMarkdown } from '#/components/nova/outline/outline-markdown'
@@ -98,41 +99,39 @@ function hasImportTransformerFor(
   )
 }
 
-const tableDivider =
-  /^[ \t]*\|?[ \t]*:?-{3,}:?[ \t]*(\|[ \t]*:?-{3,}:?[ \t]*)+\|?[ \t]*$/m
-
 const constructs: Array<{
   construct: MarkdownWarning['construct']
   label: string
-  pattern: RegExp
+  matches: (content: string) => boolean
   supported: (transformers: readonly Transformer[]) => boolean
   message: string
 }> = [
   {
     construct: 'code',
     label: 'code blocks',
-    pattern: /^[ \t]*```/m,
+    matches: (content) => /^[ \t]*```/m.test(content),
     supported: (transformers) => hasTransformerFor(transformers, 'code'),
     message: 'Fenced code blocks are not supported by this import.',
   },
   {
     construct: 'link',
     label: 'links',
-    pattern: /\[[^\]]*\]\([^)]*\)/,
+    matches: (content) => /\[[^\]]*\]\([^)]*\)/.test(content),
     supported: (transformers) => hasTransformerFor(transformers, 'link'),
     message: 'Links are not supported by this import.',
   },
   {
     construct: 'table',
     label: 'tables',
-    pattern: tableDivider,
+    matches: (content) =>
+      marked.lexer(content, { gfm: true }).some(({ type }) => type === 'table'),
     supported: (transformers) => hasTransformerFor(transformers, 'table'),
     message: 'Markdown tables are not supported by this import.',
   },
   {
     construct: 'image',
     label: 'images',
-    pattern: /!\[[^\]]*\]\([^)]*\)/,
+    matches: (content) => /!\[[^\]]*\]\([^)]*\)/.test(content),
     supported: (transformers) => hasImportTransformerFor(transformers, 'image'),
     message: 'Markdown images are not supported by this import.',
   },
@@ -144,8 +143,7 @@ export function markdownWarnings(
 ): MarkdownWarning[] {
   return constructs
     .filter(
-      ({ pattern, supported }) =>
-        pattern.test(content) && !supported(transformers),
+      ({ matches, supported }) => !supported(transformers) && matches(content),
     )
     .map(({ construct, label, message }) => ({ construct, label, message }))
 }
