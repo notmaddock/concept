@@ -4,6 +4,7 @@ import { insertCodeBlock } from '#/components/nova/plugins/CodePlugin/commands'
 import { getEditorActionShortcut } from '#/components/nova/editor-shortcuts'
 import { INSERT_PAGE_BREAK } from '#/components/nova/pages/PageBreakExtension'
 import { TOGGLE_WORD_COUNT_COMMAND } from '#/components/nova/statistics/commands'
+import { OPEN_FIND_COMMAND } from '#/components/nova/find/commands'
 import { exportFormats, importFormats } from '#/lib/documents/formats'
 import type { ImportFormat } from '#/lib/documents/formats'
 import type { ExportFormat } from '#/lib/documents/export'
@@ -50,6 +51,7 @@ import {
   PlusIcon,
   PrinterIcon,
   Settings2Icon,
+  SearchIcon,
   Share2Icon,
   SparklesIcon,
   SunIcon,
@@ -86,6 +88,7 @@ type NavigationContext = {
   onInsertPageBreak: () => void
   onPageSetup: () => void
   onWordCount: () => void
+  onFind: () => void
   onCreate: () => Promise<void>
   creating: boolean
   theme: ReturnType<typeof useTheme>['theme']
@@ -286,19 +289,31 @@ export const documentNavigation: MenuDefinition[] = [
   },
   {
     label: 'Edit',
-    items: (
-      [
-        ['undo', 'Undo', Undo2Icon],
-        ['redo', 'Redo', Redo2Icon],
-        ['cut', 'Cut', ScissorsIcon, true],
-        ['copy', 'Copy', CopyIcon],
-        ['paste', 'Paste', ClipboardPasteIcon],
-        ['paste-plain', 'Paste without formatting', ClipboardTypeIcon],
-        ['select-all', 'Select all', TextSelectIcon, true],
-        ['delete-selection', 'Delete selection', Trash2Icon],
-        ['clear-formatting', 'Clear formatting', RemoveFormattingIcon, true],
-      ] as const
-    ).map(([id, label, icon, sep]) => editOption(id, label, icon, sep)),
+    items: [
+      ...(
+        [
+          ['undo', 'Undo', Undo2Icon],
+          ['redo', 'Redo', Redo2Icon],
+          ['cut', 'Cut', ScissorsIcon, true],
+          ['copy', 'Copy', CopyIcon],
+          ['paste', 'Paste', ClipboardPasteIcon],
+          ['paste-plain', 'Paste without formatting', ClipboardTypeIcon],
+          ['select-all', 'Select all', TextSelectIcon, true],
+          ['delete-selection', 'Delete selection', Trash2Icon],
+          ['clear-formatting', 'Clear formatting', RemoveFormattingIcon, true],
+        ] as const
+      ).map(([id, label, icon, sep]) => editOption(id, label, icon, sep)),
+      {
+        id: 'find',
+        label: 'Find and replace',
+        shortcut: getEditorActionShortcut('find'),
+        keywords: ['search', 'replace text', 'find text'],
+        icon: SearchIcon,
+        focusAfterSelect: 'action',
+        onSelect: (context) => context.onFind(),
+        separatorBefore: true,
+      },
+    ],
   },
   {
     label: 'View',
@@ -530,6 +545,9 @@ export function useDocumentNavigationOptions(
         undefined,
       )
       workspace.focusEditor()
+    },
+    onFind: () => {
+      workspace.editorRef.current?.dispatchCommand(OPEN_FIND_COMMAND, undefined)
     },
     onInsertImage: () => {
       workspace.editorRef.current?.dispatchCommand(

@@ -18,6 +18,7 @@ import { ImageClipboardPlugin } from './clipboard/ImageClipboardPlugin'
 import type { EditorMode } from './mode'
 import { EditorShortcutsPlugin } from './editor-shortcuts'
 import { WordCountPlugin } from './statistics/WordCountPlugin'
+import { FindPlugin } from './find/FindPlugin'
 
 export type { EditorMode } from './mode'
 
@@ -83,6 +84,7 @@ export function Nova({
       <EditorModePlugin mode={mode} />
       <EditorShortcutsPlugin />
       <WordCountPlugin />
+      <FindPlugin />
       <ImagePlugin />
       <ImageClipboardPlugin />
       {editorRef && <EditorRefPlugin editorRef={editorRef} />}
