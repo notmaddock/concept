@@ -40,24 +40,22 @@ const serializers: Record<
     ])
     const state = editor.getEditorState()
     return state.read(() => {
-      let hasImages = false
-      let hasColumns = false
-      let hasMergedCells = false
+      const features = { images: false, columns: false, mergedCells: false }
       const visit = (node: LexicalNode) => {
-        if ($isImageNode(node)) hasImages = true
-        if ($isColumnLayoutNode(node)) hasColumns = true
+        if ($isImageNode(node)) features.images = true
+        if ($isColumnLayoutNode(node)) features.columns = true
         if (
           $isTableCellNode(node) &&
           (node.getColSpan() > 1 || node.getRowSpan() > 1)
         )
-          hasMergedCells = true
+          features.mergedCells = true
         if ($isElementNode(node)) node.getChildren().forEach(visit)
       }
       visit($getRoot())
       const differences = [
-        hasImages ? 'represents images as alt text' : null,
-        hasColumns ? 'exports columns in reading order' : null,
-        hasMergedCells ? 'flattens merged cells' : null,
+        features.images ? 'represents images as alt text' : null,
+        features.columns ? 'exports columns in reading order' : null,
+        features.mergedCells ? 'flattens merged cells' : null,
       ].filter((difference) => difference !== null)
       const summary = new Intl.ListFormat('en').format(differences)
       return {
