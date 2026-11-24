@@ -33,11 +33,17 @@ it.each<[SaveStatus['phase'], boolean, string]>([
 
 it('identifies a local save destination', async () => {
   await act(async () => {
+    harness.root.render(<DocumentSaveStatus status={{ phase: 'local' }} />)
+  })
+  const trigger = harness.container.querySelector('button')!
+  const driveIcon = trigger.querySelector('svg')
+  await act(async () => {
     harness.root.render(<DocumentSaveStatus status={{ phase: 'saving' }} />)
   })
-  expect(
-    harness.container.querySelector('button')?.getAttribute('aria-label'),
-  ).toBe('Saving to this device')
+  expect(trigger.getAttribute('aria-label')).toBe('Saving to this device')
+  expect(trigger.querySelector('svg')).toBe(driveIcon)
+  expect(trigger.dataset.expanded).toBe('false')
+  expect(driveIcon?.classList.contains('animate-spin')).toBe(false)
 })
 
 it('uses a controlled offline switch and exposes the containing folder action', async () => {
