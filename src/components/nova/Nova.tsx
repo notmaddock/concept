@@ -1,4 +1,5 @@
 import '#/styles/editor.css'
+import './columns/column-layout.css'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import type { RefCallback, RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'

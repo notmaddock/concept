@@ -1,5 +1,6 @@
 import { $insertNodeToNearestRoot } from '@lexical/utils'
 import {
+  $findMatchingParent,
   $getSelection,
   $isRangeSelection,
   COMMAND_PRIORITY_EDITOR,
@@ -7,6 +8,7 @@ import {
   defineExtension,
 } from 'lexical'
 import type { LexicalCommand } from 'lexical'
+import { $isColumnLayoutNode } from '../columns/ColumnLayoutNode'
 import { $createPageBreakNode, PageBreakNode } from './PageBreakNode'
 
 export const INSERT_PAGE_BREAK: LexicalCommand<void> =
@@ -21,6 +23,14 @@ export const PageBreakExtension = defineExtension({
       () => {
         const selection = $getSelection()
         if (!$isRangeSelection(selection)) return false
+        const columns = $findMatchingParent(
+          selection.focus.getNode(),
+          $isColumnLayoutNode,
+        )
+        if (columns) {
+          const after = columns.getIndexWithinParent() + 1
+          columns.getParentOrThrow().select(after, after)
+        }
         $insertNodeToNearestRoot($createPageBreakNode())
         return true
       },

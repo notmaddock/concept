@@ -3,12 +3,18 @@ import {
   $isHorizontalRuleNode,
   HorizontalRuleNode,
 } from '@lexical/extension'
-import { CHECK_LIST, TRANSFORMERS } from '@lexical/markdown'
+import {
+  $convertToMarkdownString,
+  CHECK_LIST,
+  TRANSFORMERS,
+} from '@lexical/markdown'
 import type { ElementTransformer, Transformer } from '@lexical/markdown'
 import type { LexicalEditor } from 'lexical'
 import { ImageNode, $isImageNode } from '#/components/nova/nodes/ImageNode'
 import { createTableMarkdown } from './table-markdown'
 import { tableOfContentsMarkdown } from '#/components/nova/outline/outline-markdown'
+import { createColumnLayoutMarkdown } from '#/components/nova/columns/column-exports'
+import { $isPageNode, PageNode } from '#/components/nova/pages/PageNode'
 
 export const horizontalRule: ElementTransformer = {
   dependencies: [HorizontalRuleNode],
@@ -28,9 +34,22 @@ const imageFallback: ElementTransformer = {
   type: 'element',
 }
 
+const pageContent: ElementTransformer = {
+  dependencies: [PageNode],
+  export: (node) =>
+    $isPageNode(node)
+      ? $convertToMarkdownString(markdownTransformers, node.getContentNode())
+      : null,
+  regExp: /$^/,
+  replace: () => {},
+  type: 'element',
+}
+
 export const markdownTransformers: Transformer[] = [
   createTableMarkdown(() => markdownTransformers),
   tableOfContentsMarkdown,
+  createColumnLayoutMarkdown(() => markdownTransformers),
+  pageContent,
   imageFallback,
   horizontalRule,
   CHECK_LIST,

@@ -23,12 +23,15 @@ import {
   QuoteIcon,
   TableIcon,
   ListTreeIcon,
+  Columns2Icon,
+  Columns3Icon,
 } from 'lucide-react'
 import type { JSX } from 'react'
 import { INSERT_IMAGE_COMMAND } from '../../images/commands'
 import { $insertCodeBlock } from '../CodePlugin/commands'
 import { OPEN_INSERT_TABLE_DIALOG_COMMAND } from '../../tables/table-commands'
 import { INSERT_TABLE_OF_CONTENTS_COMMAND } from '../../outline/table-of-contents-extension'
+import { SET_COLUMN_LAYOUT_COMMAND } from '../../columns/column-layout'
 
 interface BlockOptionConfig {
   title: string
@@ -190,6 +193,20 @@ export function getBlockOptions(
       keywords: ['toc', 'contents', 'headings', 'index'],
       onSelect: () =>
         editor.dispatchCommand(INSERT_TABLE_OF_CONTENTS_COMMAND, undefined),
+    }),
+    new BlockOption('two-columns', {
+      title: 'Two columns',
+      icon: <Columns2Icon />,
+      category: categories.BLOCKS,
+      keywords: ['2 columns', 'layout', 'section'],
+      onSelect: () => editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, 2),
+    }),
+    new BlockOption('three-columns', {
+      title: 'Three columns',
+      icon: <Columns3Icon />,
+      category: categories.BLOCKS,
+      keywords: ['3 columns', 'layout', 'section'],
+      onSelect: () => editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, 3),
     }),
     ...(imagesEnabled
       ? [

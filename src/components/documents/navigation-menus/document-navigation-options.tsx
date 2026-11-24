@@ -7,6 +7,8 @@ import { TOGGLE_WORD_COUNT_COMMAND } from '#/components/nova/statistics/commands
 import { OPEN_FIND_COMMAND } from '#/components/nova/find/commands'
 import { OPEN_INSERT_TABLE_DIALOG_COMMAND } from '#/components/nova/tables/table-commands'
 import { INSERT_TABLE_OF_CONTENTS_COMMAND } from '#/components/nova/outline/table-of-contents-extension'
+import { SET_COLUMN_LAYOUT_COMMAND } from '#/components/nova/columns/column-layout'
+import type { ColumnCount } from '#/components/nova/columns/column-layout'
 import { exportFormats, importFormats } from '#/lib/documents/formats'
 import type { ImportFormat } from '#/lib/documents/formats'
 import type { ExportFormat } from '#/lib/documents/export'
@@ -59,6 +61,9 @@ import {
   SunIcon,
   TableIcon,
   ListTreeIcon,
+  Columns2Icon,
+  Columns3Icon,
+  PanelTopIcon,
 } from 'lucide-react'
 import { useTheme } from '#/components/theme-provider'
 
@@ -94,6 +99,7 @@ type NavigationContext = {
   onInsertContents: () => void
   outlineOpen: boolean
   onOutlineToggle: () => void
+  onSetColumns: (count: ColumnCount) => void
   onPageSetup: () => void
   onWordCount: () => void
   onFind: () => void
@@ -453,25 +459,52 @@ export const documentNavigation: MenuDefinition[] = [
   },
   {
     label: 'Format',
-    items: formatSections.map((section) => ({
-      id: `format-${section.id}`,
-      label: section.label,
-      icon: section.icon,
-      children: section.choices.map((choice) => ({
-        id: choice.id,
-        shortcut: choice.shortcut,
-        label: choice.label,
+    items: [
+      ...formatSections.map((section) => ({
+        id: `format-${section.id}`,
+        label: section.label,
         icon: section.icon,
-        toggle: true,
-        keywords: ['format', section.label],
-        focusAfterSelect: 'editor' as const,
-        onSelect: (context: NavigationContext) =>
-          context.format.run(choice.action),
-        disabled: (context: NavigationContext) => context.format.disabled,
-        checked: (context: NavigationContext) =>
-          context.format.checked(choice.action),
+        children: section.choices.map((choice) => ({
+          id: choice.id,
+          shortcut: choice.shortcut,
+          label: choice.label,
+          icon: section.icon,
+          toggle: true,
+          keywords: ['format', section.label],
+          focusAfterSelect: 'editor' as const,
+          onSelect: (context: NavigationContext) =>
+            context.format.run(choice.action),
+          disabled: (context: NavigationContext) => context.format.disabled,
+          checked: (context: NavigationContext) =>
+            context.format.checked(choice.action),
+        })),
       })),
-    })),
+      {
+        id: 'format-columns',
+        label: 'Columns',
+        icon: Columns2Icon,
+        children: (
+          [
+            [1, 'One column', PanelTopIcon],
+            [2, 'Two columns', Columns2Icon],
+            [3, 'Three columns', Columns3Icon],
+          ] as const
+        ).map(([count, label, icon]) => ({
+          id: `format-columns-${count}`,
+          label,
+          icon,
+          keywords: [
+            'layout',
+            'section',
+            `${count} columns`,
+            ...(count === 1 ? ['remove columns'] : []),
+          ],
+          focusAfterSelect: 'editor' as const,
+          disabled: (context: NavigationContext) => Boolean(context.readOnly),
+          onSelect: (context: NavigationContext) => context.onSetColumns(count),
+        })),
+      },
+    ],
   },
   {
     label: 'Tools',
@@ -618,6 +651,12 @@ export function useDocumentNavigationOptions(
     },
     outlineOpen: workspace.outlineOpen,
     onOutlineToggle: () => workspace.setOutlineOpen((open) => !open),
+    onSetColumns: (count) => {
+      workspace.editorRef.current?.dispatchCommand(
+        SET_COLUMN_LAYOUT_COMMAND,
+        count,
+      )
+    },
     onCreate: workspace.createDocument,
     documentTheme,
     setDocumentTheme: (id) =>

@@ -8,6 +8,7 @@ import {
   outlineHtmlStyles,
   prepareHtmlOutline,
 } from '#/components/nova/outline/outline-html'
+import { columnLayoutExportCss } from '#/components/nova/columns/column-exports'
 
 export function exportHtml(editor: LexicalEditor, name: string) {
   const output = document.implementation.createHTMLDocument(name)
@@ -40,6 +41,7 @@ th { background: #f2efe8; }
 th p,td p { margin: 0; }
 tr { break-inside: avoid; }
 ${outlineHtmlStyles}
+${columnLayoutExportCss}
 @media print { @page { ${setup.mode === 'paper' ? `size: ${width}mm ${height}mm; margin: ${top}mm ${right}mm ${bottom}mm ${left}mm;` : 'margin: 25.4mm;'} } body { max-width: none; margin: 0; padding: 0; } }
 `
   output.head.prepend(charset, policy)
@@ -52,19 +54,21 @@ ${outlineHtmlStyles}
       list.setAttribute('data-lexical-list-type', 'check')
       list.removeAttribute('__lexicalListType')
     })
-  output.body.querySelectorAll('a[href]').forEach((anchor) => {
-    if (isExportedOutlineLink(anchor)) return
-    const href = anchor.getAttribute('href') ?? ''
-    const normalized = normalizeLinkUrl(href)
-    if (!normalized) {
-      anchor.removeAttribute('href')
-      return
-    }
-    anchor.setAttribute('href', normalized)
-    const attributes = linkAttributes(normalized)
-    if (attributes.target) anchor.setAttribute('target', attributes.target)
-    if (attributes.rel) anchor.setAttribute('rel', attributes.rel)
-  })
+  output.body
+    .querySelectorAll<HTMLAnchorElement>('a[href]')
+    .forEach((anchor) => {
+      if (isExportedOutlineLink(anchor)) return
+      const href = anchor.getAttribute('href') ?? ''
+      const normalized = normalizeLinkUrl(href)
+      if (!normalized) {
+        anchor.removeAttribute('href')
+        return
+      }
+      anchor.setAttribute('href', normalized)
+      const attributes = linkAttributes(normalized)
+      if (attributes.target) anchor.setAttribute('target', attributes.target)
+      if (attributes.rel) anchor.setAttribute('rel', attributes.rel)
+    })
   output.body
     .querySelectorAll('code[data-language], pre[data-language]')
     .forEach((element) => {

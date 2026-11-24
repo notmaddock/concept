@@ -3,6 +3,7 @@ import {
   $addUpdateTag,
   $createNodeSelection,
   $createParagraphNode,
+  $findMatchingParent,
   $getNearestNodeFromDOMNode,
   $getNearestRootOrShadowRoot,
   $getNodeByKey,
@@ -625,13 +626,12 @@ export const PagesExtension = defineExtension({
                     if ($getPageSetup().mode !== 'paper') return false
                     const selection = $getSelection()
                     if (!$isRangeSelection(selection)) return false
-                    const anchorNode = selection.anchor.getNode()
-                    const nearestRoot =
-                      anchorNode.getKey() === 'root'
-                        ? anchorNode
-                        : $getNearestRootOrShadowRoot(anchorNode)
-                    if (!$isPageContentNode(nearestRoot)) return false
-                    const currentPage = nearestRoot.getPageNode()
+                    const pageContent = $findMatchingParent(
+                      selection.anchor.getNode(),
+                      $isPageContentNode,
+                    )
+                    if (!pageContent) return false
+                    const currentPage = pageContent.getPageNode()
                     const currentPageKey = currentPage.getKey()
                     const oldPreviousPageKey = previousPageKey
                     const pageContentElement =
