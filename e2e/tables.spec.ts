@@ -28,8 +28,25 @@ test('edits a table with the keyboard and menu and restores it after reload', as
   await page.getByRole('menuitem', { name: 'Table', exact: true }).click()
   const insert = page.getByRole('dialog', { name: 'Insert table' })
   await expect(insert.getByRole('spinbutton', { name: 'Rows' })).toBeFocused()
-  await insert.getByRole('spinbutton', { name: 'Rows' }).fill('2')
-  await insert.getByRole('spinbutton', { name: 'Columns' }).fill('2')
+  const grid = insert.getByRole('grid', { name: 'Table dimensions' })
+  const preview = grid.getByRole('gridcell', { name: '4 rows by 5 columns' })
+  await preview.hover()
+  await expect(insert.getByRole('spinbutton', { name: 'Rows' })).toHaveValue(
+    '4',
+  )
+  await expect(insert.getByRole('spinbutton', { name: 'Columns' })).toHaveValue(
+    '5',
+  )
+  await expect(grid.locator('[data-preview="true"]')).toHaveCount(20)
+  await insert.getByRole('spinbutton', { name: 'Rows' }).hover()
+  await expect(insert.getByRole('spinbutton', { name: 'Rows' })).toHaveValue(
+    '3',
+  )
+  await grid.getByRole('gridcell', { name: '2 rows by 2 columns' }).click()
+  await expect(grid.getByRole('gridcell', { selected: true })).toHaveCount(4)
+  await expect(insert.getByRole('spinbutton', { name: 'Columns' })).toHaveValue(
+    '2',
+  )
   await insert.getByRole('button', { name: 'Insert table' }).click()
   await expect(insert).toBeHidden()
 
@@ -120,6 +137,9 @@ test('scrolls wide tables within a narrow canvas and expands them for print', as
   await page.keyboard.type('/table')
   await page.getByRole('option', { name: 'Table', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Insert table' })
+  await expect(
+    dialog.getByRole('grid', { name: 'Table dimensions' }),
+  ).toBeHidden()
   await dialog.getByRole('spinbutton', { name: 'Columns' }).fill('12')
   await dialog.getByRole('button', { name: 'Insert table' }).click()
 
