@@ -13,7 +13,9 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
+import { isMac } from '#/components/documents/navigation-menus/ActionShortcut'
 import { updateDocumentEdit } from '../document-edit'
+import { matchEditorShortcut } from '../editor-shortcuts'
 import { OPEN_FIND_COMMAND } from './commands'
 import { $findDocumentMatches, $replaceDocumentMatch } from './document-matches'
 import type { DocumentMatch, MatchPoint } from './document-matches'
@@ -108,9 +110,17 @@ function FindPanel({
 
   useEffect(() => {
     if (!activeMatch) return
-    editor
-      .getElementByKey(activeMatch.start.key)
-      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    const element = editor.getElementByKey(activeMatch.start.key)
+    element?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    const viewport = element?.closest('main')
+    const rect = createDOMRange(editor, activeMatch)?.getBoundingClientRect()
+    if (!viewport || !rect) return
+    const bounds = viewport.getBoundingClientRect()
+    if (rect.top < bounds.top || rect.bottom > bounds.bottom) {
+      viewport.scrollBy({
+        top: rect.top - bounds.top - viewport.clientHeight / 2,
+      })
+    }
   }, [editor, activeMatch])
 
   function move(delta: number) {
@@ -135,6 +145,7 @@ function FindPanel({
           : $findDocumentMatches(query, matchCase).length
         const added = Math.max(0, remaining - fresh.length + 1)
         setIndex(remaining ? (current + added) % remaining : 0)
+        if (!remaining) input.current?.focus({ preventScroll: true })
       },
       { tag: [HISTORY_PUSH_TAG, SKIP_DOM_SELECTION_TAG] },
     )
@@ -151,6 +162,12 @@ function FindPanel({
       aria-labelledby={title}
       className="fixed right-4 top-24 z-40 w-96 max-w-[calc(100vw-2rem)] rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg print:hidden"
       onKeyDown={(event) => {
+        if (matchEditorShortcut(event.nativeEvent, isMac())?.id === 'find') {
+          event.preventDefault()
+          input.current?.focus()
+          input.current?.select()
+          return
+        }
         if (event.key === 'Escape') {
           event.stopPropagation()
           dismiss()

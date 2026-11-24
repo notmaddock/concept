@@ -58,11 +58,15 @@ test('finds repeated text, navigates, replaces, and undoes replace all', async (
   await find.getByRole('textbox', { name: 'Replace with' }).fill('pear')
   await find.getByRole('button', { name: 'Replace', exact: true }).click()
   await expect(editor).toContainText('Apple, pear, APPLE')
+  await expect(query).toBeFocused()
+  await find.getByRole('textbox', { name: 'Replace with' }).press('Control+f')
+  await expect(query).toBeFocused()
 
   await find.getByRole('checkbox', { name: 'Match case' }).uncheck()
   await find.getByRole('button', { name: 'Replace all' }).click()
   await expect(editor).toContainText('pear, pear, pear')
-  await find.getByRole('button', { name: 'Close find' }).click()
+  await page.keyboard.press('Escape')
+  await expect(find).toBeHidden()
   await page.keyboard.press('Control+z')
   await expect(editor).toContainText('Apple, pear, APPLE')
 
@@ -101,6 +105,37 @@ test('updates the live contents when another tab edits a heading', async ({
     contents.getByRole('link', { name: 'Shared launch plan updated' }),
   ).toBeVisible()
   await second.close()
+})
+
+test('reveals an active find match deep inside a long paragraph', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 850, height: 650 })
+  await newDocument(page)
+  await page.keyboard.insertText(
+    `target ${'ordinary words '.repeat(400)}target`,
+  )
+  await page.keyboard.press('Control+f')
+  const find = page.getByRole('dialog', { name: 'Find and replace' })
+  await find.getByRole('textbox', { name: 'Find text' }).fill('target')
+  await expect(find.getByRole('status')).toHaveText('1 of 2')
+  await find.getByRole('button', { name: 'Next match' }).click()
+  await expect(find.getByRole('status')).toHaveText('2 of 2')
+  await expect
+    .poll(() =>
+      page
+        .getByRole('main', { name: 'Document workspace' })
+        .evaluate((main) => {
+          const highlight = CSS.highlights.get('concept-find-active')
+          const range = highlight?.values().next().value
+          const match = range instanceof Range && range.getClientRects()[0]
+          const bounds = main.getBoundingClientRect()
+          return Boolean(
+            match && match.top >= bounds.top && match.bottom <= bounds.bottom,
+          )
+        }),
+    )
+    .toBe(true)
 })
 
 test('keeps menu labels on one line and gives up shortcut space when narrow', async ({
