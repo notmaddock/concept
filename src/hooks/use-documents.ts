@@ -152,6 +152,7 @@ export function useDocuments(
       })
     return () => {
       active = false
+      lookupTarget.current = undefined
     }
   }, [id, loaded, error, storage, hasDocument])
 

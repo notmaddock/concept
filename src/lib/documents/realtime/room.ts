@@ -146,21 +146,27 @@ export class DocumentRoom {
       payload.fileId !== this.fileId ||
       !payload.capabilities.view
     ) {
-      socket.send(
-        encodeControlMessage({
-          type: 'error',
-          message: 'Invalid or expired ticket.',
-        }),
-      )
+      try {
+        socket.send(
+          encodeControlMessage({
+            type: 'error',
+            message: 'Invalid or expired ticket.',
+          }),
+        )
+      } catch {
+        // The upgrade may already be torn down; close is still safe to call.
+      }
       socket.close(4401, 'invalid ticket')
       return false
     }
-    this.clients.set(socket.id, {
+    const client: RoomClient = {
       socket,
       userId: payload.userId,
       capabilities: payload.capabilities,
-    })
-    socket.send(
+    }
+    this.clients.set(socket.id, client)
+    this.safeSend(
+      client,
       encodeControlMessage({
         type: 'admitted',
         capabilities: payload.capabilities,
@@ -193,9 +199,9 @@ export class DocumentRoom {
       const vector = decoding.readVarUint8Array(decoder)
       const encoder = encoding.createEncoder()
       writeSyncStep2(encoder, this.buffer, vector)
-      client.socket.send(encoding.toUint8Array(encoder))
+      this.safeSend(client, encoding.toUint8Array(encoder))
       for (const frame of this.awarenessBuffer.values())
-        client.socket.send(frame)
+        this.safeSend(client, frame)
       return
     }
     if (
@@ -203,7 +209,8 @@ export class DocumentRoom {
       messageType === messageYjsSyncStep2
     ) {
       if (!client.capabilities.edit) {
-        client.socket.send(
+        this.safeSend(
+          client,
           encodeControlMessage({
             type: 'error',
             message: 'Edit permission is required to send document updates.',
@@ -292,24 +299,37 @@ export class DocumentRoom {
         // Loss of view closes the socket.
         client.capabilities = { view: false, edit: false, comment: false }
         this.onCapabilitiesChanged?.(client.socket.id, client.capabilities)
-        client.socket.send(
+        this.safeSend(
+          client,
           encodeControlMessage({
             type: 'revoked',
             capabilities: client.capabilities,
           }),
         )
         client.socket.close(4403, 'access revoked')
-        this.clients.delete(client.socket.id)
+        this.remove(client.socket.id)
         continue
       }
       const lost =
         (client.capabilities.edit && !fresh.edit) ||
         (client.capabilities.comment && !fresh.comment)
-      client.capabilities = fresh
-      this.onCapabilitiesChanged?.(client.socket.id, fresh)
+      // Only persist (and reassign) when Drive actually moved rights; a
+      // periodic revalidation pass writing identical capabilities would force
+      // a DO storage write per socket every interval.
+      const changed =
+        lost ||
+        !isBackground ||
+        client.capabilities.view !== fresh.view ||
+        client.capabilities.edit !== fresh.edit ||
+        client.capabilities.comment !== fresh.comment
+      if (changed) {
+        client.capabilities = fresh
+        this.onCapabilitiesChanged?.(client.socket.id, fresh)
+      }
       if (lost) {
         // Loss of edit (but not view) downgrades to awareness-only.
-        client.socket.send(
+        this.safeSend(
+          client,
           encodeControlMessage({ type: 'revoked', capabilities: fresh }),
         )
       }
@@ -353,6 +373,19 @@ export class DocumentRoom {
 
   private relay(sender: RoomClient, data: string | Uint8Array): void {
     for (const client of this.clients.values())
-      if (client.socket.id !== sender.socket.id) client.socket.send(data)
+      if (client.socket.id !== sender.socket.id) this.safeSend(client, data)
+  }
+
+  /**
+   * Sends to a client socket, dropping the client if the socket is already
+   * dying: the runtime may not have fired webSocketClose yet, and a bare send
+   * would throw InvalidStateError out of the message handler.
+   */
+  private safeSend(client: RoomClient, data: string | Uint8Array): void {
+    try {
+      client.socket.send(data)
+    } catch {
+      this.remove(client.socket.id)
+    }
   }
 }

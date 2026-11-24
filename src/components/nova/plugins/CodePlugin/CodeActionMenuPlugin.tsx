@@ -168,6 +168,19 @@ export function CodeActionMenuPlugin({
       if (activeKeyRef.current && !isMenuTarget(document.activeElement)) hide()
     }
 
+    const handlePointerLeave = () => {
+      const focusTarget = document.activeElement
+      if (!(focusTarget instanceof Node)) return
+      if (isMenuTarget(focusTarget)) return
+      if (
+        focusTarget instanceof Element &&
+        focusTarget.closest('code.code-block') !== null
+      ) {
+        return
+      }
+      if (activeKeyRef.current) hide()
+    }
+
     const unregister = mergeRegister(
       editor.registerUpdateListener(({ editorState }) => {
         const key = activeKeyRef.current
@@ -198,6 +211,7 @@ export function CodeActionMenuPlugin({
     )
 
     anchorElement.addEventListener('pointermove', handlePointerMove)
+    anchorElement.addEventListener('pointerleave', handlePointerLeave)
     document.addEventListener('focusin', handleFocusIn)
     document.addEventListener('selectionchange', handleSelectionChange)
     window.addEventListener('scroll', schedulePosition, true)
@@ -206,6 +220,7 @@ export function CodeActionMenuPlugin({
     return () => {
       unregister()
       anchorElement.removeEventListener('pointermove', handlePointerMove)
+      anchorElement.removeEventListener('pointerleave', handlePointerLeave)
       document.removeEventListener('focusin', handleFocusIn)
       document.removeEventListener('selectionchange', handleSelectionChange)
       window.removeEventListener('scroll', schedulePosition, true)

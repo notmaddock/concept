@@ -50,6 +50,7 @@ function value(label: string) {
 }
 
 it('shows metadata, live word counts, and the document state size', async () => {
+  vi.useFakeTimers()
   const editor = createEditor()
   editor.update(
     () => {
@@ -92,10 +93,12 @@ it('shows metadata, live word counts, and the document state size', async () => 
     )
     await Promise.resolve()
   })
+  await act(() => vi.advanceTimersByTime(400))
   expect(value('Words')).toBe('3')
 })
 
 it('shows page setup details and refreshes when they change', async () => {
+  vi.useFakeTimers()
   const editor = createEditor()
   editor.update(
     () => {
@@ -138,6 +141,7 @@ it('shows page setup details and refreshes when they change', async () => {
     )
     await Promise.resolve()
   })
+  await act(() => vi.advanceTimersByTime(400))
   expect(value('Paper size')).toBe('A4 · Portrait · 210 × 297 mm')
   expect(value('Margins')).toBe(
     'Top 10 mm · Right 12.7 mm · Bottom 10 mm · Left 12.7 mm',
@@ -201,6 +205,7 @@ it('opens sidebar metadata only after a second without loading document content'
 })
 
 it('coalesces document updates and skips serialization for selection-only changes', async () => {
+  vi.useFakeTimers()
   const serialize = vi.spyOn(yjs, 'encodeStateAsUpdate')
   const editor = createEditor()
   editor.update(
@@ -244,6 +249,7 @@ it('coalesces document updates and skips serialization for selection-only change
     await Promise.resolve()
   })
   expect(serialize).toHaveBeenCalledTimes(1)
+  await act(() => vi.advanceTimersByTime(400))
   expect(value('Words')).toBe('2')
   serialize.mockRestore()
 })

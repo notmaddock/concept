@@ -29,6 +29,18 @@ describe('link policy', () => {
     expect(normalizeLinkUrl('   ')).toBeNull()
   })
 
+  it('keeps host:port links and rejects foreign schemes', () => {
+    expect(normalizeLinkUrl('localhost:3000')).toBe('https://localhost:3000')
+    expect(normalizeLinkUrl('localhost:3000/docs/x?y=1')).toBe(
+      'https://localhost:3000/docs/x?y=1',
+    )
+    expect(normalizeLinkUrl('example.com:8080')).toBe(
+      'https://example.com:8080',
+    )
+    expect(normalizeLinkUrl('ftp://docs.example.com/x')).toBeNull()
+    expect(normalizeLinkUrl('file:///etc/passwd')).toBeNull()
+  })
+
   it('marks only web links as external', () => {
     expect(isExternalLink('https://example.com')).toBe(true)
     expect(isExternalLink('http://example.com')).toBe(true)

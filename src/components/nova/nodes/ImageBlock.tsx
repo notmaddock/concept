@@ -137,6 +137,7 @@ export function ImageBlock({
           className={`relative max-w-full outline-offset-[-0.5px] ${selected ? 'outline-1 outline-primary' : ''}`}
           style={{
             width: preview ?? displayWidth ?? source.intrinsicWidth,
+            maxWidth: '100%',
             marginLeft: alignment === 'left' ? 0 : 'auto',
             marginRight: alignment === 'right' ? 0 : 'auto',
             aspectRatio: `${source.intrinsicWidth} / ${source.intrinsicHeight}`,

@@ -20,19 +20,23 @@ export function SlashMenuPlugin() {
     minLength: 0,
   })
 
-  const options = useMemo<BlockOption[]>(() => {
-    const base = getBlockOptions(editor, Boolean(media))
+  const mediaEnabled = Boolean(media)
+  const baseOptions = useMemo<BlockOption[]>(
+    () => getBlockOptions(editor, mediaEnabled),
+    [editor, mediaEnabled],
+  )
 
-    if (!queryString) return base
+  const options = useMemo<BlockOption[]>(() => {
+    if (!queryString) return baseOptions
 
     const query = queryString.toLowerCase()
 
-    return base.filter(
+    return baseOptions.filter(
       (o) =>
         o.title.toLowerCase().includes(query) ||
         o.keywords?.some((k) => k.toLowerCase().includes(query)),
     )
-  }, [editor, queryString, media])
+  }, [baseOptions, queryString])
 
   const onSelectOption = useCallback<OnSelectOptionCallback<BlockOption>>(
     (selectedOption, queryNode, closeMenu, _) => {

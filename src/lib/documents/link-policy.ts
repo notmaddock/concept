@@ -8,7 +8,6 @@ const allowedProtocols: Record<string, true> = {
   'mailto:': true,
   'tel:': true,
 }
-const schemePattern = /^[a-z][a-z0-9+.-]*:/i
 const externalRel = ['noopener', 'noreferrer', 'nofollow']
 
 export function normalizeLinkUrl(input: string): string | null {
@@ -16,14 +15,22 @@ export function normalizeLinkUrl(input: string): string | null {
   // Phone numbers are commonly written with spaces; other schemes reject them.
   const value = /^tel:/i.test(trimmed) ? trimmed.replace(/\s+/g, '') : trimmed
   if (!value || /\s/.test(value)) return null
-  const candidate = schemePattern.test(value) ? value : `https://${value}`
-  let parsed: URL
-  try {
-    parsed = new URL(candidate)
-  } catch {
-    return null
+  const parse = (candidate: string): string | null => {
+    let parsed: URL
+    try {
+      parsed = new URL(candidate)
+    } catch {
+      return null
+    }
+    return Object.hasOwn(allowedProtocols, parsed.protocol) ? candidate : null
   }
-  return Object.hasOwn(allowedProtocols, parsed.protocol) ? candidate : null
+  // Only allowlisted schemes are kept verbatim. Schemeless inputs and
+  // host:port forms (localhost:3000) are retried as https URLs; inputs
+  // that already name an authority (scheme://...) never get a prefix.
+  const verbatim = parse(value)
+  if (verbatim) return verbatim
+  if (value.includes('://')) return null
+  return parse(`https://${value}`)
 }
 
 export function isExternalLink(url: string): boolean {

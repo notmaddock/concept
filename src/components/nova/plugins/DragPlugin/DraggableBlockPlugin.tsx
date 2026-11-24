@@ -53,9 +53,7 @@ const Downward = 1
 const Upward = -1
 const Indeterminate = 0
 
-let prevIndex = Infinity
-
-function getCurrentIndex(keysLength: number): number {
+function getCurrentIndex(keysLength: number, prevIndex: number): number {
   if (keysLength === 0) {
     return Infinity
   }
@@ -154,6 +152,7 @@ function getBlockElement(
   anchorElem: HTMLElement,
   editor: LexicalEditor,
   event: MouseEvent,
+  prevIndexRef: { current: number },
   useEdgeAsDefault = false,
 ): HTMLElement | null {
   const anchorElementRect = anchorElem.getBoundingClientRect()
@@ -188,7 +187,7 @@ function getBlockElement(
       }
     }
 
-    let index = getCurrentIndex(topLevelNodeKeys.length)
+    let index = getCurrentIndex(topLevelNodeKeys.length, prevIndexRef.current)
     let direction = Indeterminate
 
     while (index >= 0 && index < topLevelNodeKeys.length) {
@@ -215,7 +214,7 @@ function getBlockElement(
 
       if (result) {
         blockElem = elem
-        prevIndex = index
+        prevIndexRef.current = index
         break
       }
 
@@ -345,6 +344,7 @@ function useDraggableBlockMenu(
   const scrollerElem = getParentElement(anchorElem)
 
   const isDraggingBlockRef = useRef<boolean>(false)
+  const prevIndexRef = useRef<number>(Infinity)
   const [draggableBlockElem, setDraggableBlockElemState] =
     useState<HTMLElement | null>(null)
 
@@ -370,7 +370,12 @@ function useDraggableBlockMenu(
         return
       }
 
-      const _draggableBlockElem = getBlockElement(anchorElem, editor, event)
+      const _draggableBlockElem = getBlockElement(
+        anchorElem,
+        editor,
+        event,
+        prevIndexRef,
+      )
 
       setDraggableBlockElem(_draggableBlockElem)
     }
@@ -415,7 +420,13 @@ function useDraggableBlockMenu(
       if (!isHTMLElement(target)) {
         return false
       }
-      const targetBlockElem = getBlockElement(anchorElem, editor, event, true)
+      const targetBlockElem = getBlockElement(
+        anchorElem,
+        editor,
+        event,
+        prevIndexRef,
+        true,
+      )
       const targetLineElem = targetLineRef.current
       if (targetBlockElem === null || targetLineElem === null) {
         return false
@@ -452,7 +463,13 @@ function useDraggableBlockMenu(
       if (!isHTMLElement(target)) {
         return false
       }
-      const targetBlockElem = getBlockElement(anchorElem, editor, event, true)
+      const targetBlockElem = getBlockElement(
+        anchorElem,
+        editor,
+        event,
+        prevIndexRef,
+        true,
+      )
       if (!targetBlockElem) {
         return false
       }
@@ -474,6 +491,7 @@ function useDraggableBlockMenu(
         targetNode.insertBefore(draggedNode)
       }
       setDraggableBlockElem(null)
+      prevIndexRef.current = Infinity
 
       // Firefox-specific fix: Use editor.focus() after drop to properly restore
       // both focus and selection. This ensures cursor visibility immediately.
@@ -597,6 +615,7 @@ function useDraggableBlockMenu(
   function onDragEnd(): void {
     isDraggingBlockRef.current = false
     hideTargetLine(targetLineRef.current)
+    prevIndexRef.current = Infinity
 
     const rootElement = editor.getRootElement()
     if (rootElement !== null && getActiveElement(rootElement) !== rootElement) {

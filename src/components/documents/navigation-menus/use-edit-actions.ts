@@ -28,6 +28,11 @@ export type EditAction =
   | 'delete-selection'
   | 'clear-formatting'
 
+const CONNECT_RAF_ATTEMPTS = 5
+const CONNECT_BASE_DELAY_MS = 50
+const CONNECT_MAX_DELAY_MS = 250
+const CONNECT_WINDOW_MS = 12_000
+
 export function useEditActions(
   editorRef: RefObject<LexicalEditor | null>,
   documentId: string | undefined,
@@ -44,6 +49,24 @@ export function useEditActions(
 
   useEffect(() => {
     let frame = 0
+    let timer = 0
+    let attempts = 0
+    const startedAt = Date.now()
+    function scheduleConnect() {
+      if (Date.now() - startedAt > CONNECT_WINDOW_MS) return
+      if (attempts < CONNECT_RAF_ATTEMPTS) {
+        frame = requestAnimationFrame(connect)
+      } else {
+        timer = window.setTimeout(
+          connect,
+          Math.min(
+            CONNECT_MAX_DELAY_MS,
+            CONNECT_BASE_DELAY_MS * 2 ** (attempts - CONNECT_RAF_ATTEMPTS),
+          ),
+        )
+      }
+      attempts += 1
+    }
     let cleanups: (() => void)[] = []
     setState({
       ready: false,
@@ -56,7 +79,7 @@ export function useEditActions(
     function connect() {
       const editor = editorRef.current
       if (!editor) {
-        frame = requestAnimationFrame(connect)
+        scheduleConnect()
         return
       }
       const update = () => {
@@ -90,7 +113,9 @@ export function useEditActions(
         editor.registerCommand(
           CAN_UNDO_COMMAND,
           (undo) => {
-            setState((previous) => ({ ...previous, undo }))
+            setState((previous) =>
+              previous.undo === undo ? previous : { ...previous, undo },
+            )
             return false
           },
           COMMAND_PRIORITY_LOW,
@@ -98,7 +123,9 @@ export function useEditActions(
         editor.registerCommand(
           CAN_REDO_COMMAND,
           (redo) => {
-            setState((previous) => ({ ...previous, redo }))
+            setState((previous) =>
+              previous.redo === redo ? previous : { ...previous, redo },
+            )
             return false
           },
           COMMAND_PRIORITY_LOW,
@@ -108,6 +135,7 @@ export function useEditActions(
     if (documentId) connect()
     return () => {
       cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
       cleanups.forEach((cleanup) => cleanup())
     }
   }, [editorRef, documentId])

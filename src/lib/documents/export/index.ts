@@ -1,7 +1,7 @@
-import { $getRoot } from 'lexical'
+import { $getRoot, $isElementNode } from 'lexical'
 import type { DocumentAssetResolver } from '../asset-session'
 import { imageElements, resolveImageData } from '../image-transfer'
-import type { LexicalEditor } from 'lexical'
+import type { LexicalEditor, LexicalNode } from 'lexical'
 import type { ExportFormat } from '../formats'
 import { documentFormats } from '../formats'
 
@@ -28,13 +28,25 @@ const serializers: Record<
   markdown: async (editor) => {
     // Deferred import to avoid bundling Markdown transformers during initial load
     const { exportMarkdown } = await import('./markdown')
+    // ImageNode statically imports its React block, so a static import here
+    // would drag the Nova image UI into the eagerly loaded export entry chunk.
+    const { $isImageNode } = await import('#/components/nova/nodes/ImageNode')
     const state = editor.getEditorState()
-    return state.read(() => ({
-      content: exportMarkdown(editor),
-      notice: JSON.stringify(state.toJSON()).includes('"type":"image"')
-        ? 'Markdown represents images as alt text. Use HTML or Concept to preserve images.'
-        : undefined,
-    }))
+    return state.read(() => {
+      let images = 0
+      const visit = (node: LexicalNode) => {
+        if ($isImageNode(node)) images += 1
+        else if ($isElementNode(node)) node.getChildren().forEach(visit)
+      }
+      visit($getRoot())
+      return {
+        content: exportMarkdown(editor),
+        notice:
+          images > 0
+            ? 'Markdown represents images as alt text. Use HTML or Concept to preserve images.'
+            : undefined,
+      }
+    })
   },
   html: async (editor, name, resolver) => {
     // Deferred import to avoid bundling HTML export generator during initial load

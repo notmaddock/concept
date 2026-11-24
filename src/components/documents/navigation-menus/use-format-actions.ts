@@ -193,6 +193,11 @@ function $checked(
   return undefined
 }
 
+const CONNECT_RAF_ATTEMPTS = 5
+const CONNECT_BASE_DELAY_MS = 50
+const CONNECT_MAX_DELAY_MS = 250
+const CONNECT_WINDOW_MS = 12_000
+
 export function useFormatActions(
   editorRef: RefObject<LexicalEditor | null>,
   documentId: string | undefined,
@@ -206,6 +211,24 @@ export function useFormatActions(
   }>({ enabled: false, checked: [] })
   useEffect(() => {
     let frame = 0
+    let timer = 0
+    let attempts = 0
+    const startedAt = Date.now()
+    function scheduleConnect() {
+      if (Date.now() - startedAt > CONNECT_WINDOW_MS) return
+      if (attempts < CONNECT_RAF_ATTEMPTS) {
+        frame = requestAnimationFrame(connect)
+      } else {
+        timer = window.setTimeout(
+          connect,
+          Math.min(
+            CONNECT_MAX_DELAY_MS,
+            CONNECT_BASE_DELAY_MS * 2 ** (attempts - CONNECT_RAF_ATTEMPTS),
+          ),
+        )
+      }
+      attempts += 1
+    }
     let disposed = false
     let detachedEditor: LexicalEditor | null = null
     let cleanup = () => {}
@@ -215,7 +238,7 @@ export function useFormatActions(
       if (disposed) return
       const editor = editorRef.current
       if (!editor || (editor === detachedEditor && !editor.getRootElement())) {
-        frame = requestAnimationFrame(connect)
+        scheduleConnect()
         return
       }
       const update = () => {
@@ -261,7 +284,8 @@ export function useFormatActions(
             cleanup()
             savedSelection.current = null
             setState({ enabled: false, checked: [] })
-            frame = requestAnimationFrame(connect)
+            attempts = 0
+            scheduleConnect()
           }
         },
       )
@@ -279,6 +303,7 @@ export function useFormatActions(
     return () => {
       disposed = true
       cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
       cleanup()
     }
   }, [editorRef, documentId, actions, active])

@@ -4,7 +4,6 @@ import { storageLocations } from './storage-locations'
 import type { AssetId } from './assets'
 import type { NormalizedSnapshot } from './package'
 import type { MarkdownWarning } from './markdown-transformers'
-import { writePackage } from './package'
 import { captureSnapshot, IncompleteAssetsError } from './working'
 import type { DocumentInfo } from './storage'
 import { importConcept } from './concept-file'
@@ -46,6 +45,30 @@ export interface DocumentSaveProvider extends SourceInfo {
   ) => Promise<DocumentInfo>
 }
 
+// Estimates the writePackage output size without serializing or hashing the
+// snapshot (SHA-256 per asset plus the update) just for a display number.
+// Each zip entry adds a 30-byte local header plus a 46-byte central-directory
+// record, each repeating the path, and the package ends with a 22-byte
+// end-of-central-directory record — the same accounting writePackage applies.
+// The manifest allowance errs high (fixed boilerplate 448, a JSON-escaped
+// name, 320 per asset descriptor) so size-based limits see an over-estimate.
+const estimatedPackageSize = (snapshot: NormalizedSnapshot): number => {
+  let total =
+    snapshot.update.byteLength +
+    22 +
+    76 +
+    2 * 'manifest.json'.length +
+    76 +
+    2 * 'document.yjs'.length +
+    448 +
+    6 * snapshot.name.length
+  for (const { blob, descriptor } of snapshot.assets) {
+    // Asset paths are "assets/" plus the id digest, so id.length covers them.
+    total += blob.size + 76 + 2 * descriptor.id.length + 320
+  }
+  return total
+}
+
 export const documentSources: Array<DocumentSource> = [
   {
     ...storageLocations.device,
@@ -64,11 +87,10 @@ export const documentSources: Array<DocumentSource> = [
         let snapshot: NormalizedSnapshot | undefined
         try {
           snapshot = await captureSnapshot(document.name, doc)
-          const content = await writePackage(snapshot)
           return {
             file: snapshot,
             filename: document.name,
-            size: content.byteLength,
+            size: estimatedPackageSize(snapshot),
             origin: storageLocations.local.label,
             existingId: document.id,
           }

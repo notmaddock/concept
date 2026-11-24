@@ -35,6 +35,18 @@ interface CachedToken {
 /** Per-user access tokens, reused until expiry (refreshed only on expiry/401). */
 const tokenCache = new Map<string, CachedToken>()
 
+/** Shared refreshes so concurrent callers for one user do not race. */
+const inflightRefresh = new Map<string, Promise<string>>()
+
+/** Caches a token and prunes entries that have already expired. */
+function cacheToken(userId: string, entry: CachedToken) {
+  const now = Date.now()
+  for (const [key, value] of tokenCache) {
+    if (value.expiresAt <= now) tokenCache.delete(key)
+  }
+  tokenCache.set(userId, entry)
+}
+
 /** Drops the cached token so the next call refreshes (used after a 401). */
 export function clearCachedDriveTokenForUser(userId: string): void {
   tokenCache.delete(userId)
@@ -89,6 +101,20 @@ export async function getDriveAccessTokenForUser(
 ): Promise<string> {
   const cached = tokenCache.get(userId)
   if (cached && cached.expiresAt > Date.now()) return cached.token
+  const inflight = inflightRefresh.get(userId)
+  if (inflight) return inflight
+  const promise = fetchDriveAccessTokenForUser(bindings, origin, userId)
+  inflightRefresh.set(userId, promise)
+  return promise.finally(() => {
+    if (inflightRefresh.get(userId) === promise) inflightRefresh.delete(userId)
+  })
+}
+
+async function fetchDriveAccessTokenForUser(
+  bindings: Cloudflare.Env,
+  origin: string,
+  userId: string,
+): Promise<string> {
   const auth = createAuth(bindings, origin)
   const ctx = await (auth as unknown as AuthLike).$context
   const internalAdapter = ctx.internalAdapter
@@ -101,7 +127,7 @@ export async function getDriveAccessTokenForUser(
   const key = bindings.BETTER_AUTH_SECRET
   if (account.accessToken && expiryOf(account) > Date.now()) {
     const token = await symmetricDecrypt({ key, data: account.accessToken })
-    tokenCache.set(userId, { token, expiresAt: expiryOf(account) })
+    cacheToken(userId, { token, expiresAt: expiryOf(account) })
     return token
   }
   if (!account.refreshToken)
@@ -115,6 +141,6 @@ export async function getDriveAccessTokenForUser(
     accessToken: await symmetricEncrypt({ key, data: refreshed.token }),
     accessTokenExpiresAt: new Date(refreshed.expiresAt),
   })
-  tokenCache.set(userId, refreshed)
+  cacheToken(userId, refreshed)
   return refreshed.token
 }

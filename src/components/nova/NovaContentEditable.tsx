@@ -26,7 +26,7 @@ export function NovaContentEditable() {
     <ContentEditable
       aria-label="Document content"
       onMouseDown={(event) => {
-        if (event.button !== 0 || event.detail !== 3 || event.shiftKey) return
+        if (event.button !== 0 || event.detail < 3 || event.shiftKey) return
         editor.update(() => {
           const target = event.target
           if (!(target instanceof Node)) return

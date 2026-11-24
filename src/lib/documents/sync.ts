@@ -46,6 +46,8 @@ export const assetReconciliation = assetRetryPolicy
 
 export const saveTiming = { idleMs: 3000, maxWaitMs: 60_000 }
 
+const missingCheckDebounceMs = 1500
+
 export interface SaveStatus {
   phase:
     | 'loading'
@@ -122,6 +124,7 @@ export class DocumentSync {
   private unsubscribeRealtime?: () => void
   private unsubscribeAssets?: () => void
   private missingTimer?: ReturnType<typeof setTimeout>
+  private missingDebounce?: ReturnType<typeof setTimeout>
   private missingAttempts = 0
   private waitingForAssets = false
   private actionRecovery = 0
@@ -326,7 +329,7 @@ export class DocumentSync {
   private changed = () => {
     ++this.version
     if (this.isReadOnly) {
-      this.scheduleMissingCheck()
+      this.runMissingCheckNow()
       return
     }
     const wasDirty = this.dirty
@@ -580,7 +583,7 @@ export class DocumentSync {
           void this.sync(check)
           return
         }
-        this.scheduleMissingCheck()
+        this.runMissingCheckNow()
         if (this.dirty && !this.stopped && this.saveStatus.phase === 'pending')
           this.schedule()
       })
@@ -712,7 +715,7 @@ export class DocumentSync {
       this.waitingForAssets = true
       this.publish('missing-assets')
       void this.persistMetadata().catch(() => {})
-      this.scheduleMissingCheck()
+      this.runMissingCheckNow()
       return
     }
     const message =
@@ -794,23 +797,40 @@ export class DocumentSync {
   private visibilityChanged = () => {
     if (document.visibilityState === 'hidden') {
       clearTimeout(this.missingTimer)
+      clearTimeout(this.missingDebounce)
       this.missingTimer = undefined
+      this.missingDebounce = undefined
     } else {
       this.missingAttempts = 0
       this.check()
-      this.scheduleMissingCheck()
+      this.runMissingCheckNow()
     }
   }
 
   private scheduleMissingCheck() {
+    if (this.stopped || !this.info.drive || this.missingTimer) return
+    clearTimeout(this.missingDebounce)
+    this.missingDebounce = setTimeout(() => {
+      this.missingDebounce = undefined
+      this.runMissingCheck()
+    }, missingCheckDebounceMs)
+  }
+
+  private runMissingCheckNow() {
+    clearTimeout(this.missingDebounce)
+    this.missingDebounce = undefined
+    this.runMissingCheck()
+  }
+
+  private runMissingCheck() {
     if (
       this.stopped ||
       !this.info.drive ||
-      this.missingTimer ||
       !navigator.onLine ||
       document.visibilityState === 'hidden'
     )
       return
+    if (this.missingTimer) return
     let required
     try {
       required = collectReferences(encodeStateAsUpdate(this.doc))
@@ -897,6 +917,7 @@ export class DocumentSync {
       notifyRealtimeProviders()
     }
     clearTimeout(this.missingTimer)
+    clearTimeout(this.missingDebounce)
     document.removeEventListener('visibilitychange', this.visibilityChanged)
     window.removeEventListener('focus', this.check)
     window.removeEventListener('online', this.check)

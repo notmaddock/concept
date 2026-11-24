@@ -28,6 +28,7 @@ function clearToken() {
   token = undefined
   tokenRequest = undefined
   refreshRequired = false
+  sessionProfile = undefined
 }
 
 export class GoogleDriveAuthError extends Error {

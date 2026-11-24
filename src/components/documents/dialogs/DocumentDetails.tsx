@@ -74,8 +74,9 @@ export function DocumentDetailsDialog({
       const doc = documentRef.current
       if (!editor || !doc) return false
       const segmenter = new Intl.Segmenter(undefined, { granularity: 'word' })
-      let pending = false
       let disposed = false
+      let refreshTimer: ReturnType<typeof setTimeout> | undefined
+      let docBytes = encodeStateAsUpdate(doc).byteLength
       function refresh() {
         if (!editor || !doc) return
         const { text, setup } = editor.getEditorState().read(() => ({
@@ -86,30 +87,34 @@ export function DocumentDetailsDialog({
         for (const part of segmenter.segment(text)) if (part.isWordLike) words++
         let characters = 0
         for (const _character of text) characters++
-        const bytes = encodeStateAsUpdate(doc).byteLength
         setStatistics([
           ['Words', words.toLocaleString()],
           ['Characters', characters.toLocaleString()],
-          ['Document state', formatFileSize(bytes)],
+          ['Document state', formatFileSize(docBytes)],
           ['Format', 'Concept · Version 2'],
           ...pageSetupRows(setup),
         ])
       }
       refresh()
       const schedule = () => {
-        if (pending) return
-        pending = true
-        queueMicrotask(() => {
-          pending = false
+        if (disposed) return
+        clearTimeout(refreshTimer)
+        refreshTimer = setTimeout(() => {
+          refreshTimer = undefined
           if (!disposed) refresh()
-        })
+        }, 400)
+      }
+      const handleDocUpdate = () => {
+        if (disposed) return
+        docBytes = encodeStateAsUpdate(doc).byteLength
+        schedule()
       }
       unsubscribe = editor.registerUpdateListener(
         ({ dirtyElements, dirtyLeaves }) => {
           if (dirtyElements.size || dirtyLeaves.size) schedule()
         },
       )
-      doc.on('update', schedule)
+      doc.on('update', handleDocUpdate)
       const unsubscribeRoot = editor.registerMutationListener(
         RootNode,
         schedule,
@@ -117,9 +122,10 @@ export function DocumentDetailsDialog({
       const unsubscribeAssets = documentAssets(doc)?.subscribe(schedule)
       detach = () => {
         disposed = true
+        clearTimeout(refreshTimer)
         unsubscribeRoot()
         unsubscribeAssets?.()
-        doc.off('update', schedule)
+        doc.off('update', handleDocUpdate)
       }
       return true
     }
