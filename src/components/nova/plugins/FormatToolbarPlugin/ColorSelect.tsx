@@ -51,18 +51,13 @@ export function ColorSelect({
         const selection = $getSelection()
         if (!$isRangeSelection(selection)) return
         const selectionId = `${selection.isCollapsed()}:${selection.anchor.key}:${selection.anchor.offset}:${selection.focus.key}:${selection.focus.offset}`
-        if (lastSelectionRef.current === selectionId) return
-        lastSelectionRef.current = selectionId
         const elements = selection
           .getNodes()
           .filter($isTextNode)
           .map((node) => editor.getElementByKey(node.getKey()))
           .filter((element): element is HTMLElement => element !== null)
         const root = editor.getRootElement()
-        if (!elements.length || !root) {
-          setCurrentColor(null)
-          return
-        }
+        if (!elements.length || !root) return
         const sampled =
           elements.length > 40
             ? [...elements.slice(0, 20), ...elements.slice(-20)]
@@ -72,6 +67,11 @@ export function ColorSelect({
             ? element.style.backgroundColor
             : element.style.color,
         )
+        // Style changes leave the selection identical, so the sampled styles
+        // must be part of the memo key or the swatch goes stale.
+        const key = `${selectionId}|${current.join(',')}`
+        if (lastSelectionRef.current === key) return
+        lastSelectionRef.current = key
         setCurrentColor(
           current.every((value) => value === current[0])
             ? current[0] || null
