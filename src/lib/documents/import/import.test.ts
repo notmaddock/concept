@@ -239,16 +239,15 @@ it('imports every registry-backed markdown node type', async () => {
   ])
 })
 
-it('returns warnings for unsupported Markdown constructs', async () => {
-  const { file } = await converted(
-    '| a | b |\n| --- | --- |\n\n![Alt](https://example.com/image.png)',
+it('imports Markdown tables and warns about unsupported images', async () => {
+  const { file, state, text } = await converted(
+    '| **a** | b |\n| --- | ---: |\n| c \\| d | e |\n\n![Alt](https://example.com/image.png)',
     'Lossy.md',
     'markdown',
   )
-  expect(file.warnings.map((warning) => warning.construct)).toEqual([
-    'table',
-    'image',
-  ])
+  expect(state.root.children[0].type).toBe('table')
+  expect(text).toContain('c | d')
+  expect(file.warnings.map((warning) => warning.construct)).toEqual(['image'])
 })
 
 it('returns no warnings for supported Markdown', async () => {

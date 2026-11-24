@@ -3,6 +3,12 @@ import { OPEN_LINK_DIALOG_COMMAND } from '#/components/nova/plugins/LinkPlugin/c
 import { insertCodeBlock } from '#/components/nova/plugins/CodePlugin/commands'
 import { getEditorActionShortcut } from '#/components/nova/editor-shortcuts'
 import { INSERT_PAGE_BREAK } from '#/components/nova/pages/PageBreakExtension'
+import { TOGGLE_WORD_COUNT_COMMAND } from '#/components/nova/statistics/commands'
+import { OPEN_FIND_COMMAND } from '#/components/nova/find/commands'
+import { OPEN_INSERT_TABLE_DIALOG_COMMAND } from '#/components/nova/tables/commands'
+import { INSERT_TABLE_OF_CONTENTS_COMMAND } from '#/components/nova/outline/commands'
+import { SET_COLUMN_LAYOUT_COMMAND } from '#/components/nova/columns/commands'
+import type { ColumnCount } from '#/components/nova/columns/commands'
 import { exportFormats, importFormats } from '#/lib/documents/formats'
 import type { ImportFormat } from '#/lib/documents/formats'
 import type { ExportFormat } from '#/lib/documents/export'
@@ -49,9 +55,15 @@ import {
   PlusIcon,
   PrinterIcon,
   Settings2Icon,
+  SearchIcon,
   Share2Icon,
   SparklesIcon,
   SunIcon,
+  TableIcon,
+  ListTreeIcon,
+  Columns2Icon,
+  Columns3Icon,
+  PanelTopIcon,
 } from 'lucide-react'
 import { useTheme } from '#/components/theme-provider'
 
@@ -83,7 +95,14 @@ type NavigationContext = {
   onInsertLink?: () => void
   onInsertCodeBlock?: () => void
   onInsertPageBreak: () => void
+  onInsertTable: () => void
+  onInsertContents: () => void
+  outlineOpen: boolean
+  onOutlineToggle: () => void
+  onSetColumns: (count: ColumnCount) => Promise<void>
   onPageSetup: () => void
+  onWordCount: () => void
+  onFind: () => void
   onCreate: () => Promise<void>
   creating: boolean
   theme: ReturnType<typeof useTheme>['theme']
@@ -99,7 +118,7 @@ type ActionDefinition = {
   menuLabel?: string
   keywords: string[]
   icon: typeof PlusIcon | typeof DriveIcon
-  focusAfterSelect: 'editor' | 'action'
+  focusAfterSelect: 'editor' | 'action' | 'panel'
   onSelect: (context: NavigationContext) => void | Promise<void>
   disabled?: (context: NavigationContext) => boolean
   toggle?: boolean
@@ -284,23 +303,45 @@ export const documentNavigation: MenuDefinition[] = [
   },
   {
     label: 'Edit',
-    items: (
-      [
-        ['undo', 'Undo', Undo2Icon],
-        ['redo', 'Redo', Redo2Icon],
-        ['cut', 'Cut', ScissorsIcon, true],
-        ['copy', 'Copy', CopyIcon],
-        ['paste', 'Paste', ClipboardPasteIcon],
-        ['paste-plain', 'Paste without formatting', ClipboardTypeIcon],
-        ['select-all', 'Select all', TextSelectIcon, true],
-        ['delete-selection', 'Delete selection', Trash2Icon],
-        ['clear-formatting', 'Clear formatting', RemoveFormattingIcon, true],
-      ] as const
-    ).map(([id, label, icon, sep]) => editOption(id, label, icon, sep)),
+    items: [
+      ...(
+        [
+          ['undo', 'Undo', Undo2Icon],
+          ['redo', 'Redo', Redo2Icon],
+          ['cut', 'Cut', ScissorsIcon, true],
+          ['copy', 'Copy', CopyIcon],
+          ['paste', 'Paste', ClipboardPasteIcon],
+          ['paste-plain', 'Paste without formatting', ClipboardTypeIcon],
+          ['select-all', 'Select all', TextSelectIcon, true],
+          ['delete-selection', 'Delete selection', Trash2Icon],
+          ['clear-formatting', 'Clear formatting', RemoveFormattingIcon, true],
+        ] as const
+      ).map(([id, label, icon, sep]) => editOption(id, label, icon, sep)),
+      {
+        id: 'find',
+        label: 'Find and replace',
+        shortcut: getEditorActionShortcut('find'),
+        keywords: ['search', 'replace text', 'find text'],
+        icon: SearchIcon,
+        focusAfterSelect: 'panel',
+        onSelect: (context) => context.onFind(),
+        separatorBefore: true,
+      },
+    ],
   },
   {
     label: 'View',
     items: [
+      {
+        id: 'document-outline',
+        label: 'Document outline',
+        keywords: ['sidebar', 'headings', 'navigate', 'contents'],
+        icon: ListTreeIcon,
+        toggle: true,
+        checked: (context) => context.outlineOpen,
+        focusAfterSelect: 'panel',
+        onSelect: (context) => context.onOutlineToggle(),
+      },
       {
         id: 'theme',
         label: 'Appearance',
@@ -358,6 +399,24 @@ export const documentNavigation: MenuDefinition[] = [
     label: 'Insert',
     items: [
       {
+        id: 'insert-table',
+        label: 'Table',
+        keywords: ['rows', 'columns', 'cells', 'grid'],
+        icon: TableIcon,
+        focusAfterSelect: 'panel',
+        onSelect: (context) => context.onInsertTable(),
+        disabled: (context) => Boolean(context.readOnly),
+      },
+      {
+        id: 'insert-table-of-contents',
+        label: 'Table of contents',
+        keywords: ['toc', 'headings', 'contents', 'index'],
+        icon: ListTreeIcon,
+        focusAfterSelect: 'editor',
+        onSelect: (context) => context.onInsertContents(),
+        disabled: (context) => Boolean(context.readOnly),
+      },
+      {
         id: 'insert-image',
         label: 'Image',
         keywords: ['picture', 'photo'],
@@ -400,27 +459,67 @@ export const documentNavigation: MenuDefinition[] = [
   },
   {
     label: 'Format',
-    items: formatSections.map((section) => ({
-      id: `format-${section.id}`,
-      label: section.label,
-      icon: section.icon,
-      children: section.choices.map((choice) => ({
-        id: choice.id,
-        shortcut: choice.shortcut,
-        label: choice.label,
+    items: [
+      ...formatSections.map((section) => ({
+        id: `format-${section.id}`,
+        label: section.label,
         icon: section.icon,
-        toggle: true,
-        keywords: ['format', section.label],
-        focusAfterSelect: 'editor' as const,
-        onSelect: (context: NavigationContext) =>
-          context.format.run(choice.action),
-        disabled: (context: NavigationContext) => context.format.disabled,
-        checked: (context: NavigationContext) =>
-          context.format.checked(choice.action),
+        children: section.choices.map((choice) => ({
+          id: choice.id,
+          shortcut: choice.shortcut,
+          label: choice.label,
+          icon: section.icon,
+          toggle: true,
+          keywords: ['format', section.label],
+          focusAfterSelect: 'editor' as const,
+          onSelect: (context: NavigationContext) =>
+            context.format.run(choice.action),
+          disabled: (context: NavigationContext) => context.format.disabled,
+          checked: (context: NavigationContext) =>
+            context.format.checked(choice.action),
+        })),
       })),
-    })),
+      {
+        id: 'format-columns',
+        label: 'Columns',
+        icon: Columns2Icon,
+        children: (
+          [
+            [1, 'One column', PanelTopIcon],
+            [2, 'Two columns', Columns2Icon],
+            [3, 'Three columns', Columns3Icon],
+          ] as const
+        ).map(([count, label, icon]) => ({
+          id: `format-columns-${count}`,
+          label,
+          icon,
+          keywords: [
+            'layout',
+            'section',
+            `${count} columns`,
+            ...(count === 1 ? ['remove columns'] : []),
+          ],
+          focusAfterSelect: 'editor' as const,
+          disabled: (context: NavigationContext) => Boolean(context.readOnly),
+          onSelect: (context: NavigationContext) => context.onSetColumns(count),
+        })),
+      },
+    ],
   },
-  { label: 'Tools', items: [] },
+  {
+    label: 'Tools',
+    items: [
+      {
+        id: 'word-count',
+        label: 'Word count',
+        shortcut: getEditorActionShortcut('word-count'),
+        keywords: ['characters', 'statistics', 'length', 'selection'],
+        icon: LetterTextIcon,
+        focusAfterSelect: 'editor',
+        onSelect: (context) => context.onWordCount(),
+      },
+    ],
+  },
   {
     label: 'Help',
     items: [
@@ -509,6 +608,16 @@ export function useDocumentNavigationOptions(
     onSaveToDrive: workspace.saveToDrive,
     onExport: workspace.exportDocument,
     onPageSetup: workspace.openPageSetup,
+    onWordCount: () => {
+      workspace.editorRef.current?.dispatchCommand(
+        TOGGLE_WORD_COUNT_COMMAND,
+        undefined,
+      )
+      workspace.focusEditor()
+    },
+    onFind: () => {
+      workspace.editorRef.current?.dispatchCommand(OPEN_FIND_COMMAND, undefined)
+    },
     onInsertImage: () => {
       workspace.editorRef.current?.dispatchCommand(
         INSERT_IMAGE_COMMAND,
@@ -527,6 +636,30 @@ export function useDocumentNavigationOptions(
     },
     onInsertPageBreak: () => {
       workspace.editorRef.current?.dispatchCommand(INSERT_PAGE_BREAK, undefined)
+    },
+    onInsertTable: () => {
+      workspace.editorRef.current?.dispatchCommand(
+        OPEN_INSERT_TABLE_DIALOG_COMMAND,
+        undefined,
+      )
+    },
+    onInsertContents: () => {
+      workspace.editorRef.current?.dispatchCommand(
+        INSERT_TABLE_OF_CONTENTS_COMMAND,
+        undefined,
+      )
+    },
+    outlineOpen: workspace.outlineOpen,
+    onOutlineToggle: () => {
+      workspace.setOutlineOpen(!workspace.outlineOpen)
+      if (workspace.outlineOpen) workspace.focusEditor()
+    },
+    onSetColumns: async (count) => {
+      const editor = workspace.editorRef.current
+      if (!editor) return
+      editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, count)
+      await Promise.resolve()
+      if (workspace.editorRef.current === editor) workspace.focusEditor()
     },
     onCreate: workspace.createDocument,
     documentTheme,

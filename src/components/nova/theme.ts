@@ -1,7 +1,9 @@
 import type { EditorThemeClasses } from 'lexical'
 import { codeHighlightTheme } from '#/lib/documents/syntax-highlight'
+import { tableTheme } from './tables/table-theme'
 
 export const defaultEditorTheme: EditorThemeClasses = {
+  ...tableTheme,
   paragraph: 'mb-2 leading-relaxed',
 
   heading: {

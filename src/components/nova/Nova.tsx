@@ -1,4 +1,5 @@
 import '#/styles/editor.css'
+import './columns/column-layout.css'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import type { RefCallback, RefObject } from 'react'
 import type { LexicalEditor } from 'lexical'
@@ -17,6 +18,11 @@ import { ImagePlugin } from './images/ImagePlugin'
 import { ImageClipboardPlugin } from './clipboard/ImageClipboardPlugin'
 import type { EditorMode } from './mode'
 import { EditorShortcutsPlugin } from './editor-shortcuts'
+import { WordCountPlugin } from './statistics/WordCountPlugin'
+import { FindPlugin } from './find/FindPlugin'
+import { TableControlsPlugin } from './tables/TableControlsPlugin'
+import { DocumentOutlinePlugin } from './outline/DocumentOutlinePlugin'
+import { HeadingNavigationPlugin } from './outline/HeadingNavigationPlugin'
 
 export type { EditorMode } from './mode'
 
@@ -60,6 +66,8 @@ export function Nova({
   mode = 'edit',
   pageSetupOpen = false,
   onPageSetupOpenChange = () => {},
+  outlineContainer = null,
+  onOutlineClose,
 }: {
   editorRef?:
     RefCallback<LexicalEditor> | RefObject<LexicalEditor | null | undefined>
@@ -70,6 +78,8 @@ export function Nova({
   mode?: EditorMode
   pageSetupOpen?: boolean
   onPageSetupOpenChange?: (open: boolean) => void
+  outlineContainer?: HTMLElement | null
+  onOutlineClose?: () => void
 }) {
   const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null)
   const isEditable = mode === 'edit'
@@ -81,11 +91,19 @@ export function Nova({
     >
       <EditorModePlugin mode={mode} />
       <EditorShortcutsPlugin />
+      <WordCountPlugin />
+      <FindPlugin />
+      <HeadingNavigationPlugin ready={ready} documentId={documentId} />
+      <DocumentOutlinePlugin
+        container={outlineContainer}
+        onClose={onOutlineClose}
+      />
       <ImagePlugin />
       <ImageClipboardPlugin />
       {editorRef && <EditorRefPlugin editorRef={editorRef} />}
       <div className="relative min-h-full w-full grow" ref={setAnchorElement}>
         <NovaContentEditable />
+        <TableControlsPlugin />
         {cursorsContainerRef && (
           <div
             aria-hidden="true"

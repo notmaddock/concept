@@ -1,29 +1,40 @@
+import { useState } from 'react'
 import {
-  Pilcrow,
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  CheckIcon,
   Heading1,
   Heading2,
   Heading3,
   Heading4,
   Heading5,
   Heading6,
-  Quote,
   List,
   ListOrdered,
   ListTodo,
+  Pilcrow,
+  Quote,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { Button } from '#/components/ui/button'
+import { Input } from '#/components/ui/input'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectGroup,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
+  Popover,
+  PopoverContent,
+  PopoverTitle,
+  PopoverTrigger,
+} from '#/components/ui/popover'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '#/components/ui/tooltip'
 import { formatSections } from '#/components/documents/navigation-menus/format-options'
 import type { FormatAction } from '#/components/documents/navigation-menus/format-options'
 
-const blockIcons: Record<string, LucideIcon> = {
+const icons: Record<string, LucideIcon> = {
   paragraph: Pilcrow,
   h1: Heading1,
   h2: Heading2,
@@ -35,99 +46,174 @@ const blockIcons: Record<string, LucideIcon> = {
   bullet: List,
   number: ListOrdered,
   check: ListTodo,
+  left: AlignLeft,
+  center: AlignCenter,
+  right: AlignRight,
+  justify: AlignJustify,
+  start: AlignLeft,
+  end: AlignRight,
 }
-function ChoiceIcon({ action }: { action?: FormatAction }) {
-  const Icon =
-    action && (action.kind === 'block' || action.kind === 'list')
-      ? blockIcons[action.value]
-      : undefined
-  return Icon ? <Icon className="size-4 shrink-0" /> : null
+function actionIcon(action: FormatAction) {
+  if (
+    action.kind === 'block' ||
+    action.kind === 'align' ||
+    action.kind === 'list'
+  ) {
+    return icons[action.value]
+  }
+  return undefined
 }
 
 export const toolbarActions = formatSections.flatMap((section) =>
   section.choices.map((choice) => choice.action),
 )
 
-type Props = {
-  compact?: boolean
-  displayValue?: string
-  sectionId: string
+export type FormatControls = {
   run: (action: FormatAction) => void | Promise<void>
   checked: (action: FormatAction) => boolean | undefined
 }
 
-export function FormatSelect({
+const spacing = {
+  'line-spacing': { property: 'line-height', min: 0.5, max: 5, suffix: '' },
+  'space-before': { property: 'margin-top', min: 0, max: 200, suffix: 'pt' },
+  'space-after': { property: 'margin-bottom', min: 0, max: 200, suffix: 'pt' },
+} as const
+
+function CustomSpacing({
+  id,
+  apply,
+}: {
+  id: keyof typeof spacing
+  apply: (action: FormatAction) => void
+}) {
+  const { property, min, max, suffix } = spacing[id]
+  return (
+    <form
+      className="mt-1 flex items-center gap-1.5 border-t pt-2"
+      onSubmit={(event) => {
+        event.preventDefault()
+        const raw = new FormData(event.currentTarget).get('value')
+        const value = Number(raw)
+        if (
+          typeof raw === 'string' &&
+          raw.trim() &&
+          Number.isFinite(value) &&
+          value >= min &&
+          value <= max
+        ) {
+          apply({ kind: 'paragraph', property, value: `${value}${suffix}` })
+        }
+      }}
+    >
+      <Input
+        type="number"
+        name="value"
+        min={min}
+        max={max}
+        step="any"
+        placeholder={suffix ? 'Custom (pt)' : 'Custom'}
+        aria-label={suffix ? 'Custom spacing in points' : 'Custom line spacing'}
+        required
+        className="h-7 min-w-0"
+      />
+      <Button type="submit" variant="secondary" size="sm">
+        Apply
+      </Button>
+    </form>
+  )
+}
+
+export function FormatOptionsPopover({
   sectionId,
   run,
   checked,
+  icon,
   displayValue,
-  compact = false,
-}: Props) {
+  large = false,
+}: FormatControls & {
+  sectionId: string
+  icon?: LucideIcon
+  displayValue?: string
+  large?: boolean
+}) {
   const section = formatSections.find((item) => item.id === sectionId)!
   const choices =
     sectionId === 'paragraph-style'
       ? [
           ...section.choices,
-          ...formatSections
-            .find((item) => item.id === 'lists')!
-            .choices.filter(
-              (choice) =>
-                choice.action.kind === 'list' && choice.action.value !== 'none',
-            ),
+          ...formatSections.find((item) => item.id === 'lists')!.choices,
         ]
       : section.choices
   const selected = choices.find((choice) => checked(choice.action))
+  const Icon = (selected && actionIcon(selected.action)) ?? icon ?? section.icon
+  const [open, setOpen] = useState(false)
+  const label = selected ? `${section.label}: ${selected.label}` : section.label
+
+  function apply(action: FormatAction) {
+    setOpen(false)
+    void run(action)
+  }
+
+  const spacingId =
+    sectionId === 'line-spacing' ||
+    sectionId === 'space-before' ||
+    sectionId === 'space-after'
+      ? sectionId
+      : null
   return (
-    <Select
-      value={selected?.id ?? null}
-      onValueChange={(value) => {
-        const choice = choices.find((item) => item.id === value)
-        if (choice) void run(choice.action)
-      }}
-    >
-      <SelectTrigger
-        aria-label={
-          compact && selected
-            ? `${section.label}: ${selected.label}`
-            : section.label
-        }
-        size="sm"
-        className={
-          compact
-            ? 'size-11 justify-center px-2 [&>svg:last-child]:hidden'
-            : sectionId === 'paragraph-style'
-              ? 'w-auto px-2'
-              : 'w-full min-w-0'
-        }
-      >
-        <ChoiceIcon action={selected?.action} />
-        <SelectValue
-          className={
-            compact
-              ? 'sr-only'
-              : sectionId === 'paragraph-style'
-                ? 'min-w-max'
-                : undefined
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <PopoverTrigger
+              aria-label={label}
+              onMouseDown={(event) => event.preventDefault()}
+              render={
+                <Button
+                  variant="ghost"
+                  size={large ? 'icon' : 'icon-sm'}
+                  className={large ? 'size-11' : undefined}
+                />
+              }
+            />
           }
-          placeholder={section.label}
         >
-          {displayValue || selected?.label}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent
+          <Icon />
+        </TooltipTrigger>
+        <TooltipContent>
+          {displayValue ? `${section.label}: ${displayValue}` : label}
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent
         data-format-toolbar="true"
-        alignItemWithTrigger={false}
-        className="min-w-48"
+        finalFocus={false}
+        align="start"
+        className="w-52 max-w-[calc(100vw-1rem)] gap-0.5 rounded-xl p-1.5"
+        aria-label={section.label}
       >
-        <SelectGroup>
-          {choices.map((choice) => (
-            <SelectItem key={choice.id} value={choice.id}>
-              <ChoiceIcon action={choice.action} />
-              {choice.label}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
+        <PopoverTitle className="px-2 py-1 text-xs font-medium text-muted-foreground">
+          {section.label}
+        </PopoverTitle>
+        {choices.map(({ id, label: choiceLabel, action }) => {
+          const ChoiceIcon = actionIcon(action)
+          const active = selected?.id === id
+          return (
+            <Button
+              key={id}
+              variant="ghost"
+              size="sm"
+              aria-pressed={active}
+              className="justify-start aria-pressed:bg-accent"
+              onClick={() => apply(action)}
+            >
+              {ChoiceIcon && <ChoiceIcon />}
+              <span className="min-w-0 truncate">{choiceLabel}</span>
+              {active && <CheckIcon className="ms-auto" />}
+            </Button>
+          )
+        })}
+        {spacingId && <CustomSpacing id={spacingId} apply={apply} />}
+      </PopoverContent>
+    </Popover>
   )
 }

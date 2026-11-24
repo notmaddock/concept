@@ -309,6 +309,25 @@ it('keeps the selected range available when a formatting menu takes focus', asyn
   })
 })
 
+it('discards a saved range when text shrinks while a formatting menu has focus', async () => {
+  await act(() => editor.update(() => $setSelection(null), { discrete: true }))
+  expect(actions.disabled).toBe(false)
+
+  await act(() =>
+    editor.update(() => $getRoot().getAllTextNodes()[0].setTextContent('hi'), {
+      discrete: true,
+    }),
+  )
+  expect(actions.disabled).toBe(true)
+
+  await act(async () => {
+    await actions.run({ kind: 'text', value: 'italic' })
+  })
+  editor.getEditorState().read(() => {
+    expect($getRoot().getAllTextNodes()[0].hasFormat('italic')).toBe(false)
+  })
+})
+
 it('subscribes to the new editor when it mounts after document navigation', async () => {
   const replacement = createEditor({
     onError: (error) => {

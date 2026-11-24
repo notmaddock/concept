@@ -96,6 +96,7 @@ function useWorkspaceState(id?: string) {
     'open' | 'copy' | ImportFormat | null
   >(null)
   const [pageSetupOpen, setPageSetupOpen] = useState(false)
+  const [outlineOpen, setOutlineOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [changelogOpen, setChangelogOpen] = useState(false)
@@ -445,6 +446,8 @@ function useWorkspaceState(id?: string) {
       shareDocument,
       pageSetupOpen,
       onPageSetupOpenChange: setPageSetupOpen,
+      outlineOpen,
+      setOutlineOpen,
       openDocument,
       importDocument,
       copyDocument,
@@ -484,6 +487,7 @@ function useWorkspaceState(id?: string) {
       shareOpen,
       shareDocument,
       pageSetupOpen,
+      outlineOpen,
       openDocument,
       importDocument,
       copyDocument,

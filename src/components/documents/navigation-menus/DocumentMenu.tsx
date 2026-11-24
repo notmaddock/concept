@@ -1,4 +1,4 @@
-import { ActionShortcut } from './ActionShortcut'
+import { ActionLabel } from './ActionLabel'
 import { Fragment, useRef } from 'react'
 import type { NavigationMenuItem } from './document-navigation-options'
 import {
@@ -24,10 +24,10 @@ import {
 
 function MenuItems({
   items,
-  onEditorAction,
+  onActionFocus,
 }: {
   items: NavigationMenuItem[]
-  onEditorAction: () => void
+  onActionFocus: () => void
 }) {
   const selected = items.find((item) => 'checked' in item && item.checked)
   const content = items.map((item) => {
@@ -39,7 +39,7 @@ function MenuItems({
             className={`${documentMenuItemClassName} data-disabled:pointer-events-none data-disabled:opacity-50 data-disabled:focus:bg-transparent data-disabled:focus:text-inherit`}
             disabled={item.disabled}
           >
-            <Icon /> {item.label}
+            <Icon /> <ActionLabel>{item.label}</ActionLabel>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
             side="right"
@@ -48,19 +48,24 @@ function MenuItems({
             sideOffset={4}
             className={documentSubmenuContentClassName}
           >
-            <MenuItems items={item.children} onEditorAction={onEditorAction} />
+            <MenuItems items={item.children} onActionFocus={onActionFocus} />
           </DropdownMenuSubContent>
         </DropdownMenuSub>
       )
     }
 
     const onClick = () => {
-      if (item.focusAfterSelect === 'editor') onEditorAction()
+      if (item.focusAfterSelect !== 'action') onActionFocus()
       void item.onSelect()
     }
     const label = (
       <>
-        <Icon /> {item.menuLabel ?? item.label}
+        <Icon />
+        <ActionLabel
+          shortcut={item.checked === undefined ? item.shortcut : undefined}
+        >
+          {item.menuLabel ?? item.label}
+        </ActionLabel>
       </>
     )
     return (
@@ -92,7 +97,6 @@ function MenuItems({
             disabled={item.disabled}
           >
             {label}
-            <ActionShortcut shortcut={item.shortcut} />
           </DropdownMenuItem>
         )}
       </Fragment>
@@ -129,12 +133,12 @@ export function DocumentMenu({
   label: string
   items: NavigationMenuItem[]
 }) {
-  const editorAction = useRef(false)
+  const actionOwnsFocus = useRef(false)
   return (
     <DropdownMenu
       open={open}
       onOpenChange={(nextOpen) => {
-        if (nextOpen) editorAction.current = false
+        if (nextOpen) actionOwnsFocus.current = false
         onOpenChange(nextOpen)
       }}
     >
@@ -154,14 +158,14 @@ export function DocumentMenu({
       <DropdownMenuContent
         align="start"
         // Returning focus during a switch can reopen the menu being closed.
-        finalFocus={() => !editorAction.current && restoreFocus}
-        className={`${label === 'Edit' || label === 'Format' ? 'w-80 p-1' : documentMenuContentClassName} ${instant ? 'data-open:animate-none data-closed:animate-none' : ''}`}
+        finalFocus={() => !actionOwnsFocus.current && restoreFocus}
+        className={`${label === 'Edit' || label === 'Format' ? 'w-80 p-1' : documentMenuContentClassName} max-w-[calc(100vw-1rem)] ${instant ? 'data-open:animate-none data-closed:animate-none' : ''}`}
       >
         {items.length > 0 ? (
           <MenuItems
             items={items}
-            onEditorAction={() => {
-              editorAction.current = true
+            onActionFocus={() => {
+              actionOwnsFocus.current = true
             }}
           />
         ) : (

@@ -3,19 +3,10 @@ import { useMediaQuery } from '#/hooks/use-media-query'
 
 import { TypographyControls, FormatIcon } from './TypographyControls'
 import { useFormatActions } from '#/components/documents/navigation-menus/use-format-actions'
-import { FormatSelect, toolbarActions } from './FormatOptions'
+import { FormatOptionsPopover, toolbarActions } from './FormatOptions'
+import { MoreFormatting } from './MoreFormatting'
 import type { LexicalEditor, TextFormatType } from 'lexical'
-import {
-  Bold,
-  RemoveFormatting,
-  Italic,
-  Strikethrough,
-  Underline,
-  Subscript,
-  Superscript,
-  Ellipsis,
-  LinkIcon,
-} from 'lucide-react'
+import { Bold, Italic, Underline, LinkIcon } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { OPEN_LINK_DIALOG_COMMAND } from '../LinkPlugin/commands'
@@ -42,24 +33,6 @@ const FORMAT_BUTTONS: FormatConfig[] = [
     stateKey: 'isUnderline',
     icon: Underline,
     label: 'underline',
-  },
-  {
-    format: 'strikethrough',
-    stateKey: 'isStrikethrough',
-    icon: Strikethrough,
-    label: 'strikethrough',
-  },
-  {
-    format: 'subscript',
-    stateKey: 'isSubscript',
-    icon: Subscript,
-    label: 'subscript',
-  },
-  {
-    format: 'superscript',
-    stateKey: 'isSuperscript',
-    icon: Superscript,
-    label: 'superscript',
   },
 ]
 
@@ -115,39 +88,25 @@ export function FloatingTextFormatToolbar({
     toolbarActions,
     isOpen,
   )
-  const [panel, setPanel] = useState<'type' | null>(null)
-  const [isPanelAnimating, setIsPanelAnimating] = useState(false)
-  const moreControl = (
-    <FormatIcon
-      label="More formatting"
-      icon={Ellipsis}
-      expanded={panel === 'type'}
-      onClick={() => {
-        setIsPanelAnimating(
-          !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-        )
-        setPanel(panel ? null : 'type')
-      }}
-    />
-  )
+  const moreControl = <MoreFormatting run={run} checked={checked} />
   const primaryControls = (
     <div
       className={
         isMobile
           ? 'flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overscroll-x-contain [&>*]:shrink-0'
-          : 'flex shrink-0 flex-wrap items-center gap-0.5'
+          : 'flex min-w-0 flex-wrap items-center gap-0.5'
       }
       data-format-scroll={isMobile || undefined}
     >
       <div className="shrink-0 border-r pr-1 mr-0.5">
-        <FormatSelect
-          compact={isMobile}
+        <FormatOptionsPopover
+          large={isMobile}
           sectionId="paragraph-style"
           run={run}
           checked={checked}
         />
       </div>
-      {FORMAT_BUTTONS.slice(0, 4).map(({ format, stateKey, icon, label }) => (
+      {FORMAT_BUTTONS.map(({ format, stateKey, icon, label }) => (
         <FormatIcon
           key={format}
           actionId={`format-${format}`}
@@ -166,55 +125,30 @@ export function FloatingTextFormatToolbar({
           editor.dispatchCommand(OPEN_LINK_DIALOG_COMMAND, undefined)
         }
       />
-      <FormatIcon
-        label="Clear formatting"
-        actionId="clear-formatting"
-        icon={RemoveFormatting}
-        onClick={() => void run({ kind: 'clear', value: 'text' })}
+      <TypographyControls
+        editor={editor}
+        run={run}
+        checked={checked}
+        large={isMobile}
+      />
+      <FormatOptionsPopover
+        sectionId="alignment"
+        run={run}
+        checked={checked}
+        large={isMobile}
       />
       <ColorSelect sectionId="text-color" editor={editor} />
       <ColorSelect sectionId="highlight" editor={editor} />
       {!isMobile && moreControl}
     </div>
   )
-  const controls = (
-    <>
-      {isMobile ? (
-        <div className="flex min-w-0 shrink-0 items-center gap-1">
-          {primaryControls}
-          <div className="shrink-0 border-l pl-1">{moreControl}</div>
-        </div>
-      ) : (
-        primaryControls
-      )}
-      <div
-        inert={!panel}
-        aria-hidden={!panel}
-        data-expanded={Boolean(panel)}
-        onTransitionEnd={(event) => {
-          if (
-            event.target === event.currentTarget &&
-            event.propertyName === 'height'
-          ) {
-            setIsPanelAnimating(false)
-          }
-        }}
-        style={{
-          overflowY: isPanelAnimating || !panel ? 'hidden' : 'auto',
-          scrollbarGutter: 'stable',
-        }}
-        className="min-h-0 h-0 max-h-[min(50vh,24rem)] overflow-x-hidden opacity-0 [interpolate-size:allow-keywords] transition-[height,opacity] duration-200 ease-out data-[expanded=true]:h-auto data-[expanded=true]:opacity-100 motion-reduce:transition-none"
-      >
-        <div className="mt-1 border-t p-1 pt-1.5">
-          <TypographyControls
-            editor={editor}
-            run={run}
-            checked={checked}
-            active={isOpen && panel === 'type'}
-          />
-        </div>
-      </div>
-    </>
+  const controls = isMobile ? (
+    <div className="flex min-w-0 shrink-0 items-center gap-1">
+      {primaryControls}
+      <div className="shrink-0 border-l pl-1">{moreControl}</div>
+    </div>
+  ) : (
+    primaryControls
   )
   if (isMobile) {
     return isOpen && rangeRect
@@ -241,13 +175,7 @@ export function FloatingTextFormatToolbar({
   return (
     <Popover
       open={isOpen && Boolean(rangeRect)}
-      onOpenChange={(open) => {
-        if (!open) {
-          setPanel(null)
-          setIsPanelAnimating(false)
-        }
-        onOpenChange(open)
-      }}
+      onOpenChange={onOpenChange}
       modal={false}
     >
       {rangeRect &&
@@ -268,28 +196,7 @@ export function FloatingTextFormatToolbar({
           document.body,
         )}
       <PopoverContent
-        side={
-          rangeRect &&
-          (panel
-            ? rangeRect.top <
-                Math.min(
-                  (typeof window !== 'undefined' ? window.innerHeight : 800) *
-                    0.5,
-                  384,
-                ) +
-                  64 ||
-              (typeof window !== 'undefined' ? window.innerHeight : 800) -
-                rangeRect.top -
-                rangeRect.height >
-                rangeRect.top
-            : rangeRect.top < 48 &&
-              (typeof window !== 'undefined' ? window.innerHeight : 800) -
-                rangeRect.top -
-                rangeRect.height >
-                rangeRect.top)
-            ? 'bottom'
-            : 'top'
-        }
+        side={rangeRect && rangeRect.top < 48 ? 'bottom' : 'top'}
         sideOffset={8}
         align="center"
         initialFocus={false}

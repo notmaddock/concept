@@ -1,0 +1,51 @@
+.concept-table-scroll {
+  max-inline-size: 100%;
+  margin-block: 0.75rem;
+  overflow-x: auto;
+}
+
+.concept-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.concept-table-cell {
+  min-inline-size: 5rem;
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.65rem;
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.concept-table-cell > :last-child {
+  margin-block-end: 0;
+}
+
+.concept-table-cell-header {
+  background-color: var(--muted);
+  font-weight: 600;
+}
+
+.concept-table-cell-selected {
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.concept-table-selection ::selection {
+  background-color: transparent;
+}
+
+@media print {
+  .concept-table-scroll {
+    overflow: visible;
+  }
+
+  .concept-table {
+    table-layout: fixed;
+  }
+
+  .concept-table-cell {
+    min-inline-size: 0;
+    box-shadow: none;
+  }
+}

@@ -1,5 +1,6 @@
 import { filterDocumentAction } from './filter-document-action'
 import { ActionShortcut, isMac } from './navigation-menus/ActionShortcut'
+import { ActionLabel } from './navigation-menus/ActionLabel'
 import { useDocumentWorkspace } from './document-workspace-context'
 import { useEffect, useRef, useState } from 'react'
 import { SearchIcon, XIcon } from 'lucide-react'
@@ -229,10 +230,9 @@ export function DocumentActionSearch({
                               }}
                             >
                               <Icon className="text-muted-foreground" />
-                              <span className="min-w-0 truncate">
+                              <ActionLabel shortcut={option.shortcut}>
                                 {option.label}
-                              </span>
-                              <ActionShortcut shortcut={option.shortcut} />
+                              </ActionLabel>
                             </CommandItem>
                           )
                         })}

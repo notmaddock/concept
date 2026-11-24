@@ -21,10 +21,17 @@ import {
   MinusIcon,
   PilcrowIcon,
   QuoteIcon,
+  TableIcon,
+  ListTreeIcon,
+  Columns2Icon,
+  Columns3Icon,
 } from 'lucide-react'
 import type { JSX } from 'react'
 import { INSERT_IMAGE_COMMAND } from '../../images/commands'
 import { $insertCodeBlock } from '../CodePlugin/commands'
+import { OPEN_INSERT_TABLE_DIALOG_COMMAND } from '../../tables/commands'
+import { INSERT_TABLE_OF_CONTENTS_COMMAND } from '../../outline/commands'
+import { SET_COLUMN_LAYOUT_COMMAND } from '../../columns/commands'
 
 interface BlockOptionConfig {
   title: string
@@ -170,6 +177,36 @@ export function getBlockOptions(
       keywords: ['hr', 'divider', 'horizontal rule', 'line', 'break'],
       onSelect: () =>
         editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
+    }),
+    new BlockOption('table', {
+      title: 'Table',
+      icon: <TableIcon />,
+      category: categories.BLOCKS,
+      keywords: ['table', 'grid', 'rows', 'columns', 'cells'],
+      onSelect: () =>
+        editor.dispatchCommand(OPEN_INSERT_TABLE_DIALOG_COMMAND, undefined),
+    }),
+    new BlockOption('table-of-contents', {
+      title: 'Table of contents',
+      icon: <ListTreeIcon />,
+      category: categories.BLOCKS,
+      keywords: ['toc', 'contents', 'index'],
+      onSelect: () =>
+        editor.dispatchCommand(INSERT_TABLE_OF_CONTENTS_COMMAND, undefined),
+    }),
+    new BlockOption('two-columns', {
+      title: 'Two columns',
+      icon: <Columns2Icon />,
+      category: categories.BLOCKS,
+      keywords: ['2 columns', 'layout', 'section'],
+      onSelect: () => editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, 2),
+    }),
+    new BlockOption('three-columns', {
+      title: 'Three columns',
+      icon: <Columns3Icon />,
+      category: categories.BLOCKS,
+      keywords: ['3 columns', 'layout', 'section'],
+      onSelect: () => editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, 3),
     }),
     ...(imagesEnabled
       ? [

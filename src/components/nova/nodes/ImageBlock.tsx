@@ -38,7 +38,7 @@ import { ImageOptionsDialog } from '../images/ImageOptionsDialog'
 import { useDocumentAsset } from '../media/use-document-asset'
 import { useDocumentMedia } from '../media/document-media-context'
 import { useRenderableImage } from '../images/use-renderable-image'
-import { updateImageEdit } from '../images/image-edit'
+import { updateDocumentEdit } from '../document-edit'
 import { REPLACE_IMAGE_COMMAND } from '../images/commands'
 import { $isImageNode } from './ImageNode'
 import type { ImageNode } from './ImageNode'
@@ -108,7 +108,7 @@ export function ImageBlock({
   const canEdit = editable && Boolean(media?.canEdit())
   function mutate(change: (node: ImageNode) => void) {
     if (!editor.isEditable() || !media?.canEdit()) return
-    updateImageEdit(
+    updateDocumentEdit(
       editor,
       () => {
         const node = $getNodeByKey(nodeKey)

@@ -69,18 +69,20 @@ export function DocumentSaveStatus({
     return () => window.clearInterval(timer)
   }, [open])
 
-  const working = ['loading', 'saving', 'reconciling'].includes(status.phase)
+  const localSave = !provider && status.phase === 'saving'
+  const working =
+    !localSave && ['loading', 'saving', 'reconciling'].includes(status.phase)
   const label =
     status.readOnly && status.phase === 'synced'
       ? 'View only · Synced with Drive'
-      : !provider && status.phase === 'saving'
+      : localSave
         ? 'Saving to this device'
         : !provider && status.phase === 'error'
           ? 'Could not save locally'
           : labels[status.phase]
   const Icon = working
     ? LoaderCircleIcon
-    : status.phase === 'local'
+    : status.phase === 'local' || localSave
       ? HardDriveIcon
       : status.phase === 'synced'
         ? CloudCheckIcon
@@ -89,7 +91,8 @@ export function DocumentSaveStatus({
           : status.phase === 'offline'
             ? CloudOffIcon
             : CircleAlertIcon
-  const expanded = status.phase !== 'local' && status.phase !== 'synced'
+  const expanded =
+    status.phase !== 'local' && status.phase !== 'synced' && !localSave
   const metadata = [
     [
       'Size',

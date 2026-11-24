@@ -25,7 +25,9 @@ test('creates a document, saves it locally, and reopens it after reload', async 
   await editor.click()
   await page.keyboard.type('playwright smoke document')
 
-  await expect(page.getByText('All changes saved locally')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'All changes saved locally' }),
+  ).toBeVisible()
 
   await page.reload()
 

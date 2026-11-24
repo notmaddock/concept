@@ -47,6 +47,12 @@ const referenceFreeTypes = new Set([
   'page',
   'page-content',
   'page-break',
+  'table',
+  'tablerow',
+  'tablecell',
+  'table-of-contents',
+  'column-layout',
+  'column',
 ])
 
 export class UnsupportedNodeError extends Error {

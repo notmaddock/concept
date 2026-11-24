@@ -12,10 +12,13 @@ vi.mock('./TypographyControls', () => ({
   FormatIcon: ({ label }: { label: string }) => <button>{label}</button>,
 }))
 vi.mock('./FormatOptions', () => ({
-  FormatSelect: () => null,
+  FormatOptionsPopover: () => null,
   toolbarActions: [],
 }))
 vi.mock('./ColorSelect', () => ({ ColorSelect: () => null }))
+vi.mock('./MoreFormatting', () => ({
+  MoreFormatting: () => <button>More formatting</button>,
+}))
 
 it('docks formatting above the keyboard and follows the visible viewport', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)

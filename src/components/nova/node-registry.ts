@@ -3,11 +3,14 @@ import { HorizontalRuleNode } from '@lexical/extension'
 import { AutoLinkNode, LinkNode } from '@lexical/link'
 import { ListItemNode, ListNode } from '@lexical/list'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
+import { TableCellNode, TableNode, TableRowNode } from '@lexical/table'
 import type { Klass, LexicalNode } from 'lexical'
 import { ImageNode } from './nodes/ImageNode'
 import { PageBreakNode } from './pages/PageBreakNode'
 import { PageContentNode } from './pages/PageContentNode'
 import { PageNode } from './pages/PageNode'
+import { TableOfContentsNode } from './outline/TableOfContentsNode'
+import { ColumnLayoutNode, ColumnNode } from './columns/ColumnLayoutNode'
 
 export const documentNodes: Array<Klass<LexicalNode>> = [
   HeadingNode,
@@ -23,4 +26,10 @@ export const documentNodes: Array<Klass<LexicalNode>> = [
   PageNode,
   PageContentNode,
   PageBreakNode,
+  TableNode,
+  TableRowNode,
+  TableCellNode,
+  TableOfContentsNode,
+  ColumnLayoutNode,
+  ColumnNode,
 ]

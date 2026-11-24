@@ -53,6 +53,8 @@ export function DocumentEditor({
   editorRef,
   onPageSetupOpenChange,
   onConnectDrive,
+  outlineContainer,
+  onOutlineClose,
 }: {
   documentRef: RefObject<Doc | null>
   id: string
@@ -60,6 +62,8 @@ export function DocumentEditor({
   pageSetupOpen: boolean
   onPageSetupOpenChange: (open: boolean) => void
   onConnectDrive?: () => void
+  outlineContainer?: HTMLElement | null
+  onOutlineClose?: () => void
 }) {
   const workspace = useContext(DocumentWorkspaceContext)
   const [error, setError] = useState('')
@@ -296,6 +300,8 @@ export function DocumentEditor({
               mode={mode}
               pageSetupOpen={pageSetupOpen}
               onPageSetupOpenChange={onPageSetupOpenChange}
+              outlineContainer={outlineContainer}
+              onOutlineClose={onOutlineClose}
               collaboration={
                 <CollaborationPlugin
                   id={id}
