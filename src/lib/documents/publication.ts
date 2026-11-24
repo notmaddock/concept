@@ -49,13 +49,15 @@ export function openPublicationTransport(
   })
   let lastCheck = -Infinity
   channel.onmessage = ({ data }: MessageEvent<unknown>) => {
-    if (closed || !isPublicationHint(data, fileId) || seen.has(data.validator))
-      return
+    if (closed || !isPublicationHint(data, fileId)) return
+    if (seen.has(data.validator)) return
+    const now = Date.now()
+    // A hint suppressed by the rate limit is not recorded, so a later
+    // broadcast still delivers it once the window expires.
+    if (now - lastCheck < publicationPolicy.minimumCheckMs) return
     seen.add(data.validator)
     if (seen.size > publicationPolicy.rememberedTokens)
       seen.delete(seen.values().next().value!)
-    const now = Date.now()
-    if (now - lastCheck < publicationPolicy.minimumCheckMs) return
     lastCheck = now
     listeners.forEach((listener) => listener(receipt(data)))
   }
