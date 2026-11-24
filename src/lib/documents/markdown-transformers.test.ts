@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { $createParagraphNode, $getRoot, createEditor } from 'lexical'
+import type { Klass, LexicalNode } from 'lexical'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListItemNode, ListNode } from '@lexical/list'
 import { HorizontalRuleNode } from '@lexical/extension'
 import { CodeNode } from '@lexical/code'
 import { AutoLinkNode, LinkNode } from '@lexical/link'
+import { $isTableNode } from '@lexical/table'
 import type { AssetId } from './assets'
+import { documentNodes } from '#/components/nova/node-registry'
+import { $createPageNode } from '#/components/nova/pages/PageNode'
 import { $createImageNode, ImageNode } from '#/components/nova/nodes/ImageNode'
+import { convertHtml } from './import/html'
 import { convertMarkdown } from './import/markdown'
 import { exportMarkdown } from './export/markdown'
+import { serializeExport } from './export'
 import {
   markdownTransformers,
   markdownWarnings,
@@ -27,7 +33,7 @@ const nodes = [
   ImageNode,
 ]
 
-function createTestEditor(registered = nodes) {
+function createTestEditor(registered: Array<Klass<LexicalNode>> = nodes) {
   return createEditor({
     namespace: 'markdown-transformers-test',
     nodes: registered,
@@ -38,6 +44,61 @@ function createTestEditor(registered = nodes) {
 }
 
 describe('markdown transformer registry', () => {
+  it('preserves GFM table text, emphasis and alignment under a page wrapper', () => {
+    const editor = createTestEditor(documentNodes)
+    editor.update(
+      () => {
+        const source =
+          '# Heading\n\n| **Stage** | Status |\n| --- | ---: |\n| Ready \\| review | Open |\n\n## Follow-up'
+        expect(convertMarkdown(source, editor)).toEqual([])
+        const root = $getRoot()
+        expect(root.getChildren().map((child) => child.getType())).toEqual([
+          'heading',
+          'table',
+          'heading',
+        ])
+        const page = $createPageNode()
+        page.getContentNode().append(...root.getChildren())
+        root.append(page)
+        expect(exportMarkdown(editor)).toBe(source)
+      },
+      { discrete: true },
+    )
+  })
+
+  it('retains merged cells and column structure in standalone HTML', async () => {
+    const editor = createTestEditor(documentNodes)
+    editor.update(
+      () => {
+        convertHtml(
+          '<section data-concept-columns><div data-concept-column><h2>Left</h2></div><div data-concept-column><p>Right</p></div></section><table><tr><th scope="col">A</th><th scope="col">B</th></tr><tr><td colspan="2">Combined</td></tr></table>',
+          editor,
+        )
+        expect($isTableNode($getRoot().getLastChild())).toBe(true)
+      },
+      { discrete: true },
+    )
+    const html = await serializeExport(editor, 'Layout', 'html')
+    const standalone = new DOMParser().parseFromString(
+      html.content,
+      'text/html',
+    )
+    expect(
+      standalone.querySelectorAll(
+        '[data-concept-columns] > [data-concept-column]',
+      ),
+    ).toHaveLength(2)
+    expect(standalone.querySelector('td[colspan="2"]')?.textContent).toBe(
+      'Combined',
+    )
+    const markdown = await serializeExport(editor, 'Layout', 'markdown')
+    expect(markdown.content).toContain('## Left\n\nRight')
+    expect(markdown.content).toContain('| Combined |  |')
+    expect(markdown.notice).toContain(
+      'exports columns in reading order and flattens merged cells',
+    )
+  })
+
   it('round-trips every registered node type through one transformer set', () => {
     const editor = createTestEditor()
     const source = [

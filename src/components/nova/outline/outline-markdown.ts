@@ -8,7 +8,7 @@ import type { OutlineItem } from './outline'
 
 function markdownEntries(items: readonly OutlineItem[], indent = ''): string[] {
   return items.flatMap((item) => [
-    `${indent}- ${item.text.replace(/[&<>"'\\\x60*_{}[\]()#!|~]/g, '\\$&')}`,
+    `${indent}- ${item.text.replace(/[&<>"'\\\x60*_{}[\]()#!|~+.-]/g, '\\$&')}`,
     ...markdownEntries(item.children, indent + '  '),
   ])
 }

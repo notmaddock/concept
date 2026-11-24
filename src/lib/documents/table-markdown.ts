@@ -33,12 +33,12 @@ export function createTableMarkdown(
     regExpStart: /^ {0,3}\S.*\||^ {0,3}\|/,
     replace: () => false,
     handleImportAfterStartMatch({ lines, rootNode, startLineIndex }) {
-      const divider = lines[startLineIndex + 1]
-      if (!tableDivider.test(divider ?? '')) return null
+      const divider = lines.at(startLineIndex + 1)
+      if (divider === undefined || !tableDivider.test(divider)) return null
       let end = startLineIndex + 2
       while (end < lines.length && lines[end].trim()) end++
       const sample = lines.slice(startLineIndex, end).join('\n')
-      const [token] = marked.lexer(sample, { gfm: true })
+      const token = marked.lexer(sample, { gfm: true }).at(0)
       if (token?.type !== 'table') return null
       const { header, rows, align, raw } = token as Tokens.Table
       const table = $createTableNode()
@@ -71,10 +71,11 @@ export function createTableMarkdown(
     export(node) {
       if (!$isTableNode(node)) return null
       const [map] = $computeTableMapSkipCellCheck(node, null, null)
-      if (!map.length || !map[0].length) return null
+      const firstRow = map.at(0)
+      if (!firstRow?.length) return null
       const rows = map.map((entries, row) => {
-        const cells = Array.from({ length: map[0].length }, (_, column) => {
-          const entry = entries[column]
+        const cells = Array.from({ length: firstRow.length }, (_, column) => {
+          const entry = entries.at(column)
           if (!entry || entry.startRow !== row || entry.startColumn !== column)
             return ''
           return $convertToMarkdownString(getTransformers(), entry.cell)
@@ -84,21 +85,15 @@ export function createTableMarkdown(
         })
         return `| ${cells.join(' | ')} |`
       })
-      const separator = `| ${map[0]
-        .map(({ cell }) => {
-          const child = cell.getFirstChild()
-          switch ($isElementNode(child) && child.getFormatType()) {
-            case 'left':
-              return ':---'
-            case 'center':
-              return ':---:'
-            case 'right':
-              return '---:'
-            default:
-              return '---'
-          }
-        })
-        .join(' | ')} |`
+      const alignments = firstRow.map(({ cell }) => {
+        const child = cell.getFirstChild()
+        const format = $isElementNode(child) && child.getFormatType()
+        if (format === 'left') return ':---'
+        if (format === 'center') return ':---:'
+        if (format === 'right') return '---:'
+        return '---'
+      })
+      const separator = `| ${alignments.join(' | ')} |`
       return [rows[0], separator, ...rows.slice(1)].join('\n')
     },
   }

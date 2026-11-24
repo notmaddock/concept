@@ -27,24 +27,44 @@ const serializers: Record<
   }),
   markdown: async (editor) => {
     // Deferred import to avoid bundling Markdown transformers during initial load
-    const { exportMarkdown } = await import('./markdown')
-    // ImageNode statically imports its React block, so a static import here
-    // would drag the Nova image UI into the eagerly loaded export entry chunk.
-    const { $isImageNode } = await import('#/components/nova/nodes/ImageNode')
+    const [
+      { exportMarkdown },
+      { $isImageNode },
+      { $isColumnLayoutNode },
+      { $isTableCellNode },
+    ] = await Promise.all([
+      import('./markdown'),
+      import('#/components/nova/nodes/ImageNode'),
+      import('#/components/nova/columns/ColumnLayoutNode'),
+      import('@lexical/table'),
+    ])
     const state = editor.getEditorState()
     return state.read(() => {
-      let images = 0
+      let hasImages = false
+      let hasColumns = false
+      let hasMergedCells = false
       const visit = (node: LexicalNode) => {
-        if ($isImageNode(node)) images += 1
-        else if ($isElementNode(node)) node.getChildren().forEach(visit)
+        if ($isImageNode(node)) hasImages = true
+        if ($isColumnLayoutNode(node)) hasColumns = true
+        if (
+          $isTableCellNode(node) &&
+          (node.getColSpan() > 1 || node.getRowSpan() > 1)
+        )
+          hasMergedCells = true
+        if ($isElementNode(node)) node.getChildren().forEach(visit)
       }
       visit($getRoot())
+      const differences = [
+        hasImages ? 'represents images as alt text' : null,
+        hasColumns ? 'exports columns in reading order' : null,
+        hasMergedCells ? 'flattens merged cells' : null,
+      ].filter((difference) => difference !== null)
+      const summary = new Intl.ListFormat('en').format(differences)
       return {
         content: exportMarkdown(editor),
-        notice:
-          images > 0
-            ? 'Markdown represents images as alt text. Use HTML or Concept to preserve images.'
-            : undefined,
+        notice: summary
+          ? `Markdown ${summary}. Use HTML or Concept to preserve the original formatting.`
+          : undefined,
       }
     })
   },
