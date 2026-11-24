@@ -29,9 +29,9 @@ import {
 import type { JSX } from 'react'
 import { INSERT_IMAGE_COMMAND } from '../../images/commands'
 import { $insertCodeBlock } from '../CodePlugin/commands'
-import { OPEN_INSERT_TABLE_DIALOG_COMMAND } from '../../tables/table-commands'
-import { INSERT_TABLE_OF_CONTENTS_COMMAND } from '../../outline/table-of-contents-extension'
-import { SET_COLUMN_LAYOUT_COMMAND } from '../../columns/column-layout'
+import { OPEN_INSERT_TABLE_DIALOG_COMMAND } from '../../tables/commands'
+import { INSERT_TABLE_OF_CONTENTS_COMMAND } from '../../outline/commands'
+import { SET_COLUMN_LAYOUT_COMMAND } from '../../columns/commands'
 
 interface BlockOptionConfig {
   title: string

@@ -27,10 +27,8 @@ import {
   TableOfContentsNode,
 } from './TableOfContentsNode'
 import { $decorateOutlineHeading, $readOutline } from './outline'
-import {
-  INSERT_TABLE_OF_CONTENTS_COMMAND,
-  TableOfContentsExtension,
-} from './table-of-contents-extension'
+import { TableOfContentsExtension } from './table-of-contents-extension'
+import { INSERT_TABLE_OF_CONTENTS_COMMAND } from './commands'
 
 const testExtension = defineExtension({
   name: 'test-outline',

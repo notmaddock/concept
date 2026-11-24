@@ -25,11 +25,9 @@ import {
 } from '../pages/PageBreakExtension'
 import { $isColumnLayoutNode, $isColumnNode } from './ColumnLayoutNode'
 import { createColumnLayoutMarkdown } from './column-exports'
-import {
-  ColumnLayoutExtension,
-  SET_COLUMN_LAYOUT_COMMAND,
-} from './column-layout'
-import type { ColumnCount } from './column-layout'
+import { ColumnLayoutExtension } from './column-layout'
+import { SET_COLUMN_LAYOUT_COMMAND } from './commands'
+import type { ColumnCount } from './commands'
 
 const testExtension = defineExtension({
   name: 'test-columns',

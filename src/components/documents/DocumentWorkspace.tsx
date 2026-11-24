@@ -3,7 +3,13 @@ import {
   DocumentWorkspaceProvider,
   useDocumentWorkspace,
 } from './document-workspace-context'
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   FileTextIcon,
@@ -59,11 +65,16 @@ import {
   subscribeLiveCollaboration,
 } from '#/lib/documents/realtime/preferences'
 import type { RealtimeState } from '#/lib/documents/realtime/realtime'
-import { DocumentEditor } from './DocumentEditor'
 import { DriveIcon } from './icons/DriveIcon'
 import { ChangelogButton } from './ChangelogButton'
 import { APP_VERSION } from '#/version'
 import { AppToaster } from '#/components/app-toaster'
+
+const DocumentEditor = lazy(() =>
+  import('./DocumentEditor').then((module) => ({
+    default: module.DocumentEditor,
+  })),
+)
 
 export function DocumentWorkspace({ id }: { id?: string }) {
   return (
@@ -271,19 +282,21 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               data-document-sheet
               className="mx-auto flex min-h-full min-w-0 max-w-[960px] flex-1 flex-col rounded-lg bg-card text-card-foreground shadow-sm"
             >
-              <DocumentEditor
-                key={`${document.id}:${connectionRevision}`}
-                documentRef={documentRef}
-                id={document.id}
-                editorRef={editorRef}
-                pageSetupOpen={pageSetupOpen}
-                onPageSetupOpenChange={onPageSetupOpenChange}
-                outlineContainer={outlineOpen ? outlineContainer : null}
-                onOutlineClose={() => setOutlineOpen(false)}
-                onConnectDrive={() => {
-                  void connectDrive()
-                }}
-              />
+              <Suspense fallback={<DocumentLoading />}>
+                <DocumentEditor
+                  key={`${document.id}:${connectionRevision}`}
+                  documentRef={documentRef}
+                  id={document.id}
+                  editorRef={editorRef}
+                  pageSetupOpen={pageSetupOpen}
+                  onPageSetupOpenChange={onPageSetupOpenChange}
+                  outlineContainer={outlineOpen ? outlineContainer : null}
+                  onOutlineClose={() => setOutlineOpen(false)}
+                  onConnectDrive={() => {
+                    void connectDrive()
+                  }}
+                />
+              </Suspense>
             </div>
           ) : !loaded && !error ? (
             <DocumentLoading

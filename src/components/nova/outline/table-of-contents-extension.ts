@@ -1,15 +1,8 @@
 import { $insertNodeToNearestRoot } from '@lexical/utils'
-import {
-  COMMAND_PRIORITY_EDITOR,
-  createCommand,
-  defineExtension,
-} from 'lexical'
+import { COMMAND_PRIORITY_EDITOR, defineExtension } from 'lexical'
 import { $createTableOfContentsNode } from './TableOfContentsNode'
 import { updateDocumentEdit } from '../document-edit'
-
-export const INSERT_TABLE_OF_CONTENTS_COMMAND = createCommand<void>(
-  'INSERT_TABLE_OF_CONTENTS_COMMAND',
-)
+import { INSERT_TABLE_OF_CONTENTS_COMMAND } from './commands'
 
 export const TableOfContentsExtension = defineExtension({
   name: '@concept/table-of-contents',

@@ -8,13 +8,8 @@ import {
   $isElementNode,
   $isRangeSelection,
   $setSelection,
-  createCommand,
   HISTORY_PUSH_TAG,
 } from 'lexical'
-
-export const OPEN_INSERT_TABLE_DIALOG_COMMAND = createCommand<void>(
-  'OPEN_INSERT_TABLE_DIALOG_COMMAND',
-)
 
 export const maxTableRows = 30
 export const maxTableColumns = 12

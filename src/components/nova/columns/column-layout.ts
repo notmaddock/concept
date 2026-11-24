@@ -12,7 +12,6 @@ import {
   $isRootOrShadowRoot,
   $setSelection,
   COMMAND_PRIORITY_HIGH,
-  createCommand,
   defineExtension,
   DELETE_CHARACTER_COMMAND,
   KEY_TAB_COMMAND,
@@ -29,6 +28,8 @@ import { $isPageBreakNode } from '../pages/PageBreakNode'
 import { $isPageContentNode } from '../pages/PageContentNode'
 import { $isValidRange } from '../utils/selection'
 import { updateDocumentEdit } from '../document-edit'
+import { SET_COLUMN_LAYOUT_COMMAND } from './commands'
+import type { ColumnCount } from './commands'
 import {
   $createColumnLayoutNode,
   $createColumnNode,
@@ -37,12 +38,6 @@ import {
   ColumnLayoutNode,
   ColumnNode,
 } from './ColumnLayoutNode'
-
-export type ColumnCount = 1 | 2 | 3
-
-export const SET_COLUMN_LAYOUT_COMMAND = createCommand<ColumnCount>(
-  'SET_COLUMN_LAYOUT_COMMAND',
-)
 
 function $isDocumentContainer(node: LexicalNode | null): node is ElementNode {
   return $isRootNode(node) || $isPageContentNode(node)

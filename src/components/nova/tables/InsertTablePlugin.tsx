@@ -14,12 +14,12 @@ import {
 } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import { updateDocumentEdit } from '../document-edit'
+import { OPEN_INSERT_TABLE_DIALOG_COMMAND } from './commands'
 import {
   $captureTableInsertion,
   $insertTable,
   maxTableColumns,
   maxTableRows,
-  OPEN_INSERT_TABLE_DIALOG_COMMAND,
 } from './table-commands'
 import type { TableInsertion } from './table-commands'
 
