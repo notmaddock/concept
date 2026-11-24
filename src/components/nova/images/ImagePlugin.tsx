@@ -155,6 +155,7 @@ export function ImagePlugin() {
       editor.registerCommand(
         INSERT_IMAGE_FILES_COMMAND,
         (files) => {
+          if (!session.canEdit() || !editor.isEditable()) return false
           const bookmark = captureImageBookmark(editor)
           void ingest(files, { bookmark })
           return true
