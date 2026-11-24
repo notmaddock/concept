@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.3.1](https://github.com/notmaddock/concept/compare/v0.3.0...v0.3.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* audit-driven bug fixes and performance improvements ([adb4f02](https://github.com/notmaddock/concept/commit/adb4f02c923161e78dc74094b0aa233cfa5795c9))
+* **auth:** keep one account row per provider account ([4d8af37](https://github.com/notmaddock/concept/commit/4d8af379de62bc17280b8c9f81be0fbeec43416f))
+* **documents:** count image nodes for the export notice ([2fb15e9](https://github.com/notmaddock/concept/commit/2fb15e91fd68798b34e68918ac8262a17ff6cc39))
+* **documents:** deliver publication hints suppressed by the rate limit ([3da24bb](https://github.com/notmaddock/concept/commit/3da24bb1cd691d014d2a5d3ff19f7b7f0aedc71e))
+* **documents:** keep host:port links through the policy normalizer ([1ad854d](https://github.com/notmaddock/concept/commit/1ad854d5bfb5a463302347f5f2bc7ff793098001))
+* **documents:** keep the canary warning open when its write fails ([4e17c1b](https://github.com/notmaddock/concept/commit/4e17c1b51f6a0d3e0f77ecbf2999bf972f71e6bb))
+* **documents:** reject foreign-scheme urls instead of mangling them ([160ce2d](https://github.com/notmaddock/concept/commit/160ce2d4d97bab5f43ded565da2775c0f2d4dd13))
+* **documents:** reopen lookups torn down mid-fetch ([827b3de](https://github.com/notmaddock/concept/commit/827b3de43364a8f2d99a842ed5736131a6d41605))
+* **documents:** report recovered drive saves accurately ([f647e38](https://github.com/notmaddock/concept/commit/f647e38f47f872ababb7baef8c9630ffacf7b39f))
+* **drive:** single-flight token refreshes and drop the sticky profile cache ([32a6b10](https://github.com/notmaddock/concept/commit/32a6b10c324a85dd9925bda5379ec0769af37127))
+* **nova:** check editability before ingesting image files ([d9e383a](https://github.com/notmaddock/concept/commit/d9e383afd72f0b7be5e690711938641fdfa6483e))
+* **nova:** clamp oversized image blocks to the page container ([66d3ce7](https://github.com/notmaddock/concept/commit/66d3ce762b68d23ce220ae8a372956555bb92b7c))
+* **nova:** delete the selection when cut falls back to the clipboard event ([b636ccf](https://github.com/notmaddock/concept/commit/b636ccfeea73c6517946e3a19585a4724bbd43a7))
+* **nova:** forget measured page heights when pages are removed ([4acd45b](https://github.com/notmaddock/concept/commit/4acd45b6014fa01da21191285b7f1ed72f07d7d6))
+* **nova:** keep plain clipboard fallback when async clipboard is unavailable ([6fa0691](https://github.com/notmaddock/concept/commit/6fa06914ce3f032bb8d32f08e079c9808c904826))
+* **nova:** keep the color swatch fresh on style-only changes ([b76fa89](https://github.com/notmaddock/concept/commit/b76fa89268aa393155e01c64bc9f5d5bf5cdebde))
+* **nova:** select the whole block on rapid multi-click ([1a19ecf](https://github.com/notmaddock/concept/commit/1a19ecf4ce8be0f8c53f862e2fedacedbcc8140d))
+* **realtime:** guard room sends and persist capability changes only ([4c32475](https://github.com/notmaddock/concept/commit/4c32475ec8821841d435603581875b03e44dcfc0))
+* **realtime:** require same-origin websocket upgrades ([a9457a0](https://github.com/notmaddock/concept/commit/a9457a07a3aa075baa452699d520751c4af027b1))
+* **realtime:** reset the ticket retry budget on explicit connect ([c747867](https://github.com/notmaddock/concept/commit/c747867878cfe26d135a3db06f622fc6de8293d1))
+* **realtime:** sync reattached docs and stop endless ticket retries ([e29d572](https://github.com/notmaddock/concept/commit/e29d572913254bd15014405bfab9f74325dc20b7))
+
+
+### Performance Improvements
+
+* **documents:** bound editor connect polling and undo state churn ([cbe1c1f](https://github.com/notmaddock/concept/commit/cbe1c1f1f4fab21a2893d4693cabda4cee4c7013))
+* **documents:** check missing assets after typing settles ([0804c6a](https://github.com/notmaddock/concept/commit/0804c6a5a43c2b02a6bbce99b65172987f06d77d))
+* **documents:** debounce document details recompute ([076ad93](https://github.com/notmaddock/concept/commit/076ad939e1c3b775db8f8df14faa3a42ac7d51d2))
+* **documents:** estimate package size instead of hashing previews ([a7d4667](https://github.com/notmaddock/concept/commit/a7d46671f920a38daa74dc626532ea15829b2117))
+* **nova:** bound per-update plugin work ([2d180fd](https://github.com/notmaddock/concept/commit/2d180fd66b0629ea846ad25689905cfd84c8bb93))
+* **nova:** settle floating link editor updates without listener churn ([4822145](https://github.com/notmaddock/concept/commit/48221453cab591f5bcb35c12e568c255f170b64d))
+
 ## [0.3.0](https://github.com/notmaddock/concept/compare/v0.2.0...v0.3.0) (2026-11-17)
 
 
