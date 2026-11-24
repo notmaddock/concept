@@ -339,7 +339,7 @@ export const documentNavigation: MenuDefinition[] = [
         icon: ListTreeIcon,
         toggle: true,
         checked: (context) => context.outlineOpen,
-        focusAfterSelect: 'action',
+        focusAfterSelect: 'panel',
         onSelect: (context) => context.onOutlineToggle(),
       },
       {
@@ -650,7 +650,10 @@ export function useDocumentNavigationOptions(
       )
     },
     outlineOpen: workspace.outlineOpen,
-    onOutlineToggle: () => workspace.setOutlineOpen((open) => !open),
+    onOutlineToggle: () => {
+      workspace.setOutlineOpen(!workspace.outlineOpen)
+      if (workspace.outlineOpen) workspace.focusEditor()
+    },
     onSetColumns: async (count) => {
       const editor = workspace.editorRef.current
       if (!editor) return

@@ -57,6 +57,7 @@ test('inserts a live contents block, navigates from the sidebar, and reopens sav
   await menu.getByRole('menuitem', { name: 'View', exact: true }).click()
   await page.getByRole('menuitemcheckbox', { name: 'Document outline' }).click()
   const outline = page.getByRole('navigation', { name: 'Document outline' })
+  await expect(outline).toBeFocused()
   await expect(outline.getByRole('link')).toHaveText([
     'First chapter',
     'Second chapter',

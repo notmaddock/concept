@@ -1,5 +1,6 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { ListTreeIcon, XIcon } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type { LexicalEditor } from 'lexical'
 import { Button } from '#/components/ui/button'
@@ -14,9 +15,16 @@ export function DocumentOutline({
   onClose?: () => void
 }) {
   const outline = useOutline(editor)
+  const navigation = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    navigation.current?.focus({ preventScroll: true })
+  }, [])
 
   return (
     <nav
+      ref={navigation}
+      tabIndex={-1}
       aria-label="Document outline"
       className="flex h-full min-h-0 min-w-0 flex-col p-3"
     >

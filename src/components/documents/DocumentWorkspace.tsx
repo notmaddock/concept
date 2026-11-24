@@ -103,6 +103,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     onPageSetupOpenChange,
     outlineOpen,
     setOutlineOpen,
+    focusEditor,
     saveStatus,
     driveLoading,
     driveConnected,
@@ -291,7 +292,10 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                   pageSetupOpen={pageSetupOpen}
                   onPageSetupOpenChange={onPageSetupOpenChange}
                   outlineContainer={outlineOpen ? outlineContainer : null}
-                  onOutlineClose={() => setOutlineOpen(false)}
+                  onOutlineClose={() => {
+                    setOutlineOpen(false)
+                    focusEditor()
+                  }}
                   onConnectDrive={() => {
                     void connectDrive()
                   }}
