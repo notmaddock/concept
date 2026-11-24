@@ -102,3 +102,32 @@ test('updates the live contents when another tab edits a heading', async ({
   ).toBeVisible()
   await second.close()
 })
+
+test('keeps menu labels on one line and gives up shortcut space when narrow', async ({
+  page,
+}) => {
+  await newDocument(page)
+  await page.getByRole('menuitem', { name: 'Edit', exact: true }).click()
+  const menuItem = page.getByRole('menuitem', {
+    name: /^Paste without formatting/,
+  })
+  const label = menuItem.getByText('Paste without formatting', { exact: true })
+  const fits = () =>
+    label.evaluate((element) => {
+      const row = element.parentElement!
+      const box = row.getBoundingClientRect()
+      const key = row.querySelector('kbd')!.getBoundingClientRect()
+      return {
+        wholeLabel: element.scrollWidth <= element.clientWidth,
+        shortcutVisible: key.bottom <= box.bottom + 1 && key.top < box.bottom,
+        oneLine: element.getBoundingClientRect().height <= box.height,
+      }
+    })
+  await expect
+    .poll(fits)
+    .toEqual({ wholeLabel: true, shortcutVisible: true, oneLine: true })
+  await page.setViewportSize({ width: 245, height: 800 })
+  await expect
+    .poll(fits)
+    .toEqual({ wholeLabel: true, shortcutVisible: false, oneLine: true })
+})

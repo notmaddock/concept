@@ -1,4 +1,4 @@
-import { ActionShortcut } from './ActionShortcut'
+import { ActionLabel } from './ActionLabel'
 import { Fragment, useRef } from 'react'
 import type { NavigationMenuItem } from './document-navigation-options'
 import {
@@ -39,7 +39,7 @@ function MenuItems({
             className={`${documentMenuItemClassName} data-disabled:pointer-events-none data-disabled:opacity-50 data-disabled:focus:bg-transparent data-disabled:focus:text-inherit`}
             disabled={item.disabled}
           >
-            <Icon /> {item.label}
+            <Icon /> <ActionLabel>{item.label}</ActionLabel>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
             side="right"
@@ -60,7 +60,12 @@ function MenuItems({
     }
     const label = (
       <>
-        <Icon /> {item.menuLabel ?? item.label}
+        <Icon />
+        <ActionLabel
+          shortcut={item.checked === undefined ? item.shortcut : undefined}
+        >
+          {item.menuLabel ?? item.label}
+        </ActionLabel>
       </>
     )
     return (
@@ -92,7 +97,6 @@ function MenuItems({
             disabled={item.disabled}
           >
             {label}
-            <ActionShortcut shortcut={item.shortcut} />
           </DropdownMenuItem>
         )}
       </Fragment>
@@ -155,7 +159,7 @@ export function DocumentMenu({
         align="start"
         // Returning focus during a switch can reopen the menu being closed.
         finalFocus={() => !actionOwnsFocus.current && restoreFocus}
-        className={`${label === 'Edit' || label === 'Format' ? 'w-80 p-1' : documentMenuContentClassName} ${instant ? 'data-open:animate-none data-closed:animate-none' : ''}`}
+        className={`${label === 'Edit' || label === 'Format' ? 'w-80 p-1' : documentMenuContentClassName} max-w-[calc(100vw-1rem)] ${instant ? 'data-open:animate-none data-closed:animate-none' : ''}`}
       >
         {items.length > 0 ? (
           <MenuItems

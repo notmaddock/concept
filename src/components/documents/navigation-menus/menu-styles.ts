@@ -1,5 +1,6 @@
 export const documentMenuContentClassName = 'w-52 p-1'
-export const documentSubmenuContentClassName = 'w-44 p-1'
+export const documentSubmenuContentClassName =
+  'w-44 max-w-[calc(100vw-1rem)] p-1'
 export const documentMenuItemClassName = 'min-h-7 py-1'
 
 export const documentMenuTriggerClassName =
