@@ -28,8 +28,11 @@ if (!entry) {
  * The entry chunk does not hold the whole initial load. TanStack Start routes
  * and their dependencies are emitted as sibling chunks that the entry
  * references through Vite's `__vite__mapDeps` table and static imports, and
- * the browser fetches them before the app renders. Sum that graph, not just
- * the entry, so a heavy dependency cannot hide in a route chunk.
+ * the browser fetches them before the app renders. Sum those direct
+ * references: each dependency table entry already lists the preloads of its
+ * chunk, so deeper lazy boundaries (dialogs, decorators) stay excluded from
+ * the initial graph, matching BUNDLE_BUDGET.md. The entry can reference
+ * itself through the table, so dedupe against it.
  */
 const entrySource = readFileSync(join(assetsDir, entry), 'utf8')
 const referenced = new Set()
@@ -39,7 +42,7 @@ for (const pattern of [
   /import\("\.\/([^"/]+\.js)"\)/g,
 ]) {
   for (const match of entrySource.matchAll(pattern)) {
-    if (sizes.has(match[1])) referenced.add(match[1])
+    if (match[1] !== entry && sizes.has(match[1])) referenced.add(match[1])
   }
 }
 
@@ -51,6 +54,7 @@ console.log(`Initial graph: ${initial.length} chunks — ${kib(initialBytes)}`)
 console.log(
   `Budgets: entry ${kib(entryBudgetBytes)}, graph ${kib(initialBudgetBytes)}`,
 )
+
 console.log('Largest initial chunks:')
 const largest = initial
   .map((name) => ({ name, bytes: sizes.get(name) }))
