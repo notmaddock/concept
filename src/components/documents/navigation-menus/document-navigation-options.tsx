@@ -99,7 +99,7 @@ type NavigationContext = {
   onInsertContents: () => void
   outlineOpen: boolean
   onOutlineToggle: () => void
-  onSetColumns: (count: ColumnCount) => void
+  onSetColumns: (count: ColumnCount) => Promise<void>
   onPageSetup: () => void
   onWordCount: () => void
   onFind: () => void
@@ -118,7 +118,7 @@ type ActionDefinition = {
   menuLabel?: string
   keywords: string[]
   icon: typeof PlusIcon | typeof DriveIcon
-  focusAfterSelect: 'editor' | 'action'
+  focusAfterSelect: 'editor' | 'action' | 'panel'
   onSelect: (context: NavigationContext) => void | Promise<void>
   disabled?: (context: NavigationContext) => boolean
   toggle?: boolean
@@ -323,7 +323,7 @@ export const documentNavigation: MenuDefinition[] = [
         shortcut: getEditorActionShortcut('find'),
         keywords: ['search', 'replace text', 'find text'],
         icon: SearchIcon,
-        focusAfterSelect: 'action',
+        focusAfterSelect: 'panel',
         onSelect: (context) => context.onFind(),
         separatorBefore: true,
       },
@@ -651,11 +651,12 @@ export function useDocumentNavigationOptions(
     },
     outlineOpen: workspace.outlineOpen,
     onOutlineToggle: () => workspace.setOutlineOpen((open) => !open),
-    onSetColumns: (count) => {
-      workspace.editorRef.current?.dispatchCommand(
-        SET_COLUMN_LAYOUT_COMMAND,
-        count,
-      )
+    onSetColumns: async (count) => {
+      const editor = workspace.editorRef.current
+      if (!editor) return
+      editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, count)
+      await Promise.resolve()
+      if (workspace.editorRef.current === editor) workspace.focusEditor()
     },
     onCreate: workspace.createDocument,
     documentTheme,

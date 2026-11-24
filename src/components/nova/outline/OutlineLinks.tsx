@@ -1,7 +1,27 @@
-import type { LexicalEditor } from 'lexical'
+import { $isHeadingNode } from '@lexical/rich-text'
+import { $getNodeByKey, SKIP_SCROLL_INTO_VIEW_TAG } from 'lexical'
+import type { LexicalEditor, NodeKey } from 'lexical'
 import { cn } from '#/lib/utils'
 import { headingAnchor } from './outline'
 import type { OutlineItem } from './outline'
+
+function jumpToHeading(editor: LexicalEditor, key: NodeKey) {
+  const heading = editor.getElementByKey(key)
+  if (!heading) return
+  if (editor.isEditable()) {
+    editor.getRootElement()?.focus({ preventScroll: true })
+    editor.update(
+      () => {
+        const node = $getNodeByKey(key)
+        if ($isHeadingNode(node)) node.selectStart()
+      },
+      { tag: SKIP_SCROLL_INTO_VIEW_TAG },
+    )
+  } else {
+    heading.focus({ preventScroll: true })
+  }
+  heading.scrollIntoView({ block: 'start', inline: 'nearest' })
+}
 
 export function OutlineLinks({
   editor,
@@ -28,9 +48,7 @@ export function OutlineLinks({
             )}
             onClick={(event) => {
               event.preventDefault()
-              const heading = editor.getElementByKey(item.key)
-              heading?.focus({ preventScroll: true })
-              heading?.scrollIntoView({ block: 'start', inline: 'nearest' })
+              jumpToHeading(editor, item.key)
             }}
           >
             {item.text}

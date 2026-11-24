@@ -24,10 +24,10 @@ import {
 
 function MenuItems({
   items,
-  onEditorAction,
+  onActionFocus,
 }: {
   items: NavigationMenuItem[]
-  onEditorAction: () => void
+  onActionFocus: () => void
 }) {
   const selected = items.find((item) => 'checked' in item && item.checked)
   const content = items.map((item) => {
@@ -48,14 +48,14 @@ function MenuItems({
             sideOffset={4}
             className={documentSubmenuContentClassName}
           >
-            <MenuItems items={item.children} onEditorAction={onEditorAction} />
+            <MenuItems items={item.children} onActionFocus={onActionFocus} />
           </DropdownMenuSubContent>
         </DropdownMenuSub>
       )
     }
 
     const onClick = () => {
-      if (item.focusAfterSelect === 'editor') onEditorAction()
+      if (item.focusAfterSelect !== 'action') onActionFocus()
       void item.onSelect()
     }
     const label = (
@@ -129,12 +129,12 @@ export function DocumentMenu({
   label: string
   items: NavigationMenuItem[]
 }) {
-  const editorAction = useRef(false)
+  const actionOwnsFocus = useRef(false)
   return (
     <DropdownMenu
       open={open}
       onOpenChange={(nextOpen) => {
-        if (nextOpen) editorAction.current = false
+        if (nextOpen) actionOwnsFocus.current = false
         onOpenChange(nextOpen)
       }}
     >
@@ -154,14 +154,14 @@ export function DocumentMenu({
       <DropdownMenuContent
         align="start"
         // Returning focus during a switch can reopen the menu being closed.
-        finalFocus={() => !editorAction.current && restoreFocus}
+        finalFocus={() => !actionOwnsFocus.current && restoreFocus}
         className={`${label === 'Edit' || label === 'Format' ? 'w-80 p-1' : documentMenuContentClassName} ${instant ? 'data-open:animate-none data-closed:animate-none' : ''}`}
       >
         {items.length > 0 ? (
           <MenuItems
             items={items}
-            onEditorAction={() => {
-              editorAction.current = true
+            onActionFocus={() => {
+              actionOwnsFocus.current = true
             }}
           />
         ) : (

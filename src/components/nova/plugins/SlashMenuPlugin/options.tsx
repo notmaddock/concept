@@ -190,7 +190,7 @@ export function getBlockOptions(
       title: 'Table of contents',
       icon: <ListTreeIcon />,
       category: categories.BLOCKS,
-      keywords: ['toc', 'contents', 'headings', 'index'],
+      keywords: ['toc', 'contents', 'index'],
       onSelect: () =>
         editor.dispatchCommand(INSERT_TABLE_OF_CONTENTS_COMMAND, undefined),
     }),

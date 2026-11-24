@@ -126,7 +126,7 @@ it('exposes every menu action to search with the same state and handler', async 
   expect(menuActions.length).toBeGreaterThan(100)
   expect(
     navigation.menus.find((menu) => menu.label === 'Format')?.items,
-  ).toHaveLength(formatSections.length)
+  ).toHaveLength(formatSections.length + 1)
 
   expect(navigation.options).toHaveLength(menuActions.length)
   for (const [index, option] of navigation.options.entries()) {
@@ -260,7 +260,7 @@ it.each(['print', 'export-pdf'])(
 it('shares edit shortcuts with menus and action search', async () => {
   await render()
   const edit = navigation.menus.find((menu) => menu.label === 'Edit')!
-  expect(edit.items).toHaveLength(9)
+  expect(edit.items).toHaveLength(10)
   for (const item of edit.items) {
     if ('children' in item) continue
     expect(item.shortcut?.keys.length).toBeGreaterThan(0)
