@@ -3,11 +3,11 @@ import {
   $getParagraphStyle,
   $setParagraphStyle,
 } from '#/components/nova/paragraph-format'
+import { $isValidRange } from '#/components/nova/utils/selection'
 import type { RefObject } from 'react'
 import {
   $createParagraphNode,
   $getSelection,
-  $getNodeByKey,
   $isElementNode,
   $isRangeSelection,
   $isTextNode,
@@ -249,15 +249,10 @@ export function useFormatActions(
             savedSelection.current = currentSelection.clone()
           else if (currentSelection !== null) savedSelection.current = null
           const saved = savedSelection.current
-          if (
-            saved &&
-            (!$getNodeByKey(saved.anchor.key) ||
-              !$getNodeByKey(saved.focus.key))
-          )
-            savedSelection.current = null
-          const selection = currentSelection ?? savedSelection.current
-          const enabled = editor.isEditable() && $isRangeSelection(selection)
-          const summary = $isRangeSelection(selection)
+          if (saved && !$isValidRange(saved)) savedSelection.current = null
+          const selection = savedSelection.current
+          const enabled = editor.isEditable() && selection !== null
+          const summary = selection
             ? $selectionSummary(editorState, selection)
             : null
           const checked = summary
@@ -311,15 +306,21 @@ export function useFormatActions(
   async function run(action: FormatAction) {
     const editor = editorRef.current
     if (!editor || !state.enabled) return
-    const selection = editor
-      .getEditorState()
-      .read(() => $getSelection()?.clone() ?? savedSelection.current?.clone())
+    const selection = editor.getEditorState().read(() => {
+      const range = $getSelection() ?? savedSelection.current
+      return $isRangeSelection(range) && $isValidRange(range)
+        ? range.clone()
+        : null
+    })
+    if (!selection) return
     await Promise.resolve()
+    if (editorRef.current !== editor || !editor.isEditable()) return
     // Focus before committing: restoring the DOM selection can synchronously fire focus events.
     editor.getRootElement()?.focus({ preventScroll: true })
     editor.update(
       () => {
-        if (selection) $setSelection(selection)
+        if (!$isValidRange(selection)) return
+        $setSelection(selection)
         if (action.kind === 'align')
           editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, action.value)
         else if (action.kind === 'indent')
