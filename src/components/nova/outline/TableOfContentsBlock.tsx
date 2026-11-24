@@ -1,7 +1,7 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { useLexicalEditable } from '@lexical/react/useLexicalEditable'
 import { useLexicalNodeSelection } from '@lexical/react/useLexicalNodeSelection'
-import { $getNodeByKey, HISTORY_PUSH_TAG } from 'lexical'
+import { $getNodeByKey } from 'lexical'
 import type { NodeKey } from 'lexical'
 import { XIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -9,6 +9,7 @@ import { cn } from '#/lib/utils'
 import { OutlineLinks } from './OutlineLinks'
 import { contentsEmpty, contentsTitle } from './outline'
 import { useOutline } from './use-outline'
+import { updateDocumentEdit } from '../document-edit'
 
 export function TableOfContentsBlock({ nodeKey }: { nodeKey: NodeKey }) {
   const [editor] = useLexicalComposerContext()
@@ -18,15 +19,12 @@ export function TableOfContentsBlock({ nodeKey }: { nodeKey: NodeKey }) {
 
   function remove() {
     if (!editor.isEditable()) return
-    editor.update(
-      () => {
-        const node = $getNodeByKey(nodeKey)
-        if (!node) return
-        node.selectNext(0, 0)
-        node.remove()
-      },
-      { tag: HISTORY_PUSH_TAG },
-    )
+    updateDocumentEdit(editor, () => {
+      const node = $getNodeByKey(nodeKey)
+      if (!node) return
+      node.selectNext(0, 0)
+      node.remove()
+    })
     editor.focus()
   }
 

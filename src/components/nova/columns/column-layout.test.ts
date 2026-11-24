@@ -15,7 +15,7 @@ import {
   DELETE_CHARACTER_COMMAND,
   KEY_TAB_COMMAND,
 } from 'lexical'
-import type { NodeKey } from 'lexical'
+import type { LexicalEditor, NodeKey } from 'lexical'
 import { afterEach, describe, expect, it } from 'vitest'
 import { sanitizedHtml } from '../clipboard/html'
 import { $isPageBreakNode } from '../pages/PageBreakNode'
@@ -29,6 +29,7 @@ import {
   ColumnLayoutExtension,
   SET_COLUMN_LAYOUT_COMMAND,
 } from './column-layout'
+import type { ColumnCount } from './column-layout'
 
 const testExtension = defineExtension({
   name: 'test-columns',
@@ -57,6 +58,15 @@ function $getColumns() {
 function $selectionKey() {
   const selection = $getSelection()
   return $isRangeSelection(selection) ? selection.anchor.key : undefined
+}
+
+function setLayout(editor: LexicalEditor, count: ColumnCount) {
+  editor.update(
+    () => editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, count),
+    {
+      discrete: true,
+    },
+  )
 }
 
 const cleanups: Array<() => void> = []
@@ -157,27 +167,29 @@ describe('column layouts', () => {
 
   it('merges extra columns and unwraps them in reading order without dropping their text', () => {
     const { editor } = mountEditor()
+    editor.update(() => $getRoot().selectEnd(), { discrete: true })
+    setLayout(editor, 3)
     let textKey: NodeKey | undefined
     editor.update(
       () => {
-        $getRoot().selectEnd()
-        editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, 3)
         const columns = $getColumns()
         columns.forEach((column, index) =>
           column.splice(0, 1, [$paragraph(`Column ${index + 1}`)]),
         )
         textKey = columns[2].getFirstDescendant()?.getKey()
         columns[2].selectEnd()
-        editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, 2)
-        expect($getColumns().map((column) => column.getTextContent())).toEqual([
-          'Column 1',
-          'Column 2\n\nColumn 3',
-        ])
-        expect($selectionKey()).toBe(textKey)
-        editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, 1)
       },
       { discrete: true },
     )
+    setLayout(editor, 2)
+    editor.read(() => {
+      expect($getColumns().map((column) => column.getTextContent())).toEqual([
+        'Column 1',
+        'Column 2\n\nColumn 3',
+      ])
+      expect($selectionKey()).toBe(textKey)
+    })
+    setLayout(editor, 1)
 
     editor.read(() => {
       expect($getRoot().getChildren().filter($isColumnLayoutNode)).toHaveLength(
@@ -195,10 +207,10 @@ describe('column layouts', () => {
 
   it('preserves text at column boundaries and inserts a page break after the section', () => {
     const { editor } = mountEditor()
+    editor.update(() => $getRoot().selectEnd(), { discrete: true })
+    setLayout(editor, 2)
     editor.update(
       () => {
-        $getRoot().selectEnd()
-        editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, 2)
         const [left, right] = $getColumns()
         left.splice(0, 1, [$paragraph('Left')])
         right.splice(0, 1, [$paragraph('Right')])
@@ -220,9 +232,7 @@ describe('column layouts', () => {
     const { editor } = mountEditor()
     editor.update(() => $getRoot().selectEnd(), { discrete: true })
     editor.update(() => $setSelection(null), { discrete: true })
-    editor.update(() => editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, 2), {
-      discrete: true,
-    })
+    setLayout(editor, 2)
     expect(editor.read(() => $getColumns().length)).toBe(2)
 
     editor.setEditable(false)
@@ -237,10 +247,10 @@ describe('column layouts', () => {
 
   it('round-trips native state and sanitized HTML with structured content', () => {
     const { editor } = mountEditor()
+    editor.update(() => $getRoot().selectEnd(), { discrete: true })
+    setLayout(editor, 3)
     editor.update(
       () => {
-        $getRoot().selectEnd()
-        editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, 3)
         const [first, second] = $getColumns()
         first.splice(0, 1, [
           $createHeadingNode('h3').append($createTextNode('Summary')),
@@ -283,11 +293,11 @@ describe('column layouts', () => {
 
   it('keeps the whole layout when copied and copies ordinary text from one column', () => {
     const { editor } = mountEditor()
+    editor.update(() => $getRoot().selectEnd(), { discrete: true })
+    setLayout(editor, 2)
     editor.update(
       () => {
         const root = $getRoot()
-        root.selectEnd()
-        editor.dispatchCommand(SET_COLUMN_LAYOUT_COMMAND, 2)
         const [first, second] = $getColumns()
         const left = $createTextNode('Left text')
         const right = $createTextNode('Right text')

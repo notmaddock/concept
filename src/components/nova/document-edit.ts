@@ -2,7 +2,7 @@ import { HISTORY_PUSH_TAG } from 'lexical'
 import type { EditorUpdateOptions, LexicalEditor } from 'lexical'
 import type { UndoManager } from 'yjs'
 
-export function updateImageEdit(
+export function updateDocumentEdit(
   editor: LexicalEditor,
   update: () => void,
   options: EditorUpdateOptions = {},

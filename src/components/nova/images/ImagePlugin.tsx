@@ -32,7 +32,7 @@ import {
   REPLACE_IMAGE_COMMAND,
 } from './commands'
 import { $insertImageBlocks } from './insert-blocks'
-import { updateImageEdit } from './image-edit'
+import { updateDocumentEdit } from '../document-edit'
 import { hasImageDrop, imageDropRange } from './drop'
 
 export function ImagePlugin() {
@@ -65,7 +65,7 @@ export function ImagePlugin() {
             if (!editor.isEditable() || !session.canEdit())
               throw new Error('This document is read-only.')
             let commitError: Error | undefined
-            updateImageEdit(
+            updateDocumentEdit(
               editor,
               () => {
                 try {
@@ -243,7 +243,7 @@ export function ImagePlugin() {
             const images = selection.getNodes().filter($isImageNode)
             if (!images.length) return false
             event.preventDefault()
-            updateImageEdit(editor, () =>
+            updateDocumentEdit(editor, () =>
               images.forEach((node) => node.remove()),
             )
             return true
@@ -261,7 +261,7 @@ export function ImagePlugin() {
           if (!node) return false
           event?.preventDefault()
           const paragraph = $createParagraphNode()
-          updateImageEdit(editor, () => {
+          updateDocumentEdit(editor, () => {
             node.insertAfter(paragraph)
             paragraph.selectStart()
           })

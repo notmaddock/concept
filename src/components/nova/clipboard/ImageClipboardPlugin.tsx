@@ -24,7 +24,7 @@ import { useDocumentMedia } from '../media/document-media-context'
 import { captureImageBookmark, restoreImageBookmark } from '../images/bookmark'
 import { INSERT_IMAGE_FILES_COMMAND } from '../images/commands'
 import { prepareImage } from '../images/ingestion'
-import { updateImageEdit } from '../images/image-edit'
+import { updateDocumentEdit } from '../document-edit'
 import {
   embedImageData,
   imageTransferLimits,
@@ -54,7 +54,7 @@ export function ImageClipboardPlugin() {
       )
     const updateAtBookmark = (bookmark: ImageBookmark, commit: () => void) => {
       let failure: unknown
-      updateImageEdit(
+      updateDocumentEdit(
         editor,
         () => {
           try {

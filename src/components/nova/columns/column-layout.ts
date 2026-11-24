@@ -2,7 +2,6 @@ import { $isCodeNode } from '@lexical/code'
 import { $isListNode } from '@lexical/list'
 import { $insertNodeToNearestRoot } from '@lexical/utils'
 import {
-  $addUpdateTag,
   $createParagraphNode,
   $findMatchingParent,
   $getNearestRootOrShadowRoot,
@@ -16,7 +15,6 @@ import {
   createCommand,
   defineExtension,
   DELETE_CHARACTER_COMMAND,
-  HISTORY_PUSH_TAG,
   KEY_TAB_COMMAND,
   mergeRegister,
 } from 'lexical'
@@ -30,6 +28,7 @@ import { toast } from 'sonner'
 import { $isPageBreakNode } from '../pages/PageBreakNode'
 import { $isPageContentNode } from '../pages/PageContentNode'
 import { $isValidRange } from '../utils/selection'
+import { updateDocumentEdit } from '../document-edit'
 import {
   $createColumnLayoutNode,
   $createColumnNode,
@@ -188,7 +187,6 @@ function $resizeLayout(
   if (columns.length === count) return
 
   const bookmark = selection.clone()
-  $addUpdateTag(HISTORY_PUSH_TAG)
   if (count === 1) {
     const firstBlock = $unwrapLayout(layout)
     if (!$restoreRange(bookmark)) firstBlock?.selectStart()
@@ -242,7 +240,6 @@ function $setColumnLayout(count: ColumnCount, selection: RangeSelection) {
     toast.error('Choose text within one page or column section.')
     return
   }
-  $addUpdateTag(HISTORY_PUSH_TAG)
   $createLayout(blocks, count)
 }
 
@@ -298,13 +295,15 @@ export const ColumnLayoutExtension = defineExtension({
         SET_COLUMN_LAYOUT_COMMAND,
         (count) => {
           if (!editor.isEditable()) return false
-          const current = $getSelection()
-          const selection = current ?? savedSelection?.clone()
-          if (!$isRangeSelection(selection) || !$restoreRange(selection)) {
-            toast.error('Choose a text position for the columns.')
-            return true
-          }
-          $setColumnLayout(count, selection)
+          updateDocumentEdit(editor, () => {
+            const current = $getSelection()
+            const selection = current ?? savedSelection?.clone()
+            if (!$isRangeSelection(selection) || !$restoreRange(selection)) {
+              toast.error('Choose a text position for the columns.')
+              return
+            }
+            $setColumnLayout(count, selection)
+          })
           return true
         },
         COMMAND_PRIORITY_HIGH,

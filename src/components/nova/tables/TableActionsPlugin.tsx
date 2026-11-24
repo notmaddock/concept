@@ -14,6 +14,7 @@ import {
 } from '#/components/ui/dropdown-menu'
 import { $applyTableAction, $getTableActionTarget } from './table-actions'
 import type { TableAction, TableActionTarget } from './table-actions'
+import { updateDocumentEdit } from '../document-edit'
 
 function sameTarget(
   first: TableActionTarget | null,
@@ -145,20 +146,15 @@ export function TableActionsPlugin() {
 
   const run = (action: TableAction) => {
     if (!menuTarget || !editor.isEditable()) return
-    editor.update(
-      () => {
-        try {
-          $applyTableAction(action, menuTarget)
-        } catch (cause) {
-          toast.error(
-            cause instanceof Error
-              ? cause.message
-              : 'Could not edit the table.',
-          )
-        }
-      },
-      { discrete: true },
-    )
+    updateDocumentEdit(editor, () => {
+      try {
+        $applyTableAction(action, menuTarget)
+      } catch (cause) {
+        toast.error(
+          cause instanceof Error ? cause.message : 'Could not edit the table.',
+        )
+      }
+    })
   }
 
   return (

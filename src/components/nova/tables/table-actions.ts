@@ -75,24 +75,30 @@ export function $applyTableAction(
 ) {
   const anchor = $getNodeByKey(target.anchorKey)
   const focus = $getNodeByKey(target.cellKey)
-  const table = $isTableCellNode(focus) && $findTableNode(focus)
+  const table = $isTableCellNode(focus) ? $findTableNode(focus) : null
   if (
     !$isTableCellNode(anchor) ||
     !anchor.isAttached() ||
-    !focus?.isAttached() ||
+    !$isTableCellNode(focus) ||
+    !focus.isAttached() ||
     !table ||
     table.getKey() !== target.tableKey ||
-    !table.is($findTableNode(anchor)) ||
-    !$isTableCellNode(focus)
+    !table.is($findTableNode(anchor))
   ) {
     throw new Error('The table selection changed. Select the cells again.')
   }
 
   $addUpdateTag(HISTORY_PUSH_TAG)
   const live = $getTableActionTarget()
-  if (live?.anchorKey !== target.anchorKey || live.cellKey !== target.cellKey) {
-    if (anchor.is(focus)) focus.selectStart()
-    else $setSelection($createTableSelectionFrom(table, anchor, focus))
+  if (anchor.is(focus)) {
+    if (live?.anchorKey !== target.anchorKey || live.cellKey !== target.cellKey)
+      focus.selectStart()
+  } else if (
+    !$isTableSelection($getSelection()) ||
+    live?.anchorKey !== target.anchorKey ||
+    live.cellKey !== target.cellKey
+  ) {
+    $setSelection($createTableSelectionFrom(table, anchor, focus))
   }
   const parent = table.getParentOrThrow()
   switch (action) {

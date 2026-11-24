@@ -4,6 +4,7 @@ import {
   $createTableSelectionFrom,
   $isTableCellNode,
   $isTableNode,
+  $isTableRowNode,
   TableCellHeaderStates,
   TableExtension,
 } from '@lexical/table'
@@ -53,7 +54,10 @@ function $table() {
 }
 
 function $cell(row: number, column: number) {
-  const cell = $table().getChildAtIndex(row)?.getChildAtIndex(column)
+  const tableRow = $table().getChildAtIndex(row)
+  const cell = $isTableRowNode(tableRow)
+    ? tableRow.getChildAtIndex(column)
+    : null
   if (!$isTableCellNode(cell)) throw new Error('Expected a cell.')
   return cell
 }

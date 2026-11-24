@@ -1,6 +1,5 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import {
-  $addUpdateTag,
   $getSelection,
   $isRangeSelection,
   $setSelection,
@@ -14,6 +13,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
+import { updateDocumentEdit } from '../document-edit'
 import { OPEN_FIND_COMMAND } from './commands'
 import { $findDocumentMatches, $replaceDocumentMatch } from './document-matches'
 import type { DocumentMatch, MatchPoint } from './document-matches'
@@ -120,16 +120,24 @@ function FindPanel({
 
   function replace(all: boolean) {
     if (!editor.isEditable()) return
-    editor.update(() => {
-      const fresh = $findDocumentMatches(query, matchCase)
-      const targets = all ? fresh.reverse() : fresh.slice(current, current + 1)
-      if (!targets.length) return
-      $addUpdateTag(HISTORY_PUSH_TAG)
-      $addUpdateTag(SKIP_DOM_SELECTION_TAG)
-      for (const match of targets) $replaceDocumentMatch(match, replacement)
-      $setSelection(null)
-    })
-    if (all) setIndex(0)
+    updateDocumentEdit(
+      editor,
+      () => {
+        const fresh = $findDocumentMatches(query, matchCase)
+        const targets = all
+          ? fresh.reverse()
+          : fresh.slice(current, current + 1)
+        if (!targets.length) return
+        for (const match of targets) $replaceDocumentMatch(match, replacement)
+        $setSelection(null)
+        const remaining = all
+          ? 0
+          : $findDocumentMatches(query, matchCase).length
+        const added = Math.max(0, remaining - fresh.length + 1)
+        setIndex(remaining ? (current + added) % remaining : 0)
+      },
+      { tag: [HISTORY_PUSH_TAG, SKIP_DOM_SELECTION_TAG] },
+    )
   }
 
   function dismiss() {

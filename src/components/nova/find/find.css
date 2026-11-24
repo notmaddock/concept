@@ -1,9 +1,11 @@
-::highlight(concept-find) {
-  color: #211b0b;
-  background-color: #ffe192;
-}
+@media screen {
+  ::highlight(concept-find) {
+    color: #211b0b;
+    background-color: #ffe192;
+  }
 
-::highlight(concept-find-active) {
-  color: #231600;
-  background-color: #ffab37;
+  ::highlight(concept-find-active) {
+    color: #231600;
+    background-color: #ffab37;
+  }
 }

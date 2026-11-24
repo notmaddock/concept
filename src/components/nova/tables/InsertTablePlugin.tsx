@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
+import { updateDocumentEdit } from '../document-edit'
 import {
   $captureTableInsertion,
   $insertTable,
@@ -71,26 +72,23 @@ export function InsertTablePlugin() {
               event.preventDefault()
               const data = new FormData(event.currentTarget)
               if (!editor.isEditable()) return
-              editor.update(
-                () => {
-                  try {
-                    $insertTable(
-                      target,
-                      Number(data.get('rows')),
-                      Number(data.get('columns')),
-                      data.has('header'),
-                    )
-                    setTarget(null)
-                  } catch (cause) {
-                    toast.error(
-                      cause instanceof Error
-                        ? cause.message
-                        : 'Could not insert the table.',
-                    )
-                  }
-                },
-                { discrete: true },
-              )
+              updateDocumentEdit(editor, () => {
+                try {
+                  $insertTable(
+                    target,
+                    Number(data.get('rows')),
+                    Number(data.get('columns')),
+                    data.has('header'),
+                  )
+                  setTarget(null)
+                } catch (cause) {
+                  toast.error(
+                    cause instanceof Error
+                      ? cause.message
+                      : 'Could not insert the table.',
+                  )
+                }
+              })
             }}
           >
             <div className="grid grid-cols-2 gap-4">
@@ -119,7 +117,7 @@ export function InsertTablePlugin() {
               </label>
             </div>
             <label className="flex items-center gap-2">
-              <Checkbox name="header" defaultChecked />
+              <Checkbox name="header" aria-label="Header row" defaultChecked />
               Header row
             </label>
             <DialogFooter>
