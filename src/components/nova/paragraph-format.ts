@@ -6,7 +6,6 @@ import {
   DEFAULT_EDITOR_DOM_CONFIG,
 } from 'lexical'
 import type { ElementNode, LexicalNode } from 'lexical'
-import { $decorateOutlineHeading } from './outline/outline'
 
 const properties = ['line-height', 'margin-top', 'margin-bottom'] as const
 // ElementNode's generic style is not serialized; NodeState survives save and collaboration.
@@ -51,7 +50,6 @@ export const paragraphDOM = {
     dom: HTMLElement,
   ) => {
     $decorateParagraph(node, dom)
-    $decorateOutlineHeading(node, dom)
   },
   $exportDOM: (
     node: LexicalNode,

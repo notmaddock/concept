@@ -1,6 +1,7 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
+import { $getSelection, $isRangeSelection } from 'lexical'
 import type { EditorState, LexicalEditor } from 'lexical'
-import { $readOutline, nestOutline } from './outline'
+import { $currentHeading, $readOutline, nestOutline } from './outline'
 import type { OutlineHeading, OutlineItem } from './outline'
 
 const emptyOutline: OutlineItem[] = []
@@ -21,6 +22,8 @@ function createOutlineStore(editor: LexicalEditor) {
       next.every(
         (item, index) =>
           item.key === headings[index].key &&
+          item.id === headings[index].id &&
+          item.page === headings[index].page &&
           item.text === headings[index].text &&
           item.level === headings[index].level,
       )
@@ -59,6 +62,22 @@ function createOutlineStore(editor: LexicalEditor) {
       }
     },
   }
+}
+
+export function useCurrentHeading(editor: LexicalEditor) {
+  const [key, setKey] = useState(() =>
+    editor.getEditorState().read($currentHeading),
+  )
+  useEffect(
+    () =>
+      editor.registerUpdateListener(({ editorState }) => {
+        editorState.read(() => {
+          if ($isRangeSelection($getSelection())) setKey($currentHeading())
+        })
+      }),
+    [editor],
+  )
+  return key
 }
 
 const stores = new WeakMap<

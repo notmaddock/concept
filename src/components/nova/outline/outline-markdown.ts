@@ -3,7 +3,7 @@ import {
   $isTableOfContentsNode,
   TableOfContentsNode,
 } from './TableOfContentsNode'
-import { $readOutline, contentsTitle, nestOutline } from './outline'
+import { $readOutline, nestOutline } from './outline'
 import type { OutlineItem } from './outline'
 
 function markdownEntries(items: readonly OutlineItem[], indent = ''): string[] {
@@ -18,7 +18,7 @@ export const tableOfContentsMarkdown: ElementTransformer = {
   export: (node) => {
     if (!$isTableOfContentsNode(node)) return null
     const entries = markdownEntries(nestOutline($readOutline()))
-    return [`**${contentsTitle}**`, '', ...entries].join('\n').trimEnd()
+    return entries.join('\n')
   },
   regExp: /$^/,
   replace: () => {},

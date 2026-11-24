@@ -26,7 +26,8 @@ import {
   $isTableOfContentsNode,
   TableOfContentsNode,
 } from './TableOfContentsNode'
-import { $decorateOutlineHeading, $readOutline } from './outline'
+import { $readOutline } from './outline'
+import { HeadingNavigationPlugin } from './HeadingNavigationPlugin'
 import { TableOfContentsExtension } from './table-of-contents-extension'
 import { INSERT_TABLE_OF_CONTENTS_COMMAND } from './commands'
 
@@ -34,13 +35,6 @@ const testExtension = defineExtension({
   name: 'test-outline',
   dependencies: [RichTextExtension, TableOfContentsExtension],
   nodes: [TableOfContentsNode],
-  init(config) {
-    config.dom = {
-      ...config.dom,
-      $decorateDOM: (node, _previous, dom) =>
-        $decorateOutlineHeading(node, dom),
-    }
-  },
 })
 
 function EditorRef({
@@ -80,6 +74,7 @@ describe('document outline and table of contents', () => {
             contentEditable={<ContentEditable />}
           >
             <EditorRef setEditor={(value) => (editor = value)} />
+            <HeadingNavigationPlugin ready editable />
             <DocumentOutlinePlugin container={sidebar} />
           </LexicalExtensionComposer>,
         )
@@ -109,6 +104,7 @@ describe('document outline and table of contents', () => {
       await act(async () => editor.update(appendHeadings, { discrete: true }))
       const block = host.querySelector('nav')!
       expect(block.querySelectorAll('li > ul a')).toHaveLength(1)
+      expect(block.querySelector('p')).toBeNull()
       expect(sidebar.querySelectorAll('a')).toHaveLength(3)
       const duplicateLinks = [...sidebar.querySelectorAll('a')].filter(
         (anchor) => anchor.textContent === 'Shared heading',
@@ -155,6 +151,7 @@ describe('document outline and table of contents', () => {
       expect(sidebar.querySelectorAll('a')).toHaveLength(2)
     } finally {
       await act(async () => root.unmount())
+      window.history.replaceState(null, '', window.location.pathname)
       host.remove()
       sidebar.remove()
     }
@@ -196,7 +193,7 @@ describe('document outline and table of contents', () => {
       'markdown',
     )
     expect(markdown).toContain(
-      '**Table of contents**\n\n- Shared heading\n  - Nested \\[entry\\]\n- Shared heading',
+      '- Shared heading\n  - Nested \\[entry\\]\n- Shared heading',
     )
     const restored = createEditor({ nodes: [HeadingNode, TableOfContentsNode] })
     restored.update(() => convertHtml(html, restored), { discrete: true })

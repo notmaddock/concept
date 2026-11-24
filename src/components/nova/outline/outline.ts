@@ -1,15 +1,35 @@
 import { $isHeadingNode } from '@lexical/rich-text'
-import { $getRoot, $isElementNode } from 'lexical'
-import type { ElementNode, LexicalNode, NodeKey } from 'lexical'
+import {
+  $getRoot,
+  $getSelection,
+  $getState,
+  $isElementNode,
+  $isRangeSelection,
+  $setState,
+  createState,
+} from 'lexical'
+import type { HeadingNode } from '@lexical/rich-text'
+import type { LexicalNode, NodeKey } from 'lexical'
+import { $getPageSetup } from '#/lib/documents/page-setup'
 
 export const contentsTitle = 'Table of contents'
 export const contentsEmpty = 'Add headings to build the table of contents.'
 export const contentsAttribute = 'data-concept-table-of-contents'
 
+const headingId = createState('headingId', {
+  parse: (value) =>
+    typeof value === 'string' && /^concept-heading-[a-z0-9-]+$/.test(value)
+      ? value
+      : '',
+  resetOnCopyNode: true,
+})
+
 export interface OutlineHeading {
   key: NodeKey
   text: string
   level: number
+  id: string
+  page: number | null
 }
 
 export interface OutlineItem extends OutlineHeading {
@@ -17,26 +37,95 @@ export interface OutlineItem extends OutlineHeading {
   children: OutlineItem[]
 }
 
-export function $readOutline(): OutlineHeading[] {
-  const headings: OutlineHeading[] = []
-  const visit = (parent: ElementNode) => {
-    for (const node of parent.getChildren()) {
-      if ($isHeadingNode(node)) {
-        const text = node.getTextContent().replace(/\s+/g, ' ').trim()
-        if (text) {
-          headings.push({
-            key: node.getKey(),
-            text,
-            level: Number(node.getTag().slice(1)),
-          })
-        }
-      } else if ($isElementNode(node)) {
-        visit(node)
-      }
+function headingBase(text: string) {
+  let hash = 2166136261
+  for (const character of text) {
+    hash = Math.imul(hash ^ character.charCodeAt(0), 16777619)
+  }
+  return `concept-heading-${(hash >>> 0).toString(36)}`
+}
+
+function $collectHeadings() {
+  const headings: Array<{
+    node: HeadingNode
+    text: string
+    page: number | null
+  }> = []
+  const paged = $getPageSetup().mode === 'paper'
+  let pageNumber = 0
+  const visit = (node: LexicalNode, page: number | null) => {
+    if ($isHeadingNode(node)) {
+      const text = node.getTextContent().replace(/\s+/g, ' ').trim()
+      if (text) headings.push({ node, text, page })
+    } else if ($isElementNode(node)) {
+      const currentPage =
+        paged && node.getType() === 'page' ? ++pageNumber : page
+      for (const child of node.getChildren()) visit(child, currentPage)
     }
   }
-  visit($getRoot())
-  return headings
+  visit($getRoot(), null)
+  const reserved = new Set(
+    headings.map(({ node }) => $getState(node, headingId)),
+  )
+  const used = new Set<string>()
+  const nextIndex = new Map<string, number>()
+  return headings.map(({ node, text, page }) => {
+    let id = $getState(node, headingId)
+    if (!id || used.has(id)) {
+      const base = headingBase(text)
+      let index = nextIndex.get(base) ?? 1
+      do id = `${base}-${index++}`
+      while (reserved.has(id) || used.has(id))
+      nextIndex.set(base, index)
+    }
+    used.add(id)
+    return { node, id, text, page }
+  })
+}
+
+export function $persistHeadingIds() {
+  for (const { node, id } of $collectHeadings()) {
+    if ($getState(node, headingId) !== id) $setState(node, headingId, id)
+  }
+}
+
+export function $readOutline(): OutlineHeading[] {
+  return $collectHeadings().map(({ node, id, text, page }) => ({
+    key: node.getKey(),
+    id,
+    text,
+    page,
+    level: Number(node.getTag().slice(1)),
+  }))
+}
+
+export function $currentHeading(): NodeKey | null {
+  const selection = $getSelection()
+  if (!$isRangeSelection(selection)) return null
+  const { anchor } = selection
+  let node: LexicalNode | null = anchor.getNode()
+  if (
+    $isElementNode(node) &&
+    anchor.type === 'element' &&
+    anchor.offset > 0 &&
+    !$isHeadingNode(node)
+  ) {
+    const previous = node.getChildAtIndex(anchor.offset - 1)
+    node = $isElementNode(previous)
+      ? (previous.getLastDescendant() ?? previous)
+      : (previous ?? node)
+  }
+  while (node) {
+    if ($isHeadingNode(node) && node.getTextContent().trim())
+      return node.getKey()
+    const previous = node.getPreviousSibling()
+    node = previous
+      ? $isElementNode(previous)
+        ? (previous.getLastDescendant() ?? previous)
+        : previous
+      : node.getParent()
+  }
+  return null
 }
 
 export function nestOutline(
@@ -54,17 +143,4 @@ export function nestOutline(
     ancestors.push(item)
   }
   return outline
-}
-
-export function headingAnchor(key: NodeKey) {
-  return `concept-live-heading-${key}`
-}
-
-export function $decorateOutlineHeading(
-  node: LexicalNode,
-  element: HTMLElement,
-) {
-  if (!$isHeadingNode(node)) return
-  element.id = headingAnchor(node.getKey())
-  element.tabIndex = -1
 }

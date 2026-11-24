@@ -1,9 +1,20 @@
-import { $create, $getDocument, DecoratorNode } from 'lexical'
+import {
+  $create,
+  $getDocument,
+  $getState,
+  $setState,
+  DecoratorNode,
+} from 'lexical'
 import type { DOMConversionMap, DOMExportOutput, LexicalNode } from 'lexical'
 import type { JSX } from 'react'
 import { TableOfContentsBlock } from './TableOfContentsBlock'
 import { contentsAttribute } from './outline'
 import { $createExportedContents } from './outline-html'
+import {
+  contentsStyleAttribute,
+  contentsStyleState,
+  parseContentsStyle,
+} from './contents-style'
 
 export class TableOfContentsNode extends DecoratorNode<JSX.Element> {
   $config() {
@@ -16,7 +27,13 @@ export class TableOfContentsNode extends DecoratorNode<JSX.Element> {
         element.getAttribute(contentsAttribute) === 'true'
           ? {
               conversion: () => ({
-                node: $createTableOfContentsNode(),
+                node: $setState(
+                  $createTableOfContentsNode(),
+                  contentsStyleState,
+                  parseContentsStyle(
+                    element.getAttribute(contentsStyleAttribute),
+                  ),
+                ),
                 after: () => [],
               }),
               priority: 3,
@@ -38,11 +55,21 @@ export class TableOfContentsNode extends DecoratorNode<JSX.Element> {
   }
 
   decorate(): JSX.Element {
-    return <TableOfContentsBlock nodeKey={this.getKey()} />
+    return (
+      <TableOfContentsBlock
+        nodeKey={this.getKey()}
+        style={$getState(this, contentsStyleState)}
+      />
+    )
   }
 
   exportDOM(): DOMExportOutput {
-    return { element: $createExportedContents($getDocument()) }
+    return {
+      element: $createExportedContents(
+        $getDocument(),
+        $getState(this, contentsStyleState),
+      ),
+    }
   }
 }
 

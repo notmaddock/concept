@@ -1,5 +1,24 @@
 import { expect, it } from 'vitest'
-import { documentHash, documentIdFromHash } from './document-url'
+import {
+  documentHash,
+  documentIdFromHash,
+  headingFragment,
+  headingFromFragment,
+} from './document-url'
+
+it('keeps the document identity in a heading link on the home route', () => {
+  const heading = 'concept-heading-abc-2'
+  const fragment = headingFragment(heading, {
+    pathname: '/',
+    hash: '#Gfile_123',
+  })
+  expect(fragment).toBe(`Gfile_123~${heading}`)
+  expect(documentIdFromHash(fragment)).toBe('Gfile_123')
+  expect(headingFromFragment(`#${fragment}`)).toBe(heading)
+  expect(headingFragment(heading, { pathname: '/d/Gfile_123', hash: '' })).toBe(
+    heading,
+  )
+})
 
 it.each([
   [

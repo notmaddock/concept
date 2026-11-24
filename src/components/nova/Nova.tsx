@@ -22,6 +22,7 @@ import { WordCountPlugin } from './statistics/WordCountPlugin'
 import { FindPlugin } from './find/FindPlugin'
 import { TableControlsPlugin } from './tables/TableControlsPlugin'
 import { DocumentOutlinePlugin } from './outline/DocumentOutlinePlugin'
+import { HeadingNavigationPlugin } from './outline/HeadingNavigationPlugin'
 
 export type { EditorMode } from './mode'
 
@@ -92,6 +93,11 @@ export function Nova({
       <EditorShortcutsPlugin />
       <WordCountPlugin />
       <FindPlugin />
+      <HeadingNavigationPlugin
+        ready={ready}
+        editable={isEditable}
+        documentId={documentId}
+      />
       <DocumentOutlinePlugin
         container={outlineContainer}
         onClose={onOutlineClose}
