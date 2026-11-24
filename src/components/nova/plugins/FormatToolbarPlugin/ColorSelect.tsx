@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import {
   $getSelection,
   $isRangeSelection,
@@ -44,11 +44,15 @@ export function ColorSelect({
     ...palette,
   ]
   const [currentColor, setCurrentColor] = useState<string | null>(null)
+  const lastSelectionRef = useRef<string | null>(null)
   useEffect(() => {
     const update = () =>
       editor.getEditorState().read(() => {
         const selection = $getSelection()
         if (!$isRangeSelection(selection)) return
+        const selectionId = `${selection.isCollapsed()}:${selection.anchor.key}:${selection.anchor.offset}:${selection.focus.key}:${selection.focus.offset}`
+        if (lastSelectionRef.current === selectionId) return
+        lastSelectionRef.current = selectionId
         const elements = selection
           .getNodes()
           .filter($isTextNode)
@@ -59,7 +63,11 @@ export function ColorSelect({
           setCurrentColor(null)
           return
         }
-        const current = elements.map((element) =>
+        const sampled =
+          elements.length > 40
+            ? [...elements.slice(0, 20), ...elements.slice(-20)]
+            : elements
+        const current = sampled.map((element) =>
           sectionId === 'highlight'
             ? element.style.backgroundColor
             : element.style.color,
