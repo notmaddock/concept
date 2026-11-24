@@ -133,6 +133,12 @@ const permanentCloseCodes = new Set([4403])
 /** Close code for an invalid or expired join ticket. */
 const invalidTicketCloseCode = 4401
 
+/**
+ * Consecutive non-permanent ticket fetch failures tolerated before the retry
+ * loop gives up; a persistent 5xx must not poll the endpoint for the tab's life.
+ */
+const maxTicketFetchFailures = 5
+
 const defaultCreateSocket = (url: string): WebSocketLike => {
   if (typeof WebSocket === 'undefined')
     throw new Error('WebSocket is not available in this environment.')
@@ -180,6 +186,8 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
   private selfInitiatedClose = false
   /** Guards the single fresh-ticket retry after an invalid-ticket close. */
   private ticketRetryUsed = false
+  /** Consecutive non-permanent ticket fetch failures since the last success. */
+  private ticketFetchFailures = 0
 
   constructor(
     readonly handle: RealtimeHandle,
@@ -195,7 +203,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
   connect(): void {
     if (this.closed || this.connecting || this.socket) return
     // An explicit connect is a new session, so it gets a fresh retry budget.
-    this.ticketRetryUsed = false
+    this.ticketFetchFailures = 0
     void this.open()
   }
 
@@ -238,7 +246,14 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
     this.detachDoc()
     this.doc = doc
     doc.on('update', this.docUpdated)
-    if (this.state.status === 'connected') this.startTimers()
+    if (this.state.status === 'connected') {
+      this.startTimers()
+      // The DO buffers state per document, and admission already ran for any
+      // earlier doc: a mid-session attach must ask for the state itself.
+      const encoder = encoding.createEncoder()
+      writeSyncStep1(encoder, doc)
+      this.sendBinary(encoding.toUint8Array(encoder))
+    }
   }
 
   detach(): void {
@@ -356,6 +371,13 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
       // A refused ticket will be refused again; stop instead of polling the
       // endpoint every backoff tick for as long as the tab stays open.
       if (error instanceof TicketRequestError && error.permanent) {
+        this.connecting = false
+        this.stopRetrying()
+        return
+      }
+      // A persistently failing ticket endpoint must not be polled forever.
+      this.ticketFetchFailures++
+      if (this.ticketFetchFailures >= maxTicketFetchFailures) {
         this.connecting = false
         this.stopRetrying()
         return
@@ -504,6 +526,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
     if (!message) return
     if (message.type === 'admitted') {
       this.backoff = realtimePolicy.reconnectBaseMs
+      this.ticketFetchFailures = 0
       this.setState({
         status: 'connected',
         capabilities: message.capabilities,
