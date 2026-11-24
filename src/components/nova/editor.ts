@@ -36,6 +36,7 @@ import { getInitialState } from './initial-state'
 import { defaultEditorTheme } from './theme'
 import { paragraphDOM } from './paragraph-format'
 import { $exitCodeBlockOnEnter } from './plugins/CodePlugin/commands'
+import { TableOfContentsExtension } from './outline/table-of-contents-extension'
 
 export const editorExtension = defineExtension({
   name: '[root]',
@@ -66,6 +67,7 @@ export const editorExtension = defineExtension({
     HorizontalRuleExtension,
     TabIndentationExtension,
     TableExtension,
+    TableOfContentsExtension,
     configExtension(CodePrismExtension, {
       tokenizer: { ...PrismTokenizer, defaultLanguage: null },
     }),

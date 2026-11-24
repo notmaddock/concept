@@ -22,11 +22,13 @@ import {
   PilcrowIcon,
   QuoteIcon,
   TableIcon,
+  ListTreeIcon,
 } from 'lucide-react'
 import type { JSX } from 'react'
 import { INSERT_IMAGE_COMMAND } from '../../images/commands'
 import { $insertCodeBlock } from '../CodePlugin/commands'
 import { OPEN_INSERT_TABLE_DIALOG_COMMAND } from '../../tables/table-commands'
+import { INSERT_TABLE_OF_CONTENTS_COMMAND } from '../../outline/table-of-contents-extension'
 
 interface BlockOptionConfig {
   title: string
@@ -180,6 +182,14 @@ export function getBlockOptions(
       keywords: ['table', 'grid', 'rows', 'columns', 'cells'],
       onSelect: () =>
         editor.dispatchCommand(OPEN_INSERT_TABLE_DIALOG_COMMAND, undefined),
+    }),
+    new BlockOption('table-of-contents', {
+      title: 'Table of contents',
+      icon: <ListTreeIcon />,
+      category: categories.BLOCKS,
+      keywords: ['toc', 'contents', 'headings', 'index'],
+      onSelect: () =>
+        editor.dispatchCommand(INSERT_TABLE_OF_CONTENTS_COMMAND, undefined),
     }),
     ...(imagesEnabled
       ? [

@@ -50,6 +50,7 @@ const referenceFreeTypes = new Set([
   'table',
   'tablerow',
   'tablecell',
+  'table-of-contents',
 ])
 
 export class UnsupportedNodeError extends Error {

@@ -20,6 +20,7 @@ import { EditorShortcutsPlugin } from './editor-shortcuts'
 import { WordCountPlugin } from './statistics/WordCountPlugin'
 import { FindPlugin } from './find/FindPlugin'
 import { TableControlsPlugin } from './tables/TableControlsPlugin'
+import { DocumentOutlinePlugin } from './outline/DocumentOutlinePlugin'
 
 export type { EditorMode } from './mode'
 
@@ -63,6 +64,8 @@ export function Nova({
   mode = 'edit',
   pageSetupOpen = false,
   onPageSetupOpenChange = () => {},
+  outlineContainer = null,
+  onOutlineClose,
 }: {
   editorRef?:
     RefCallback<LexicalEditor> | RefObject<LexicalEditor | null | undefined>
@@ -73,6 +76,8 @@ export function Nova({
   mode?: EditorMode
   pageSetupOpen?: boolean
   onPageSetupOpenChange?: (open: boolean) => void
+  outlineContainer?: HTMLElement | null
+  onOutlineClose?: () => void
 }) {
   const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null)
   const isEditable = mode === 'edit'
@@ -86,6 +91,10 @@ export function Nova({
       <EditorShortcutsPlugin />
       <WordCountPlugin />
       <FindPlugin />
+      <DocumentOutlinePlugin
+        container={outlineContainer}
+        onClose={onOutlineClose}
+      />
       <ImagePlugin />
       <ImageClipboardPlugin />
       {editorRef && <EditorRefPlugin editorRef={editorRef} />}

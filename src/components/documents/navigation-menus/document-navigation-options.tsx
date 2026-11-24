@@ -6,6 +6,7 @@ import { INSERT_PAGE_BREAK } from '#/components/nova/pages/PageBreakExtension'
 import { TOGGLE_WORD_COUNT_COMMAND } from '#/components/nova/statistics/commands'
 import { OPEN_FIND_COMMAND } from '#/components/nova/find/commands'
 import { OPEN_INSERT_TABLE_DIALOG_COMMAND } from '#/components/nova/tables/table-commands'
+import { INSERT_TABLE_OF_CONTENTS_COMMAND } from '#/components/nova/outline/table-of-contents-extension'
 import { exportFormats, importFormats } from '#/lib/documents/formats'
 import type { ImportFormat } from '#/lib/documents/formats'
 import type { ExportFormat } from '#/lib/documents/export'
@@ -57,6 +58,7 @@ import {
   SparklesIcon,
   SunIcon,
   TableIcon,
+  ListTreeIcon,
 } from 'lucide-react'
 import { useTheme } from '#/components/theme-provider'
 
@@ -89,6 +91,9 @@ type NavigationContext = {
   onInsertCodeBlock?: () => void
   onInsertPageBreak: () => void
   onInsertTable: () => void
+  onInsertContents: () => void
+  outlineOpen: boolean
+  onOutlineToggle: () => void
   onPageSetup: () => void
   onWordCount: () => void
   onFind: () => void
@@ -322,6 +327,16 @@ export const documentNavigation: MenuDefinition[] = [
     label: 'View',
     items: [
       {
+        id: 'document-outline',
+        label: 'Document outline',
+        keywords: ['sidebar', 'headings', 'navigate', 'contents'],
+        icon: ListTreeIcon,
+        toggle: true,
+        checked: (context) => context.outlineOpen,
+        focusAfterSelect: 'action',
+        onSelect: (context) => context.onOutlineToggle(),
+      },
+      {
         id: 'theme',
         label: 'Appearance',
         icon: PaletteIcon,
@@ -384,6 +399,15 @@ export const documentNavigation: MenuDefinition[] = [
         icon: TableIcon,
         focusAfterSelect: 'action',
         onSelect: (context) => context.onInsertTable(),
+        disabled: (context) => Boolean(context.readOnly),
+      },
+      {
+        id: 'insert-table-of-contents',
+        label: 'Table of contents',
+        keywords: ['toc', 'headings', 'contents', 'index'],
+        icon: ListTreeIcon,
+        focusAfterSelect: 'editor',
+        onSelect: (context) => context.onInsertContents(),
         disabled: (context) => Boolean(context.readOnly),
       },
       {
@@ -586,6 +610,14 @@ export function useDocumentNavigationOptions(
         undefined,
       )
     },
+    onInsertContents: () => {
+      workspace.editorRef.current?.dispatchCommand(
+        INSERT_TABLE_OF_CONTENTS_COMMAND,
+        undefined,
+      )
+    },
+    outlineOpen: workspace.outlineOpen,
+    onOutlineToggle: () => workspace.setOutlineOpen((open) => !open),
     onCreate: workspace.createDocument,
     documentTheme,
     setDocumentTheme: (id) =>

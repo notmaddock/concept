@@ -3,6 +3,11 @@ import type { LexicalEditor } from 'lexical'
 import { linkAttributes, normalizeLinkUrl } from '../link-policy'
 import { $getPageSetup, pageDimensions } from '../page-setup'
 import { syntaxHighlightCss } from '../syntax-highlight'
+import {
+  isExportedOutlineLink,
+  outlineHtmlStyles,
+  prepareHtmlOutline,
+} from '#/components/nova/outline/outline-html'
 
 export function exportHtml(editor: LexicalEditor, name: string) {
   const output = document.implementation.createHTMLDocument(name)
@@ -34,11 +39,13 @@ th,td { border: 1px solid #aaa; padding: .4rem .6rem; vertical-align: top; }
 th { background: #f2efe8; }
 th p,td p { margin: 0; }
 tr { break-inside: avoid; }
+${outlineHtmlStyles}
 @media print { @page { ${setup.mode === 'paper' ? `size: ${width}mm ${height}mm; margin: ${top}mm ${right}mm ${bottom}mm ${left}mm;` : 'margin: 25.4mm;'} } body { max-width: none; margin: 0; padding: 0; } }
 `
   output.head.prepend(charset, policy)
   output.head.append(style)
   output.body.innerHTML = $generateHtmlFromNodes(editor, null)
+  prepareHtmlOutline(output.body)
   output.body
     .querySelectorAll('ul[__lexicalListType="check"]')
     .forEach((list) => {
@@ -46,6 +53,7 @@ tr { break-inside: avoid; }
       list.removeAttribute('__lexicalListType')
     })
   output.body.querySelectorAll('a[href]').forEach((anchor) => {
+    if (isExportedOutlineLink(anchor)) return
     const href = anchor.getAttribute('href') ?? ''
     const normalized = normalizeLinkUrl(href)
     if (!normalized) {

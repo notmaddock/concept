@@ -9,6 +9,7 @@ import { ImageNode } from './nodes/ImageNode'
 import { PageBreakNode } from './pages/PageBreakNode'
 import { PageContentNode } from './pages/PageContentNode'
 import { PageNode } from './pages/PageNode'
+import { TableOfContentsNode } from './outline/TableOfContentsNode'
 
 export const documentNodes: Array<Klass<LexicalNode>> = [
   HeadingNode,
@@ -27,4 +28,5 @@ export const documentNodes: Array<Klass<LexicalNode>> = [
   TableNode,
   TableRowNode,
   TableCellNode,
+  TableOfContentsNode,
 ]

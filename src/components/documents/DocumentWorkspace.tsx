@@ -90,6 +90,8 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     cursorsContainerRef,
     pageSetupOpen,
     onPageSetupOpenChange,
+    outlineOpen,
+    setOutlineOpen,
     saveStatus,
     driveLoading,
     driveConnected,
@@ -103,6 +105,9 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
     pickerLoading,
   } = useDocumentWorkspace()
   const [providersOpen, setProvidersOpen] = useState(false)
+  const [outlineContainer, setOutlineContainer] = useState<HTMLElement | null>(
+    null,
+  )
   const liveCollaboration = useSyncExternalStore(
     subscribeLiveCollaboration,
     isLiveCollaborationEnabled,
@@ -259,12 +264,12 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
         </header>
         <main
           aria-label="Document workspace"
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 py-4 [scrollbar-gutter:stable] md:px-6"
+          className="flex min-h-0 flex-1 items-start overflow-y-auto overscroll-contain px-2 py-4 [scrollbar-gutter:stable] md:px-6"
         >
           {document ? (
             <div
               data-document-sheet
-              className="mx-auto flex min-h-full w-full shrink-0 grow flex-col max-w-[960px] rounded-lg bg-card text-card-foreground shadow-sm"
+              className="mx-auto flex min-h-full min-w-0 max-w-[960px] flex-1 flex-col rounded-lg bg-card text-card-foreground shadow-sm"
             >
               <DocumentEditor
                 key={`${document.id}:${connectionRevision}`}
@@ -273,6 +278,8 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 editorRef={editorRef}
                 pageSetupOpen={pageSetupOpen}
                 onPageSetupOpenChange={onPageSetupOpenChange}
+                outlineContainer={outlineOpen ? outlineContainer : null}
+                onOutlineClose={() => setOutlineOpen(false)}
                 onConnectDrive={() => {
                   void connectDrive()
                 }}
@@ -283,7 +290,7 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
               label={id ? 'Opening document…' : 'Loading documents…'}
             />
           ) : (
-            <Empty className="min-h-full rounded-xl bg-card p-8">
+            <Empty className="min-h-full flex-1 rounded-xl bg-card p-8">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
                   <FileTextIcon />
@@ -343,6 +350,12 @@ function DocumentWorkspaceContent({ id }: { id?: string }) {
                 </Button>
               </EmptyContent>
             </Empty>
+          )}
+          {document && outlineOpen && (
+            <aside
+              ref={setOutlineContainer}
+              className="fixed right-2 top-24 z-20 flex max-h-[calc(100svh-7rem)] w-56 max-w-[calc(100vw-1rem)] shrink-0 flex-col rounded-lg border bg-popover text-popover-foreground shadow-lg print:hidden xl:sticky xl:right-auto xl:top-0 xl:ml-4 xl:shadow-none"
+            />
           )}
         </main>
       </div>
