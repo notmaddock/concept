@@ -180,7 +180,7 @@ export function LinkPlugin() {
       return
     }
     const rect = element.getBoundingClientRect()
-    setFloating({
+    const next: FloatingState = {
       key: link.getKey(),
       url: link.getURL(),
       text: link.getTextContent(),
@@ -190,7 +190,19 @@ export function LinkPlugin() {
         width: rect.width,
         height: rect.height,
       },
-    })
+    }
+    setFloating((current) =>
+      current &&
+      current.key === next.key &&
+      current.url === next.url &&
+      current.text === next.text &&
+      current.rect.top === next.rect.top &&
+      current.rect.left === next.rect.left &&
+      current.rect.width === next.rect.width &&
+      current.rect.height === next.rect.height
+        ? current
+        : next,
+    )
   }, [editor])
 
   const submitFloating = useCallback(
@@ -275,8 +287,9 @@ export function LinkPlugin() {
     )
   }, [editor, openDialog, updateFloating])
 
+  const isFloatingActive = floating !== null
   useEffect(() => {
-    if (!floating) return
+    if (!isFloatingActive) return
     const update = () => editor.getEditorState().read(updateFloating)
     window.addEventListener('resize', update)
     window.addEventListener('scroll', update, true)
@@ -284,7 +297,7 @@ export function LinkPlugin() {
       window.removeEventListener('resize', update)
       window.removeEventListener('scroll', update, true)
     }
-  }, [editor, floating, updateFloating])
+  }, [editor, isFloatingActive, updateFloating])
 
   return (
     <>
