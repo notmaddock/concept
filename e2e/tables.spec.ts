@@ -112,6 +112,10 @@ test('inserts a table from the slash menu and merges, splits, and deletes it', a
   await page.mouse.down()
   await page.mouse.move(end.x + 12, end.y + 12, { steps: 8 })
   await page.mouse.up()
+  await page.keyboard.press('Control+Shift+c')
+  const counts = page.getByRole('dialog', { name: 'Word count' })
+  await expect(counts.getByText('Selection', { exact: true })).toBeVisible()
+  await expect(counts.locator('dd').first()).toHaveText('2')
   await page.getByRole('button', { name: 'Table actions' }).click()
   await page.getByRole('menuitem', { name: 'Merge selected cells' }).click()
   await expect(cells.first()).toHaveAttribute('colspan', '2')
@@ -126,6 +130,39 @@ test('inserts a table from the slash menu and merges, splits, and deletes it', a
   await expect(table).toHaveCount(0)
   await page.keyboard.type('Text after deletion')
   await expect(editor).toContainText('Text after deletion')
+})
+
+test('inserts a page break after a table when the caret is in a cell', async ({
+  page,
+}) => {
+  await page.getByRole('menuitem', { name: 'File', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Page setup', exact: true }).click()
+  const setup = page.getByRole('dialog', { name: 'Page setup' })
+  await setup.getByRole('combobox', { name: 'Paper size' }).click()
+  await page.getByRole('option', { name: /^A4/ }).click()
+  await setup.getByRole('button', { name: 'Apply' }).click()
+
+  const editor = page.locator('[data-document-content]')
+  const pages = editor.locator(':scope > .concept-page')
+  await expect(pages).toHaveCount(1)
+  await pages.first().locator('p').first().click()
+  await page.keyboard.type('/table')
+  await page.getByRole('option', { name: 'Table', exact: true }).click()
+  await page
+    .getByRole('dialog', { name: 'Insert table' })
+    .getByRole('button', { name: 'Insert table' })
+    .click()
+  await page.keyboard.insertText('First page table')
+  await page.keyboard.press('Control+Enter')
+
+  await expect(pages).toHaveCount(2)
+  await expect(pages.first().getByRole('table')).toContainText(
+    'First page table',
+  )
+  await expect(
+    editor.locator(':scope > [data-lexical-page-break]'),
+  ).toHaveCount(1)
+  await expect(pages.nth(1).getByRole('table')).toHaveCount(0)
 })
 
 test('scrolls wide tables within a narrow canvas and expands them for print', async ({

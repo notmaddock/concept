@@ -1,4 +1,5 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
+import { $isTableSelection } from '@lexical/table'
 import {
   $getRoot,
   $getSelection,
@@ -15,7 +16,8 @@ import { TOGGLE_WORD_COUNT_COMMAND } from './commands'
 function $readStatistics() {
   const selection = $getSelection()
   const selectedText =
-    $isRangeSelection(selection) && !selection.isCollapsed()
+    $isTableSelection(selection) ||
+    ($isRangeSelection(selection) && !selection.isCollapsed())
       ? selection.getTextContent()
       : ''
   return {

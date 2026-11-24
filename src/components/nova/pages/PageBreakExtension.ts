@@ -1,4 +1,5 @@
 import { $insertNodeToNearestRoot } from '@lexical/utils'
+import { $findTableNode } from '@lexical/table'
 import {
   $findMatchingParent,
   $getSelection,
@@ -23,13 +24,13 @@ export const PageBreakExtension = defineExtension({
       () => {
         const selection = $getSelection()
         if (!$isRangeSelection(selection)) return false
-        const columns = $findMatchingParent(
-          selection.focus.getNode(),
-          $isColumnLayoutNode,
-        )
-        if (columns) {
-          const after = columns.getIndexWithinParent() + 1
-          columns.getParentOrThrow().select(after, after)
+        const focus = selection.focus.getNode()
+        const container =
+          $findMatchingParent(focus, $isColumnLayoutNode) ??
+          $findTableNode(focus)
+        if (container) {
+          const after = container.getIndexWithinParent() + 1
+          container.getParentOrThrow().select(after, after)
         }
         $insertNodeToNearestRoot($createPageBreakNode())
         return true
