@@ -39,8 +39,8 @@ export interface OutlineItem extends OutlineHeading {
 
 function headingBase(text: string) {
   let hash = 2166136261
-  for (const character of text) {
-    hash = Math.imul(hash ^ character.charCodeAt(0), 16777619)
+  for (let index = 0; index < text.length; index++) {
+    hash = Math.imul(hash ^ text.charCodeAt(index), 16777619)
   }
   return `concept-heading-${(hash >>> 0).toString(36)}`
 }
@@ -68,6 +68,7 @@ function $collectHeadings() {
     headings.map(({ node }) => $getState(node, headingId)),
   )
   const used = new Set<string>()
+  // Older documents need the same links in edit and read-only sessions before IDs are saved.
   const nextIndex = new Map<string, number>()
   return headings.map(({ node, text, page }) => {
     let id = $getState(node, headingId)

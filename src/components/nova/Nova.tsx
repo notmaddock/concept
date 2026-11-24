@@ -93,11 +93,7 @@ export function Nova({
       <EditorShortcutsPlugin />
       <WordCountPlugin />
       <FindPlugin />
-      <HeadingNavigationPlugin
-        ready={ready}
-        editable={isEditable}
-        documentId={documentId}
-      />
+      <HeadingNavigationPlugin ready={ready} documentId={documentId} />
       <DocumentOutlinePlugin
         container={outlineContainer}
         onClose={onOutlineClose}

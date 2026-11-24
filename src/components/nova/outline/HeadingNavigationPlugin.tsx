@@ -3,7 +3,6 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { $isHeadingNode } from '@lexical/rich-text'
 import {
   $getNodeByKey,
-  RootNode,
   SKIP_SCROLL_INTO_VIEW_TAG,
   mergeRegister,
 } from 'lexical'
@@ -13,7 +12,7 @@ import {
   headingFragment,
   headingFromFragment,
 } from '#/lib/documents/document-url'
-import { $persistHeadingIds, $readOutline } from './outline'
+import { $readOutline } from './outline'
 
 const visited = new WeakMap<LexicalEditor, string>()
 
@@ -44,11 +43,9 @@ export function openHeading(editor: LexicalEditor, key: NodeKey, id: string) {
 
 export function HeadingNavigationPlugin({
   ready,
-  editable,
   documentId,
 }: {
   ready: boolean
-  editable: boolean
   documentId?: string
 }) {
   const [editor] = useLexicalComposerContext()
@@ -90,17 +87,12 @@ export function HeadingNavigationPlugin({
           if (dirtyElements.size || dirtyLeaves.size) synchronize(editorState)
         },
       ),
-      editable
-        ? editor.registerNodeTransform(RootNode, () => {
-            if (editor.isEditable()) $persistHeadingIds()
-          })
-        : () => {},
     )
     return () => {
       unregister()
       window.removeEventListener('hashchange', onLocationChange)
     }
-  }, [editor, editable, ready, documentId])
+  }, [editor, ready, documentId])
 
   return null
 }

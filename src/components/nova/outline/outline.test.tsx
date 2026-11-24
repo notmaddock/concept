@@ -74,7 +74,7 @@ describe('document outline and table of contents', () => {
             contentEditable={<ContentEditable />}
           >
             <EditorRef setEditor={(value) => (editor = value)} />
-            <HeadingNavigationPlugin ready editable />
+            <HeadingNavigationPlugin ready />
             <DocumentOutlinePlugin container={sidebar} />
           </LexicalExtensionComposer>,
         )
