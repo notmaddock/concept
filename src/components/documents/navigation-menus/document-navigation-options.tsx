@@ -3,6 +3,7 @@ import { OPEN_LINK_DIALOG_COMMAND } from '#/components/nova/plugins/LinkPlugin/c
 import { insertCodeBlock } from '#/components/nova/plugins/CodePlugin/commands'
 import { getEditorActionShortcut } from '#/components/nova/editor-shortcuts'
 import { INSERT_PAGE_BREAK } from '#/components/nova/pages/PageBreakExtension'
+import { TOGGLE_WORD_COUNT_COMMAND } from '#/components/nova/statistics/commands'
 import { exportFormats, importFormats } from '#/lib/documents/formats'
 import type { ImportFormat } from '#/lib/documents/formats'
 import type { ExportFormat } from '#/lib/documents/export'
@@ -84,6 +85,7 @@ type NavigationContext = {
   onInsertCodeBlock?: () => void
   onInsertPageBreak: () => void
   onPageSetup: () => void
+  onWordCount: () => void
   onCreate: () => Promise<void>
   creating: boolean
   theme: ReturnType<typeof useTheme>['theme']
@@ -420,7 +422,20 @@ export const documentNavigation: MenuDefinition[] = [
       })),
     })),
   },
-  { label: 'Tools', items: [] },
+  {
+    label: 'Tools',
+    items: [
+      {
+        id: 'word-count',
+        label: 'Word count',
+        shortcut: getEditorActionShortcut('word-count'),
+        keywords: ['characters', 'statistics', 'length', 'selection'],
+        icon: LetterTextIcon,
+        focusAfterSelect: 'editor',
+        onSelect: (context) => context.onWordCount(),
+      },
+    ],
+  },
   {
     label: 'Help',
     items: [
@@ -509,6 +524,13 @@ export function useDocumentNavigationOptions(
     onSaveToDrive: workspace.saveToDrive,
     onExport: workspace.exportDocument,
     onPageSetup: workspace.openPageSetup,
+    onWordCount: () => {
+      workspace.editorRef.current?.dispatchCommand(
+        TOGGLE_WORD_COUNT_COMMAND,
+        undefined,
+      )
+      workspace.focusEditor()
+    },
     onInsertImage: () => {
       workspace.editorRef.current?.dispatchCommand(
         INSERT_IMAGE_COMMAND,

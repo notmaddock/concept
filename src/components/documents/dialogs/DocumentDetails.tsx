@@ -7,6 +7,7 @@ import type { DocumentInfo } from '#/lib/documents/storage'
 import { encodeStateAsUpdate } from 'yjs'
 import { documentAssets } from '#/lib/documents/working'
 import { formatFileSize } from '#/lib/documents/format'
+import { countDocumentText } from '#/lib/documents/text-statistics'
 import { $getPageSetup, pageDimensions } from '#/lib/documents/page-setup'
 import type { PageSetup } from '#/lib/documents/page-setup'
 import {
@@ -73,7 +74,6 @@ export function DocumentDetailsDialog({
       const editor = editorRef.current
       const doc = documentRef.current
       if (!editor || !doc) return false
-      const segmenter = new Intl.Segmenter(undefined, { granularity: 'word' })
       let disposed = false
       let refreshTimer: ReturnType<typeof setTimeout> | undefined
       let docBytes = encodeStateAsUpdate(doc).byteLength
@@ -83,10 +83,7 @@ export function DocumentDetailsDialog({
           text: $getRoot().getTextContent(),
           setup: $getPageSetup(),
         }))
-        let words = 0
-        for (const part of segmenter.segment(text)) if (part.isWordLike) words++
-        let characters = 0
-        for (const _character of text) characters++
+        const { words, characters } = countDocumentText(text)
         setStatistics([
           ['Words', words.toLocaleString()],
           ['Characters', characters.toLocaleString()],

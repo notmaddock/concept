@@ -36,6 +36,7 @@ import { isMac } from '#/components/documents/navigation-menus/ActionShortcut'
 import { $insertCodeBlock } from './plugins/CodePlugin/commands'
 import { OPEN_LINK_DIALOG_COMMAND } from './plugins/LinkPlugin/commands'
 import { INSERT_PAGE_BREAK } from './pages/PageBreakExtension'
+import { TOGGLE_WORD_COUNT_COMMAND } from './statistics/commands'
 
 type Binding = {
   key: string
@@ -62,6 +63,12 @@ const primary = (key: string, modifiers: Partial<Binding> = {}): Binding => ({
 
 export const editorShortcuts: ShortcutDefinition[] = [
   { id: 'undo', label: 'Undo', group: 'Editing', bindings: [primary('z')] },
+  {
+    id: 'word-count',
+    label: 'Word count',
+    group: 'Editing',
+    bindings: [primary('c', { shift: true })],
+  },
   {
     id: 'redo',
     label: 'Redo',
@@ -278,6 +285,9 @@ export function matchEditorShortcut(event: KeyboardEvent, mac: boolean) {
 }
 
 function $executeShortcut(editor: LexicalEditor, shortcut: ShortcutDefinition) {
+  if (shortcut.id === 'word-count') {
+    return editor.dispatchCommand(TOGGLE_WORD_COUNT_COMMAND, undefined)
+  }
   if (shortcut.id === 'select-all') {
     $selectAll()
     return true
@@ -364,7 +374,8 @@ export function registerEditorShortcuts(editor: LexicalEditor, mac = isMac()) {
         if (
           !shortcut ||
           shortcut.native ||
-          (!editor.isEditable() && shortcut.id !== 'select-all')
+          (!editor.isEditable() &&
+            !['select-all', 'word-count'].includes(shortcut.id))
         )
           return false
         if (shortcut.id === 'undo' || shortcut.id === 'redo') {
