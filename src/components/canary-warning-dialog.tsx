@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useEffect, useState } from 'react'
 import {
   AlertDialog,
@@ -41,7 +42,8 @@ export function CanaryWarningDialog({
     try {
       localStorage.setItem(storageKey, 'true')
     } catch {
-      // Storage unavailable
+      toast.error('Could not save your acknowledgement. Please try again.')
+      return
     }
     setOpen(false)
   }
