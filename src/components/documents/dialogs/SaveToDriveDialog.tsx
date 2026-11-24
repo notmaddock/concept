@@ -193,7 +193,7 @@ export function SaveToDriveDialog({
     } catch (cause) {
       if (
         cause instanceof DriveCreatedFileError &&
-        clone &&
+        clone !== undefined &&
         captured !== undefined
       ) {
         saved.current = {
@@ -205,8 +205,13 @@ export function SaveToDriveDialog({
         clone = undefined
         setCreated(true)
         setCreatedFileId(cause.file.id)
+        toast.error(
+          `${cause.file.name} was created in Drive, but the save did not finish. Click Save again to complete it.`,
+          { id: 'save-to-drive' },
+        )
+      } else {
+        toast.error(message(cause), { id: 'save-to-drive' })
       }
-      toast.error(message(cause), { id: 'save-to-drive' })
       if (isGoogleDriveAuthError(cause)) setConnected(false)
     } finally {
       await session?.destroy()
