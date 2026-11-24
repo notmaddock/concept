@@ -61,7 +61,9 @@ test('edits columns with the keyboard, restores them after reload, and keeps tex
   ])
   await expect(layout).not.toContainText('Following paragraph')
   await expect(editor).toContainText('Following paragraph')
-  await expect(page.getByText('All changes saved locally')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'All changes saved locally' }),
+  ).toBeVisible()
 
   await page.reload()
   if (!(await editor.isVisible())) {

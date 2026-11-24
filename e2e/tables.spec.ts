@@ -55,7 +55,9 @@ test('edits a table with the keyboard and menu and restores it after reload', as
   await page.getByRole('button', { name: 'Table actions' }).click()
   await page.getByRole('menuitem', { name: 'Insert column after' }).click()
   await expect(table.getByRole('row').nth(1).getByRole('cell')).toHaveCount(3)
-  await expect(page.getByText('All changes saved locally')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'All changes saved locally' }),
+  ).toBeVisible()
 
   await page.reload()
   if (!(await editor.isVisible())) {

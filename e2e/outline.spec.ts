@@ -87,7 +87,9 @@ test('inserts a live contents block, navigates from the sidebar, and reopens sav
     .getByRole('menuitem', { name: 'Table of contents', exact: true })
     .click()
   await expect(contents).toHaveCount(2)
-  await expect(page.getByText('All changes saved locally')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'All changes saved locally' }),
+  ).toBeVisible()
 
   await page.reload()
   await expect(contents).toHaveCount(2, { timeout: 30_000 })

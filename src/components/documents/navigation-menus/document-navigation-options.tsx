@@ -403,7 +403,7 @@ export const documentNavigation: MenuDefinition[] = [
         label: 'Table',
         keywords: ['rows', 'columns', 'cells', 'grid'],
         icon: TableIcon,
-        focusAfterSelect: 'action',
+        focusAfterSelect: 'panel',
         onSelect: (context) => context.onInsertTable(),
         disabled: (context) => Boolean(context.readOnly),
       },
