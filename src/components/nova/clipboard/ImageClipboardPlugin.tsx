@@ -103,13 +103,32 @@ export function ImageClipboardPlugin() {
           event.clipboardData.setData('text/plain', captured.text)
           if (captured.html)
             event.clipboardData.setData('text/html', captured.html)
+          return true
         }
+        return false
+      }
+      const commitCut = (bookmark: ImageBookmark | null) => {
+        if (
+          !cut ||
+          !bookmark ||
+          !media.canEdit() ||
+          !media.isAlive() ||
+          editor.getEditorState() !== snapshot
+        )
+          return
+        updateAtBookmark(bookmark, () => {
+          const selection = $getSelection()
+          if ($isRangeSelection(selection)) selection.removeText()
+          else if ($isNodeSelection(selection))
+            selection.getNodes().forEach((node) => node.remove())
+        })
+        void media.flush().then(media.requestSave).catch(report)
       }
       if (
         typeof ClipboardItem === 'undefined' ||
         typeof clipboard?.write !== 'function'
       ) {
-        writeFallback()
+        if (writeFallback()) commitCut(captureImageBookmark(editor))
         report(
           new Error(
             'This browser cannot copy embedded images. Download a Concept document instead.',
@@ -121,7 +140,7 @@ export function ImageClipboardPlugin() {
       try {
         pin = documentAssets(media.doc)?.pin(captured.ids)
       } catch (error) {
-        writeFallback()
+        if (writeFallback()) commitCut(captureImageBookmark(editor))
         report(error)
         return true
       }
@@ -163,21 +182,7 @@ export function ImageClipboardPlugin() {
             toast.info(
               'Some copied images are unavailable. Their placements were preserved.',
             )
-          if (
-            !cut ||
-            !bookmark ||
-            !media.canEdit() ||
-            !media.isAlive() ||
-            editor.getEditorState() !== snapshot
-          )
-            return
-          updateAtBookmark(bookmark, () => {
-            const selection = $getSelection()
-            if ($isRangeSelection(selection)) selection.removeText()
-            else if ($isNodeSelection(selection))
-              selection.getNodes().forEach((node) => node.remove())
-          })
-          void media.flush().then(media.requestSave).catch(report)
+          commitCut(bookmark)
         })
         .catch(report)
       return true
