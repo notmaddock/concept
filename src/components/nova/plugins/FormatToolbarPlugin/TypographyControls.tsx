@@ -4,19 +4,7 @@ import { ActionShortcut } from '#/components/documents/navigation-menus/ActionSh
 import { useEffect, useState } from 'react'
 import { $getSelection, $isRangeSelection, $isTextNode } from 'lexical'
 import type { LexicalEditor } from 'lexical'
-import {
-  List,
-  ListOrdered,
-  ListTodo,
-  Code,
-  Minus,
-  Plus,
-  Subscript,
-  Superscript,
-  IndentIncrease,
-  IndentDecrease,
-  RemoveFormatting,
-} from 'lucide-react'
+import { Minus, Plus, TypeIcon } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -26,12 +14,17 @@ import {
   TooltipTrigger,
 } from '#/components/ui/tooltip'
 import type { FormatAction } from '#/components/documents/navigation-menus/format-options'
-import { formatSections } from '#/components/documents/navigation-menus/format-options'
-import { FormatSelect } from './FormatOptions'
+import { FormatOptionsPopover } from './FormatOptions'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTitle,
+  PopoverTrigger,
+} from '#/components/ui/popover'
 
 type Props = {
   editor: LexicalEditor
-  active?: boolean
+  large?: boolean
   run: (action: FormatAction) => void | Promise<void>
   checked: (action: FormatAction) => boolean | undefined
 }
@@ -82,10 +75,9 @@ export function FormatIcon({
   )
 }
 
-function useTypography(editor: LexicalEditor, active: boolean) {
+function useTypography(editor: LexicalEditor) {
   const [value, setValue] = useState({ family: '', size: '' })
   useEffect(() => {
-    if (!active) return
     const update = () =>
       editor.getEditorState().read(() => {
         const selection = $getSelection()
@@ -127,7 +119,7 @@ function useTypography(editor: LexicalEditor, active: boolean) {
       })
     update()
     return editor.registerUpdateListener(update)
-  }, [editor, active])
+  }, [editor])
   return value
 }
 
@@ -135,9 +127,10 @@ export function TypographyControls({
   editor,
   run,
   checked,
-  active = true,
+  large = false,
 }: Props) {
-  const { family, size } = useTypography(editor, active)
+  const [open, setOpen] = useState(false)
+  const { family, size } = useTypography(editor)
   const [draft, setDraft] = useState<string | null>(null)
   const commit = () => {
     if (draft === null) return
@@ -156,117 +149,92 @@ export function TypographyControls({
     setDraft(null)
     stepFontSize(editor, delta)
   }
-  const icons = [
-    List,
-    ListOrdered,
-    ListTodo,
-    Code,
-    Subscript,
-    Superscript,
-    IndentIncrease,
-    IndentDecrease,
-    RemoveFormatting,
-  ]
-  const actions = [
-    ...formatSections
-      .find((section) => section.id === 'lists')!
-      .choices.slice(0, 3),
-    ...formatSections
-      .find((section) => section.id === 'text')!
-      .choices.slice(4),
-    ...formatSections.find((section) => section.id === 'indent')!.choices,
-    formatSections.find((section) => section.id === 'reset')!.choices[1],
-  ]
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-1">
-        <div className="min-w-0 flex-1">
-          <FormatSelect
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <PopoverTrigger
+              aria-label="Typography"
+              onMouseDown={(event) => event.preventDefault()}
+              render={
+                <Button
+                  variant="ghost"
+                  size={large ? 'icon' : 'icon-sm'}
+                  className={large ? 'size-11' : undefined}
+                />
+              }
+            />
+          }
+        >
+          <TypeIcon />
+        </TooltipTrigger>
+        <TooltipContent>Typography</TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        data-format-toolbar="true"
+        finalFocus={false}
+        align="start"
+        aria-label="Typography"
+        className="w-56 gap-1 rounded-xl p-2"
+      >
+        <PopoverTitle className="ps-1 text-xs font-medium text-muted-foreground">
+          Typography
+        </PopoverTitle>
+        <div className="flex items-center gap-1">
+          <FormatOptionsPopover
             sectionId="font-family"
             run={run}
             checked={checked}
             displayValue={family}
           />
-        </div>
-        <div className="flex items-center gap-0.5">
-          <FormatIcon
-            label="Decrease font size"
-            icon={Minus}
-            onClick={() => step(-1)}
-            disabled={Boolean(size) && Number(size) <= 1}
-          />
-          <Input
-            type="number"
-            aria-label="Font size (pt)"
-            title="Font size (pt)"
-            min={1}
-            max={200}
-            step="any"
-            value={draft ?? size}
-            placeholder="Mixed"
-            className="h-7 w-14 px-1 text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={commit}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                commit()
-                editor.focus()
-              }
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                event.stopPropagation()
-                setDraft(null)
-                editor.focus()
-              }
-            }}
-          />
-          <FormatIcon
-            label="Increase font size"
-            icon={Plus}
-            onClick={() => step(1)}
-            disabled={Boolean(size) && Number(size) >= 200}
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-1 pt-1">
-        {[
-          'alignment',
-          'line-spacing',
-          'space-before',
-          'space-after',
-          'case',
-          'direction',
-        ].map((sectionId) => (
-          <div key={sectionId} className="min-w-0 space-y-0.5">
-            <span className="px-1 text-xs text-muted-foreground">
-              {
-                formatSections.find((section) => section.id === sectionId)!
-                  .label
-              }
+          {family && (
+            <span className="min-w-0 flex-1 truncate text-xs" title={family}>
+              {family}
             </span>
-            <FormatSelect sectionId={sectionId} run={run} checked={checked} />
+          )}
+          <div className="ms-auto flex items-center gap-0.5">
+            <FormatIcon
+              label="Decrease font size"
+              icon={Minus}
+              onClick={() => step(-1)}
+              disabled={Boolean(size) && Number(size) <= 1}
+            />
+            <Input
+              type="number"
+              aria-label="Font size (pt)"
+              title="Font size (pt)"
+              min={1}
+              max={200}
+              step="any"
+              value={draft ?? size}
+              placeholder="Mixed"
+              className="h-7 w-13 px-1 text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={commit}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  commit()
+                  editor.focus()
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setDraft(null)
+                  editor.focus()
+                }
+              }}
+            />
+            <FormatIcon
+              label="Increase font size"
+              icon={Plus}
+              onClick={() => step(1)}
+              disabled={Boolean(size) && Number(size) >= 200}
+            />
           </div>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-0.5">
-        {actions.map(({ id, label, action }, index) => (
-          <FormatIcon
-            key={id}
-            actionId={id}
-            label={label}
-            icon={icons[index]}
-            active={Boolean(checked(action))}
-            onClick={() =>
-              run(
-                action.kind === 'list' && checked(action)
-                  ? { kind: 'list', value: 'none' }
-                  : action,
-              )
-            }
-          />
-        ))}
-      </div>
-    </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
