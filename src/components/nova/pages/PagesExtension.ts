@@ -95,6 +95,12 @@ export const PagesExtension = defineExtension({
       const markForMeasurement = (node: PageNode) =>
         pagesMarkedForMeasurement.add(node.getKey())
 
+      // Drops cached measurement data for a page about to leave the
+      // document so the map does not accumulate keys of removed pages.
+      const forgetPage = (node: PageNode) => {
+        fixedPageHeights.delete(node.getKey())
+      }
+
       const $getPagesMarkedForMeasurement = () => {
         const pages: PageNode[] = []
         for (const key of pagesMarkedForMeasurement) {
@@ -289,6 +295,7 @@ export const PagesExtension = defineExtension({
         const contentNode = node.getContentNode()
         const childrenSize = contentNode.getChildrenSize()
         if (!childrenSize) {
+          forgetPage(node)
           node.remove()
           return
         }
@@ -301,6 +308,7 @@ export const PagesExtension = defineExtension({
         if (!underflowingChildren.length) return
         contentNode.append(...underflowingChildren)
         if (nextPageChildrenSize !== underflowingChildren.length) return
+        forgetPage(nextSibling)
         nextSibling.remove()
       }
 
@@ -474,12 +482,14 @@ export const PagesExtension = defineExtension({
               if (!$isPageNode(child)) continue
               const contentNode = child.getChildren().find($isPageContentNode)
               if (!contentNode) {
+                forgetPage(child)
                 child.remove()
                 continue
               }
               contentNode.getChildren().forEach((node) => {
                 child.insertBefore(node)
               })
+              forgetPage(child)
               child.remove()
             }
           },
@@ -675,6 +685,7 @@ export const PagesExtension = defineExtension({
                 if (isEmpty && isBackward) {
                   const pageNode = nearestRoot.getPageNode()
                   const previousSibling = pageNode.getPreviousSibling()
+                  forgetPage(pageNode)
                   pageNode.remove()
                   if ($isPageNode(previousSibling)) {
                     previousSibling.getContentNode().selectEnd()
