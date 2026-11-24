@@ -96,24 +96,20 @@ export function ImageClipboardPlugin() {
         { editor },
       )
       if (!captured) return false
-      event?.preventDefault()
-      const bookmark = captureImageBookmark(editor)
-      let unavailable = false
-      const prepare = async () => {
-        const data = await resolveImageData(captured.ids, media.resolver, true)
-        unavailable = [...data.values()].some((value) => value === null)
-        const assets = Object.fromEntries(data)
-        return fragmentHtml(embedImageData(captured.html, data), {
-          version: 1,
-          nodes: captured.nodes,
-          assets,
-        })
-      }
       const clipboard = (navigator as { clipboard?: Clipboard }).clipboard
+      const writeFallback = () => {
+        event?.preventDefault()
+        if (event instanceof ClipboardEvent && event.clipboardData) {
+          event.clipboardData.setData('text/plain', captured.text)
+          if (captured.html)
+            event.clipboardData.setData('text/html', captured.html)
+        }
+      }
       if (
         typeof ClipboardItem === 'undefined' ||
         typeof clipboard?.write !== 'function'
       ) {
+        writeFallback()
         report(
           new Error(
             'This browser cannot copy embedded images. Download a Concept document instead.',
@@ -125,14 +121,28 @@ export function ImageClipboardPlugin() {
       try {
         pin = documentAssets(media.doc)?.pin(captured.ids)
       } catch (error) {
+        writeFallback()
         report(error)
         return true
       }
+      event?.preventDefault()
+      let unavailable = false
+      const prepare = async () => {
+        const data = await resolveImageData(captured.ids, media.resolver, true)
+        unavailable = [...data.values()].some((value) => value === null)
+        const assets = Object.fromEntries(data)
+        return fragmentHtml(embedImageData(captured.html, data), {
+          version: 1,
+          nodes: captured.nodes,
+          assets,
+        })
+      }
+      const bookmark = captureImageBookmark(editor)
       // Promise-backed items preserve the user activation while durable bytes load.
       const html = prepare().then(
         (value) => new Blob([value], { type: 'text/html' }),
       )
-      void html.catch(() => {})
+      void html.catch(() => clipboard.writeText(captured.text)).catch(() => {})
       let write: Promise<void>
       try {
         write = clipboard.write([
