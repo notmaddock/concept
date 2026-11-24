@@ -24,9 +24,13 @@ export function normalizeLinkUrl(input: string): string | null {
     }
     return Object.hasOwn(allowedProtocols, parsed.protocol) ? candidate : null
   }
-  // Only allowlisted schemes are kept verbatim; schemeless inputs and
-  // host:port forms (localhost:3000) are retried as https URLs.
-  return parse(value) ?? parse(`https://${value}`)
+  // Only allowlisted schemes are kept verbatim. Schemeless inputs and
+  // host:port forms (localhost:3000) are retried as https URLs; inputs
+  // that already name an authority (scheme://...) never get a prefix.
+  const verbatim = parse(value)
+  if (verbatim) return verbatim
+  if (value.includes('://')) return null
+  return parse(`https://${value}`)
 }
 
 export function isExternalLink(url: string): boolean {
