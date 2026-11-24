@@ -73,13 +73,6 @@ export function Nova({
 }) {
   const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null)
   const isEditable = mode === 'edit'
-  useEffect(() => {
-    return () => {
-      if (editorRef && typeof editorRef === 'object') {
-        editorRef.current = null
-      }
-    }
-  }, [editorRef])
 
   return (
     <LexicalExtensionComposer
