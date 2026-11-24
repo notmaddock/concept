@@ -56,7 +56,7 @@ function $collectHeadings() {
   const visit = (node: LexicalNode, page: number | null) => {
     if ($isHeadingNode(node)) {
       const text = node.getTextContent().replace(/\s+/g, ' ').trim()
-      if (text) headings.push({ node, text, page })
+      headings.push({ node, text, page })
     } else if ($isElementNode(node)) {
       const currentPage =
         paged && node.getType() === 'page' ? ++pageNumber : page
@@ -73,6 +73,7 @@ function $collectHeadings() {
   return headings.map(({ node, text, page }) => {
     let id = $getState(node, headingId)
     if (!id || used.has(id)) {
+      if (!text) return { node, id: '', text, page }
       const base = headingBase(text)
       let index = nextIndex.get(base) ?? 1
       do id = `${base}-${index++}`
@@ -91,13 +92,15 @@ export function $persistHeadingIds() {
 }
 
 export function $readOutline(): OutlineHeading[] {
-  return $collectHeadings().map(({ node, id, text, page }) => ({
-    key: node.getKey(),
-    id,
-    text,
-    page,
-    level: Number(node.getTag().slice(1)),
-  }))
+  return $collectHeadings()
+    .filter(({ text }) => text)
+    .map(({ node, id, text, page }) => ({
+      key: node.getKey(),
+      id,
+      text,
+      page,
+      level: Number(node.getTag().slice(1)),
+    }))
 }
 
 export function $currentHeading(): NodeKey | null {

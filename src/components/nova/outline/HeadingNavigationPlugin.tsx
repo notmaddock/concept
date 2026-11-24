@@ -52,6 +52,7 @@ export function HeadingNavigationPlugin({
 
   useEffect(() => {
     if (!ready) return
+    let anchors = new Set<HTMLElement>()
     const synchronize = (state = editor.getEditorState()) => {
       const { pathname, hash } = window.location
       if (
@@ -61,14 +62,22 @@ export function HeadingNavigationPlugin({
       )
         return
       const destination = headingFromFragment(hash)
+      const nextAnchors = new Set<HTMLElement>()
       let target: NodeKey | undefined
       for (const { key, id } of state.read($readOutline)) {
         const element = editor.getElementByKey(key)
         if (!element) continue
-        element.id = headingFragment(id, window.location)
-        element.tabIndex = -1
+        const fragment = headingFragment(id, window.location)
+        if (element.id !== fragment) element.id = fragment
+        if (!anchors.delete(element)) element.tabIndex = -1
+        nextAnchors.add(element)
         if (id === destination) target = key
       }
+      for (const element of anchors) {
+        element.removeAttribute('id')
+        element.removeAttribute('tabindex')
+      }
+      anchors = nextAnchors
       if (!destination) visited.delete(editor)
       if (target && visited.get(editor) !== hash) {
         visited.set(editor, hash)
@@ -91,6 +100,10 @@ export function HeadingNavigationPlugin({
     return () => {
       unregister()
       window.removeEventListener('hashchange', onLocationChange)
+      for (const element of anchors) {
+        element.removeAttribute('id')
+        element.removeAttribute('tabindex')
+      }
     }
   }, [editor, ready, documentId])
 

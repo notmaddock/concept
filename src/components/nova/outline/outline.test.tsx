@@ -114,6 +114,36 @@ describe('document outline and table of contents', () => {
         `#${host.querySelectorAll('h2')[1].id}`,
       ])
 
+      const originalHeading = host.querySelector('h2')!
+      const originalId = originalHeading.id
+      await act(async () =>
+        editor.update(
+          () => {
+            const first = $getRoot().getChildren().find($isHeadingNode)!
+            first.clear()
+            $getRoot().append(
+              $createHeadingNode('h2').append(
+                $createTextNode('Shared heading'),
+              ),
+            )
+          },
+          { discrete: true },
+        ),
+      )
+      expect(originalHeading.id).toBe('')
+      expect(host.querySelector(`#${originalId}`)).toBeNull()
+      await act(async () =>
+        editor.update(
+          () => {
+            const headings = $getRoot().getChildren().filter($isHeadingNode)
+            headings.at(-1)!.remove()
+            headings[0].append($createTextNode('Shared heading'))
+          },
+          { discrete: true },
+        ),
+      )
+      expect(originalHeading.id).toBe(originalId)
+
       await act(async () => {
         editor.update(
           () => {
