@@ -5,6 +5,7 @@ import { getEditorActionShortcut } from '#/components/nova/editor-shortcuts'
 import { INSERT_PAGE_BREAK } from '#/components/nova/pages/PageBreakExtension'
 import { TOGGLE_WORD_COUNT_COMMAND } from '#/components/nova/statistics/commands'
 import { OPEN_FIND_COMMAND } from '#/components/nova/find/commands'
+import { OPEN_INSERT_TABLE_DIALOG_COMMAND } from '#/components/nova/tables/table-commands'
 import { exportFormats, importFormats } from '#/lib/documents/formats'
 import type { ImportFormat } from '#/lib/documents/formats'
 import type { ExportFormat } from '#/lib/documents/export'
@@ -55,6 +56,7 @@ import {
   Share2Icon,
   SparklesIcon,
   SunIcon,
+  TableIcon,
 } from 'lucide-react'
 import { useTheme } from '#/components/theme-provider'
 
@@ -86,6 +88,7 @@ type NavigationContext = {
   onInsertLink?: () => void
   onInsertCodeBlock?: () => void
   onInsertPageBreak: () => void
+  onInsertTable: () => void
   onPageSetup: () => void
   onWordCount: () => void
   onFind: () => void
@@ -375,6 +378,15 @@ export const documentNavigation: MenuDefinition[] = [
     label: 'Insert',
     items: [
       {
+        id: 'insert-table',
+        label: 'Table',
+        keywords: ['rows', 'columns', 'cells', 'grid'],
+        icon: TableIcon,
+        focusAfterSelect: 'action',
+        onSelect: (context) => context.onInsertTable(),
+        disabled: (context) => Boolean(context.readOnly),
+      },
+      {
         id: 'insert-image',
         label: 'Image',
         keywords: ['picture', 'photo'],
@@ -567,6 +579,12 @@ export function useDocumentNavigationOptions(
     },
     onInsertPageBreak: () => {
       workspace.editorRef.current?.dispatchCommand(INSERT_PAGE_BREAK, undefined)
+    },
+    onInsertTable: () => {
+      workspace.editorRef.current?.dispatchCommand(
+        OPEN_INSERT_TABLE_DIALOG_COMMAND,
+        undefined,
+      )
     },
     onCreate: workspace.createDocument,
     documentTheme,

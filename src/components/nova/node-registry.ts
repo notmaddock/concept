@@ -3,6 +3,7 @@ import { HorizontalRuleNode } from '@lexical/extension'
 import { AutoLinkNode, LinkNode } from '@lexical/link'
 import { ListItemNode, ListNode } from '@lexical/list'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
+import { TableCellNode, TableNode, TableRowNode } from '@lexical/table'
 import type { Klass, LexicalNode } from 'lexical'
 import { ImageNode } from './nodes/ImageNode'
 import { PageBreakNode } from './pages/PageBreakNode'
@@ -23,4 +24,7 @@ export const documentNodes: Array<Klass<LexicalNode>> = [
   PageNode,
   PageContentNode,
   PageBreakNode,
+  TableNode,
+  TableRowNode,
+  TableCellNode,
 ]

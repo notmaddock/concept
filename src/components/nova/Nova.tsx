@@ -19,6 +19,7 @@ import type { EditorMode } from './mode'
 import { EditorShortcutsPlugin } from './editor-shortcuts'
 import { WordCountPlugin } from './statistics/WordCountPlugin'
 import { FindPlugin } from './find/FindPlugin'
+import { TableControlsPlugin } from './tables/TableControlsPlugin'
 
 export type { EditorMode } from './mode'
 
@@ -90,6 +91,7 @@ export function Nova({
       {editorRef && <EditorRefPlugin editorRef={editorRef} />}
       <div className="relative min-h-full w-full grow" ref={setAnchorElement}>
         <NovaContentEditable />
+        <TableControlsPlugin />
         {cursorsContainerRef && (
           <div
             aria-hidden="true"

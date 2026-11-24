@@ -18,6 +18,7 @@ import {
   LinkNode,
 } from '@lexical/link'
 import { RichTextExtension } from '@lexical/rich-text'
+import { TableExtension } from '@lexical/table'
 import {
   COMMAND_PRIORITY_HIGH,
   configExtension,
@@ -64,6 +65,7 @@ export const editorExtension = defineExtension({
     CheckListExtension,
     HorizontalRuleExtension,
     TabIndentationExtension,
+    TableExtension,
     configExtension(CodePrismExtension, {
       tokenizer: { ...PrismTokenizer, defaultLanguage: null },
     }),

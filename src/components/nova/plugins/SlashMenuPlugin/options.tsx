@@ -21,10 +21,12 @@ import {
   MinusIcon,
   PilcrowIcon,
   QuoteIcon,
+  TableIcon,
 } from 'lucide-react'
 import type { JSX } from 'react'
 import { INSERT_IMAGE_COMMAND } from '../../images/commands'
 import { $insertCodeBlock } from '../CodePlugin/commands'
+import { OPEN_INSERT_TABLE_DIALOG_COMMAND } from '../../tables/table-commands'
 
 interface BlockOptionConfig {
   title: string
@@ -170,6 +172,14 @@ export function getBlockOptions(
       keywords: ['hr', 'divider', 'horizontal rule', 'line', 'break'],
       onSelect: () =>
         editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
+    }),
+    new BlockOption('table', {
+      title: 'Table',
+      icon: <TableIcon />,
+      category: categories.BLOCKS,
+      keywords: ['table', 'grid', 'rows', 'columns', 'cells'],
+      onSelect: () =>
+        editor.dispatchCommand(OPEN_INSERT_TABLE_DIALOG_COMMAND, undefined),
     }),
     ...(imagesEnabled
       ? [

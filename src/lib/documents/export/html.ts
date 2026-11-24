@@ -29,6 +29,11 @@ ul[data-lexical-list-type="check"] { list-style: none; padding-left: 1rem; }
 li[aria-checked="true"]::before { content: '☑ '; }
 li[aria-checked="false"]::before { content: '☐ '; }
 img,table { max-width: 100%; } img { height: auto; }
+table { width: 100%; border-collapse: collapse; margin-block: 1rem; }
+th,td { border: 1px solid #aaa; padding: .4rem .6rem; vertical-align: top; }
+th { background: #f2efe8; }
+th p,td p { margin: 0; }
+tr { break-inside: avoid; }
 @media print { @page { ${setup.mode === 'paper' ? `size: ${width}mm ${height}mm; margin: ${top}mm ${right}mm ${bottom}mm ${left}mm;` : 'margin: 25.4mm;'} } body { max-width: none; margin: 0; padding: 0; } }
 `
   output.head.prepend(charset, policy)

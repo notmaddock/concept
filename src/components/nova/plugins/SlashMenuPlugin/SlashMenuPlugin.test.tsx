@@ -164,6 +164,7 @@ it.each([true, false])(
       'Quote',
       'Code block',
       'Divider',
+      'Table',
       ...(enabled ? ['Image'] : []),
     ]
     expect(visibleOptions().map((option) => option.textContent)).toEqual(titles)

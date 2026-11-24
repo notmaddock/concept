@@ -7,6 +7,7 @@ import { CHECK_LIST, TRANSFORMERS } from '@lexical/markdown'
 import type { ElementTransformer, Transformer } from '@lexical/markdown'
 import type { LexicalEditor } from 'lexical'
 import { ImageNode, $isImageNode } from '#/components/nova/nodes/ImageNode'
+import { createTableMarkdown } from './table-markdown'
 
 export const horizontalRule: ElementTransformer = {
   dependencies: [HorizontalRuleNode],
@@ -27,6 +28,7 @@ const imageFallback: ElementTransformer = {
 }
 
 export const markdownTransformers: Transformer[] = [
+  createTableMarkdown(() => markdownTransformers),
   imageFallback,
   horizontalRule,
   CHECK_LIST,
