@@ -204,6 +204,7 @@ export class WebSocketRealtimeProvider implements RealtimeProvider {
     if (this.closed || this.connecting || this.socket) return
     // An explicit connect is a new session, so it gets a fresh retry budget.
     this.ticketFetchFailures = 0
+    this.ticketRetryUsed = false
     void this.open()
   }
 
